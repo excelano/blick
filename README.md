@@ -33,8 +33,8 @@ STATES.md          application state machine
 PLAN.md            scope and sequencing
 CAPABILITIES.md    Apple voice/audio API capability scan
 PHASE3-NOTES.md    patterns extracted from the archived web prototype
-PRIVACY.md         privacy statement (forthcoming)
-SELF-HOSTING.md    self-hosting walkthrough (forthcoming)
+PRIVACY.md         privacy statement
+SELF-HOSTING.md    self-hosting walkthrough
 
 CheckIn/
     CheckInApp.swift
@@ -59,7 +59,7 @@ The Xcode project file is intentionally not in this repo. Create one fresh:
 7. Set deployment target to iOS 17.0.
 8. Build. The placeholder `ContentView` should sign in with your M365 account and show "Signed in."
 
-If you want to use your own Azure App Registration instead of mine, see `SELF-HOSTING.md` (forthcoming).
+If you want to use your own Azure App Registration instead of mine, see `SELF-HOSTING.md`.
 
 ## License
 
