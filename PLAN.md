@@ -99,16 +99,16 @@ Architecture is built fresh per `STATES.md`. Keeper code (auth, Graph data layer
 - Privacy posture documented in README and `PRIVACY.md`.
 - Final smoke test on physical device.
 
-## Phases that vanished
+## Out of scope
 
-Several phases from the original plan are no longer needed:
+The architecture explicitly excludes several patterns common to traditional email and messaging apps:
 
-- DetailView and ReplyView (D27 makes them unnecessary).
-- Email body parsing or HTML stripping (no body display).
-- Reply composition flow (deep-link to Outlook covers it).
-- Voice list browsing (deep-link to Outlook covers it).
+- Detail views for emails or chats. D27 puts these behind deep-links to Outlook and Teams.
+- Email body parsing or HTML stripping. The app does not display bodies, so it does not need to parse them.
+- In-app reply composition. Reply by voice via Outlook deep-link in reply mode (Day 2).
+- Voice-driven list browsing. Single screen plus deep-link covers browsing.
 
-## Decisions to preserve from the prior plan
+## Configuration
 
 - Client ID for `excelano.onmicrosoft.com` tenant (publisher-verified) lives in `Constants.swift` as the default. Phase 4 wires `@AppStorage` so users can override per D25.
 - Bundle ID: `com.excelano.checkin`.
