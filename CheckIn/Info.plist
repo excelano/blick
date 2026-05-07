@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>msauth.com.excelano.checkin</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>msauthv2</string>
+		<string>msauthv3</string>
+		<string>ms-outlook</string>
+		<string>msteams</string>
+	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>CheckIn uses the microphone for voice queries about your calendar, email, and chats. Speech recognition runs on-device; nothing is sent to Apple or any other server.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>CheckIn uses on-device speech recognition to understand your voice queries. Audio and transcripts stay on your device.</string>
+	<key>UILaunchImageFile</key>
+	<string></string>
+</dict>
+</plist>
