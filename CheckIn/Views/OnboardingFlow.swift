@@ -109,8 +109,8 @@ private struct PermissionsStep: View {
     let onContinue: () -> Void
     let onSkip: () -> Void
 
-    @State private var micRequested = false
-    @State private var speechRequested = false
+    @State private var micGranted = false
+    @State private var speechGranted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -120,7 +120,7 @@ private struct PermissionsStep: View {
                 .foregroundStyle(.white)
 
             permissionRow(
-                granted: micRequested,
+                granted: micGranted,
                 title: "Microphone",
                 explanation: "I listen when you talk to me. Listening only happens on your device."
             ) {
@@ -128,7 +128,7 @@ private struct PermissionsStep: View {
             }
 
             permissionRow(
-                granted: speechRequested,
+                granted: speechGranted,
                 title: "Speech recognition",
                 explanation: "I figure out what you said using on-device speech recognition. Nothing leaves your phone."
             ) {
@@ -179,14 +179,14 @@ private struct PermissionsStep: View {
     }
 
     private func requestMic() {
-        AVAudioApplication.requestRecordPermission { _ in
-            DispatchQueue.main.async { micRequested = true }
+        AVAudioApplication.requestRecordPermission { granted in
+            DispatchQueue.main.async { micGranted = granted }
         }
     }
 
     private func requestSpeech() {
-        SFSpeechRecognizer.requestAuthorization { _ in
-            DispatchQueue.main.async { speechRequested = true }
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async { speechGranted = status == .authorized }
         }
     }
 }

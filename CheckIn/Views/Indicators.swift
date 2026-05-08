@@ -57,8 +57,12 @@ struct ThinkingIndicator: View {
                             .opacity(phase == i ? 1.0 : 0.25)
                     }
                 }
-                .onAppear {
-                    Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { _ in
+                .task {
+                    // .task auto-cancels when the view leaves the
+                    // hierarchy, unlike Timer.scheduledTimer which would
+                    // leak a new timer per appear cycle.
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(0.35))
                         phase = (phase + 1) % 3
                     }
                 }
