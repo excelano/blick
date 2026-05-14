@@ -21,7 +21,7 @@ The repo carries a deliberate set of design and reference documents. Read them i
 7. `PERSONA.md` — every spoken phrase the app produces is reviewed against this. If you change response text, read it first.
 8. `CAPABILITIES.md` — empirical scan of the Apple APIs in scope.
 9. `PRIVACY.md` and `SELF-HOSTING.md` — the privacy posture and the two paths for running on your own Azure App Registration.
-10. `PHASE3-NOTES.md` and `PHASE4-FOLLOWUPS.md` — implementation notes from completed phases. The followups doc is the Phase 5 punch list.
+10. `PHASE3-NOTES.md` — implementation notes from Phase 3.
 
 ## Project guardrails
 
