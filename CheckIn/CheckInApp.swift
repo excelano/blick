@@ -15,8 +15,15 @@ struct CheckInApp: App {
     init() {
         let sm = StateMachine()
         let speech = AppleSpeechService()
+        let classifier: any IntentClassifier = StubIntentClassifier()
+        let generator: any ResponseGenerator = StubResponseGenerator()
         _stateMachine = State(initialValue: sm)
-        self.coordinator = SessionCoordinator(stateMachine: sm, speechService: speech)
+        self.coordinator = SessionCoordinator(
+            stateMachine: sm,
+            speechService: speech,
+            intentClassifier: classifier,
+            responseGenerator: generator
+        )
     }
 
     var body: some Scene {

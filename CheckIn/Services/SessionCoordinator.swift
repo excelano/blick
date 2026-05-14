@@ -19,15 +19,22 @@ import os
 final class SessionCoordinator {
     private let stateMachine: StateMachine
     private let speechService: any SpeechService
+    private let intentClassifier: any IntentClassifier
+    private let responseGenerator: any ResponseGenerator
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "coordinator")
 
     private var transitionTask: Task<Void, Never>?
     private var transcriptTask: Task<Void, Never>?
 
-    init(stateMachine: StateMachine, speechService: any SpeechService) {
+    init(stateMachine: StateMachine,
+         speechService: any SpeechService,
+         intentClassifier: any IntentClassifier,
+         responseGenerator: any ResponseGenerator) {
         self.stateMachine = stateMachine
         self.speechService = speechService
+        self.intentClassifier = intentClassifier
+        self.responseGenerator = responseGenerator
     }
 
     /// Begin consuming the state machine's transition stream and the
@@ -90,13 +97,28 @@ final class SessionCoordinator {
         print("[transcript] \"\(update.text)\" final=\(update.isFinal)")
 
         if update.isFinal {
-            stateMachine.updateContext { ctx in
-                ctx.lastUtterance = update.text
-            }
-            // Phase 5 mic-only: route nowhere yet. Drop back to idle so the
-            // UI doesn't strand the user on the processing spinner. Phase 6
-            // wires intent classification + response generation on entry to
-            // processing, which will own the next transition.
+            let classified = intentClassifier.classify(
+                utterance: update.text,
+                context: stateMachine.context
+            )
+            let response = responseGenerator.generate(
+                for: classified,
+                context: stateMachine.context
+            )
+            stateMachine.recordTurn(
+                user: update.text,
+                system: response.text,
+                category: response.category
+            )
+
+            logger.info("intent: \(String(describing: classified.intent), privacy: .public) confidence=\(classified.confidence)")
+            print("[intent] \(classified.intent) confidence=\(classified.confidence)")
+            print("[response] \"\(response.text)\" category=\(response.category)")
+
+            // Phase 6 mic-to-response: log only, then drop back to idle so
+            // the UI doesn't strand the user on the spinner. The next slice
+            // wires TTS so the transition becomes .speaking, and the
+            // .speaking handler delivers the spoken response.
             if case .active(.processing) = stateMachine.currentState {
                 stateMachine.transition(to: .active(.idle))
             }
