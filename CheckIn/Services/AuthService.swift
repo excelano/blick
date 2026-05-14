@@ -5,6 +5,7 @@
 
 import Foundation
 import MSAL
+import os
 
 @MainActor @Observable
 final class AuthService {
@@ -12,6 +13,8 @@ final class AuthService {
     private(set) var configurationError: Error?
     private var msalApp: MSALPublicClientApplication?
     private var currentAccount: MSALAccount?
+
+    private let logger = Logger(subsystem: "com.excelano.checkin", category: "auth")
 
     init() {
         configureMSAL()
@@ -49,7 +52,9 @@ final class AuthService {
                 isAuthenticated = true
             }
         } catch {
-            // Silent per D24.
+            // Silent to the user per D24 (falls through to the sign-in
+            // screen). Logged for diagnostic visibility.
+            logger.error("checkExistingAccount failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -108,7 +113,10 @@ final class AuthService {
         do {
             try msalApp.remove(account)
         } catch {
-            // Silent per D24.
+            // Silent to the user per D24 — local state still clears below,
+            // so the app behaves as signed out regardless. Logged for
+            // diagnostic visibility.
+            logger.error("MSAL remove(account) failed during signOut: \(error.localizedDescription, privacy: .public)")
         }
 
         currentAccount = nil
