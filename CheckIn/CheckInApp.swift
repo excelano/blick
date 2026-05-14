@@ -17,12 +17,19 @@ struct CheckInApp: App {
         let speech = AppleSpeechService()
         let classifier: any IntentClassifier = NLEmbeddingIntentClassifier()
         let generator: any ResponseGenerator = PersonaResponseGenerator()
+        let utteranceLog: any UtteranceLog
+        #if DEBUG
+        utteranceLog = FileUtteranceLog()
+        #else
+        utteranceLog = NoOpUtteranceLog()
+        #endif
         _stateMachine = State(initialValue: sm)
         self.coordinator = SessionCoordinator(
             stateMachine: sm,
             speechService: speech,
             intentClassifier: classifier,
-            responseGenerator: generator
+            responseGenerator: generator,
+            utteranceLog: utteranceLog
         )
     }
 

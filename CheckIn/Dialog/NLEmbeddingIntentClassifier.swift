@@ -22,7 +22,7 @@ import os.log
 /// Distances are cosine by default and roughly fall in `[0, 2]`. Concrete
 /// floors are tuned against the test corpus in `CAPABILITIES.md`; tweak
 /// once real recognizer transcripts are flowing in Phase 5.
-final class NLEmbeddingIntentClassifier: IntentClassifier {
+final class NLEmbeddingIntentClassifier: RankedIntentClassifier {
 
     private let embedding: NLEmbedding?
     private let confidenceFloor: Double
@@ -43,15 +43,40 @@ final class NLEmbeddingIntentClassifier: IntentClassifier {
     }
 
     func classify(utterance: String, context: DialogContext) -> ClassifiedIntent {
+        let ranked = rank(utterance: utterance, context: context)
+        guard let best = ranked.first else {
+            return ClassifiedIntent(intent: .unknown, confidence: 0)
+        }
+
+        #if DEBUG
+        logger.debug("intent='\(String(describing: best.intent))' distance=\(best.distance, format: .fixed(precision: 3))")
+        #endif
+
+        let intent: Intent
+        if best.distance > unknownFloor {
+            intent = .unknown
+        } else if best.distance > confidenceFloor && !isScopeAnchor(best.intent) {
+            intent = .outOfScope
+        } else {
+            intent = best.intent
+        }
+
+        let alternatives = ranked.dropFirst()
+            .prefix(3)
+            .filter { $0.distance - best.distance < alternativeGap }
+            .map { $0.intent }
+
+        let confidence = max(0.0, min(1.0, 1.0 - best.distance))
+        return ClassifiedIntent(intent: intent,
+                                confidence: confidence,
+                                alternatives: Array(alternatives))
+    }
+
+    func rank(utterance: String, context: DialogContext) -> [IntentRanking] {
         let trimmed = utterance
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        guard !trimmed.isEmpty else {
-            return ClassifiedIntent(intent: .unknown, confidence: 0)
-        }
-        guard let embedding else {
-            return ClassifiedIntent(intent: .outOfScope, confidence: 0)
-        }
+        guard !trimmed.isEmpty, let embedding else { return [] }
 
         // For each anchor, compute distance from the utterance. Group by
         // intent and keep the minimum distance per group: the strongest
@@ -63,33 +88,9 @@ final class NLEmbeddingIntentClassifier: IntentClassifier {
             bestPerIntent[intent] = distance
         }
 
-        let ranked = bestPerIntent.sorted { $0.value < $1.value }
-        guard let best = ranked.first else {
-            return ClassifiedIntent(intent: .unknown, confidence: 0)
-        }
-
-        #if DEBUG
-        logger.debug("intent='\(String(describing: best.key))' distance=\(best.value, format: .fixed(precision: 3)) utterance='\(trimmed, privacy: .public)'")
-        #endif
-
-        let intent: Intent
-        if best.value > unknownFloor {
-            intent = .unknown
-        } else if best.value > confidenceFloor && !isScopeAnchor(best.key) {
-            intent = .outOfScope
-        } else {
-            intent = best.key
-        }
-
-        let alternatives = ranked.dropFirst()
-            .prefix(3)
-            .filter { $0.value - best.value < alternativeGap }
-            .map { $0.key }
-
-        let confidence = max(0.0, min(1.0, 1.0 - best.value))
-        return ClassifiedIntent(intent: intent,
-                                confidence: confidence,
-                                alternatives: Array(alternatives))
+        return bestPerIntent
+            .map { IntentRanking(intent: $0.key, distance: $0.value) }
+            .sorted { $0.distance < $1.distance }
     }
 
     /// `outOfScope` and `inScopeUnsupported(...)` are real classifications,

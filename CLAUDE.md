@@ -34,6 +34,14 @@ These cross-cut every change. Hold them lightly only when you have a clear D-dec
 - **D25 / D26 sovereignty.** Users can override the Azure App Registration at runtime (D25) or build their own end-to-end (D26). `SELF-HOSTING.md` is canonical.
 - **Numbered decisions are the spec.** When changing behavior, update the decision; when adding a new pattern, add a new decision. The number is stable across edits to surrounding text.
 
+## Diagnostic features
+
+Anything that exists for development or tuning rather than for shipping users belongs behind `#if DEBUG`. Debug builds have `DEBUG=1` defined; Release does not, so the code is physically absent from App Store binaries.
+
+The pattern: keep the protocol in both builds, gate the concrete implementation in `#if DEBUG`, and supply a `NoOp` variant for Release. The call sites then need no conditionals. See `FileUtteranceLog` for an example — the file-writing diagnostic log lives only in Debug; Release wires `NoOpUtteranceLog` instead.
+
+The same pattern applies to stdout `print()` scaffolds, on-screen debug HUDs, performance counters, and similar.
+
 ## Project conventions
 
 Every Swift source file begins with this header:

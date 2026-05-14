@@ -20,7 +20,9 @@ final class SessionCoordinator {
     private let stateMachine: StateMachine
     private let speechService: any SpeechService
     private let intentClassifier: any IntentClassifier
+    private let rankedClassifier: (any RankedIntentClassifier)?
     private let responseGenerator: any ResponseGenerator
+    private let utteranceLog: any UtteranceLog
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "coordinator")
 
@@ -30,11 +32,14 @@ final class SessionCoordinator {
     init(stateMachine: StateMachine,
          speechService: any SpeechService,
          intentClassifier: any IntentClassifier,
-         responseGenerator: any ResponseGenerator) {
+         responseGenerator: any ResponseGenerator,
+         utteranceLog: any UtteranceLog) {
         self.stateMachine = stateMachine
         self.speechService = speechService
         self.intentClassifier = intentClassifier
+        self.rankedClassifier = intentClassifier as? RankedIntentClassifier
         self.responseGenerator = responseGenerator
+        self.utteranceLog = utteranceLog
     }
 
     /// Begin consuming the state machine's transition stream and the
@@ -69,10 +74,11 @@ final class SessionCoordinator {
 
     private func handle(_ event: TransitionEvent) async {
         logger.debug("saw: \(String(describing: event.from)) -> \(String(describing: event.to))")
-        // Phase 5 scaffold: mirror to stdout so `devicectl process launch
-        // --console` shows transitions over SSH. Remove once we have a
-        // device-side `os_log` streaming path that survives SSH.
+        #if DEBUG
+        // Mirror to stdout so `devicectl process launch --console` shows
+        // transitions over SSH. Debug-only so Release stays clean.
         print("[coordinator] \(event.from) -> \(event.to)")
+        #endif
 
         switch (event.from, event.to) {
         case (.active(.idle), .active(.listening)),
@@ -94,17 +100,30 @@ final class SessionCoordinator {
 
     private func handle(_ update: TranscriptUpdate) async {
         logger.debug("transcript: \(update.text, privacy: .public) (final=\(update.isFinal))")
+        #if DEBUG
         print("[transcript] \"\(update.text)\" final=\(update.isFinal)")
+        #endif
 
         if update.isFinal {
+            let context = stateMachine.context
             let classified = intentClassifier.classify(
                 utterance: update.text,
-                context: stateMachine.context
+                context: context
             )
+            let ranking = rankedClassifier?.rank(utterance: update.text,
+                                                 context: context) ?? []
             let response = responseGenerator.generate(
                 for: classified,
-                context: stateMachine.context
+                context: context
             )
+
+            await utteranceLog.record(
+                utterance: update.text,
+                classified: classified,
+                ranking: ranking,
+                response: response
+            )
+
             stateMachine.recordTurn(
                 user: update.text,
                 system: response.text,
@@ -112,8 +131,10 @@ final class SessionCoordinator {
             )
 
             logger.info("intent: \(String(describing: classified.intent), privacy: .public) confidence=\(classified.confidence)")
+            #if DEBUG
             print("[intent] \(classified.intent) confidence=\(classified.confidence)")
             print("[response] \"\(response.text)\" category=\(response.category)")
+            #endif
 
             // Phase 6 mic-to-response: log only, then drop back to idle so
             // the UI doesn't strand the user on the spinner. The next slice

@@ -74,6 +74,23 @@ struct ClassifiedIntent: Equatable {
     }
 }
 
+/// One row of a full classifier ranking — every intent the classifier
+/// considered, paired with its best (lowest) anchor distance for that
+/// intent. Used by the utterance log to capture the full verdict for
+/// tuning, not just the chosen winner.
+struct IntentRanking: Equatable {
+    let intent: Intent
+    let distance: Double
+}
+
+/// Diagnostic capability some classifiers offer alongside the primary
+/// classify() API. Embedding-based classifiers expose the full ranked
+/// candidate list so the tuning log can record near-misses; stub
+/// classifiers don't bother.
+protocol RankedIntentClassifier: IntentClassifier {
+    func rank(utterance: String, context: DialogContext) -> [IntentRanking]
+}
+
 /// Deterministic stub for tests and SwiftUI previews. Pattern-matches on
 /// keyword presence; no fuzzy logic, no fallbacks. The real classifier
 /// is `NLEmbeddingIntentClassifier`.
