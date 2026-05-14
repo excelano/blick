@@ -28,7 +28,11 @@ enum IntentAnchors {
             "what's the status",
             "where do i stand",
             "what's up",
-            "give me my brief"
+            "give me my brief",
+            "what's my next meeting",
+            "when's my next meeting",
+            "what's coming up next",
+            "what's next on my calendar"
         ]),
 
         (.filter, [
@@ -41,7 +45,15 @@ enum IntentAnchors {
             "messages from liz today",
             "what's there from tony",
             "did i hear from stephanie",
-            "anything about the project"
+            "anything about the project",
+            "do i have any messages from tony",
+            "do i have any emails from tony",
+            "are there any messages from tony",
+            "are there any emails from tony",
+            "how many emails from tony",
+            "how many emails do i have from tony",
+            "count the emails from tony",
+            "any emails from tony"
         ]),
 
         (.refresh, [
