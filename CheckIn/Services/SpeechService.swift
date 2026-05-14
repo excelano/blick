@@ -73,3 +73,28 @@ final class AppleSpeechService: SpeechService {
         fatalError("Phase 3: cancel current recognition task")
     }
 }
+
+/// No-op stub for previews, unit tests, and the Phase 5 spine build before
+/// `AppleSpeechService` is implemented. Returns `.notDetermined` from
+/// authorization, never yields transcripts, silently accepts start/stop/cancel.
+final class StubSpeechService: SpeechService {
+    let transcripts: AsyncStream<TranscriptUpdate>
+    private let continuation: AsyncStream<TranscriptUpdate>.Continuation
+
+    var isListening: Bool { false }
+
+    init() {
+        let (stream, continuation) = AsyncStream<TranscriptUpdate>.makeStream()
+        self.transcripts = stream
+        self.continuation = continuation
+    }
+
+    deinit {
+        continuation.finish()
+    }
+
+    func requestAuthorization() async -> SpeechAuthorization { .notDetermined }
+    func startListening(contextualStrings: [String]) throws {}
+    func stopListening() {}
+    func cancel() {}
+}

@@ -19,11 +19,29 @@ final class StateMachine {
     private(set) var currentState: DialogState = .signedOut
     private(set) var context: DialogContext = DialogContext()
 
-    private let logger = Logger(subsystem: "com.excelano.checkin", category: "state")
+    /// Unidirectional event log of every transition. The single subscriber
+    /// is `SessionCoordinator`, which translates transitions into service
+    /// side effects (start listening, fetch summary, speak, etc.) so the
+    /// state machine stays free of consumer dependencies.
+    @ObservationIgnored let transitions: AsyncStream<TransitionEvent>
+    @ObservationIgnored private let transitionContinuation: AsyncStream<TransitionEvent>.Continuation
+
+    @ObservationIgnored private let logger = Logger(subsystem: "com.excelano.checkin", category: "state")
+
+    init() {
+        let (stream, continuation) = AsyncStream<TransitionEvent>.makeStream(bufferingPolicy: .unbounded)
+        self.transitions = stream
+        self.transitionContinuation = continuation
+    }
+
+    deinit {
+        transitionContinuation.finish()
+    }
 
     func transition(to newState: DialogState) {
         let from = currentState
         currentState = newState
+        transitionContinuation.yield(TransitionEvent(from: from, to: newState))
         log(from: from, to: newState)
     }
 
@@ -50,4 +68,10 @@ final class StateMachine {
         logger.debug("transition: \(String(describing: from)) -> \(String(describing: to))")
         #endif
     }
+}
+
+/// A single state transition emitted on `StateMachine.transitions`.
+struct TransitionEvent: Equatable {
+    let from: DialogState
+    let to: DialogState
 }

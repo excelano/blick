@@ -9,12 +9,21 @@ import MSAL
 @main
 struct CheckInApp: App {
     @State private var authService = AuthService()
-    @State private var stateMachine = StateMachine()
+    @State private var stateMachine: StateMachine
+    private let coordinator: SessionCoordinator
+
+    init() {
+        let sm = StateMachine()
+        let speech = StubSpeechService()
+        _stateMachine = State(initialValue: sm)
+        self.coordinator = SessionCoordinator(stateMachine: sm, speechService: speech)
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView(authService: authService,
                         stateMachine: stateMachine)
+                .task { coordinator.start() }
                 .onOpenURL { url in
                     // Pass the MSAL redirect callback URL back to MSAL.
                     MSALPublicClientApplication.handleMSALResponse(
