@@ -9,6 +9,7 @@ import MSAL
 @MainActor @Observable
 final class AuthService {
     private(set) var isAuthenticated = false
+    private(set) var configurationError: Error?
     private var msalApp: MSALPublicClientApplication?
     private var currentAccount: MSALAccount?
 
@@ -20,7 +21,10 @@ final class AuthService {
     // MARK: - Configuration
 
     private func configureMSAL() {
-        guard let authorityURL = URL(string: Constants.authority) else { return }
+        guard let authorityURL = URL(string: Constants.authority) else {
+            configurationError = AuthError.invalidAuthority
+            return
+        }
 
         do {
             let authority = try MSALAADAuthority(url: authorityURL)
@@ -31,7 +35,7 @@ final class AuthService {
             )
             msalApp = try MSALPublicClientApplication(configuration: config)
         } catch {
-            // Silent per D24. Phase 2 surfaces auth errors through the state machine.
+            configurationError = error
         }
     }
 
@@ -53,7 +57,7 @@ final class AuthService {
 
     func signIn(enableTeams: Bool) async throws -> String {
         guard let msalApp else {
-            throw AuthError.notConfigured
+            throw configurationError ?? AuthError.notConfigured
         }
 
         let scopes = Constants.scopes(enableTeams: enableTeams)
@@ -116,6 +120,7 @@ final class AuthService {
 
 enum AuthError: LocalizedError {
     case notConfigured
+    case invalidAuthority
     case noViewController
     case notAuthenticated
     case adminConsentRequired
@@ -124,6 +129,8 @@ enum AuthError: LocalizedError {
         switch self {
         case .notConfigured:
             return "MSAL is not configured. Check your client ID."
+        case .invalidAuthority:
+            return "Authority URL is malformed. Check the authority setting."
         case .noViewController:
             return "Could not find a view controller to present sign-in."
         case .notAuthenticated:

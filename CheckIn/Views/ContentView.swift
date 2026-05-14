@@ -34,6 +34,15 @@ struct ContentView: View {
             }
         }
         .onAppear { bootstrapOnLaunch() }
+        .onChange(of: authService.isAuthenticated) { _, isAuth in
+            // Detect external deauthentication (server-revoked token, MDM
+            // wipe, manual cache clear) so SummaryView stops rendering with
+            // a dead session.
+            if !isAuth, case .active = stateMachine.currentState {
+                stateMachine.transition(to: .signedOut)
+                stateMachine.resetContext()
+            }
+        }
     }
 
     /// On cold launch, if MSAL already restored a session, advance the
