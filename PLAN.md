@@ -84,11 +84,44 @@ Architecture is built fresh per `STATES.md`. Keeper code (auth, Graph data layer
 
 ### Phase 5: Integration and on-device verification
 
-- Wire state machine to UI via SwiftUI `@Observable`.
-- End-to-end voice flow on simulator (limited by simulator audio per `CAPABILITIES.md`).
-- On-device test loop on iPhone 15 once Apple Developer enrollment completes.
-- Cross-state behavior: barge-in, conversation mode loop, disambiguation, confirmation, error recovery.
-- Privacy audit: confirm no `URLSession` calls outside Microsoft Graph and login; confirm no analytics, crash reporters, or telemetry SDKs.
+Phase 5 is sliced into named sub-phases (5.0, 5.1, …) so commit messages and handoff notes can reference them stably. Each slice is self-contained at its boundary, fits a single execution session, and has explicit done-criteria. Slices are executed via the Mac-Claude / Debian-Claude handoff workflow tracked in `~/mac/notes/` (offline of this repo).
+
+The five-bullet sketch in the original Phase 5 — wire state machine to UI, end-to-end voice flow on simulator, on-device test loop, cross-state behavior, privacy audit — is the work; the slices below give it shape.
+
+**5.0 — TTS wired. (Done, commit `3c5fc52`, 2026-05-15.)** `AppleTTSService` replaced its `fatalError` stubs with a real `AVSpeechSynthesizer` backed by an `AsyncStream<TTSEvent>` (started, wordBoundary, paused, resumed, finished, cancelled). `SessionCoordinator` consumes the events, transitions through `.speaking`, returns to the configured rest state. Tap-to-talk verified end-to-end on iPhone 15. Word-boundary callbacks land for the future D8 hook.
+
+**5.1 — Audio pipeline finish.** Three coordinated changes that close out the audio side of the voice loop.
+
+- *Silent-by-design intent handling.* `SessionCoordinator.handle(_ update:)` checks `response.text.isEmpty` before transitioning to `.speaking` and routes straight to the rest state if empty. Covers `.stop` (intentionally empty per `ResponseTemplateRegistry.stopAcknowledged`) and any future silent intent as a category, not a one-off.
+- *Voice and rate Settings wiring.* `SettingsView`'s `voiceIdentifier` and `speechRate` (`@AppStorage`-backed) are read by `AppleTTSService.speak(_:)` and applied to each `AVSpeechUtterance`. Live-update is a choice; reading at speak-time is fine.
+- *Earcons.* The three audio assets from Phase 2 (listening, thinking, confirmation per D13 and D33, each under 500 ms) fire at the matching state-machine transitions via a small `EarconService` behind a protocol. Earcons share the existing `.playAndRecord/.voiceChat` audio session without fighting the synthesizer.
+
+Done when: `.stop` no longer strands the state machine; voice picker has an audible effect when changed; the three earcons play cleanly at their transitions without clipping the synthesizer.
+
+**5.2 — Real Graph fetch.** Single biggest user-visible delta. Today every response is the hardcoded "I haven't fetched yet" fallback. The keeper `GraphClient` (carried over from the archived voice repo, untouched since) is wired into the response path: next meeting, unread email count, pending Teams chats. `.summary` answers with real numbers; `.filter` answers with real sender or topic matches; `.refresh` re-fetches.
+
+Done when: a cold-launch summary on David's iPhone 15 returns real data from his M365 tenant; refresh re-fetches without re-auth; privacy posture verified (no `URLSession` traffic outside Microsoft Graph and identity endpoints, M365 data not persisted to disk per D9 and D24).
+
+**5.3 — Intent plumbing.** Fills out the remaining Day 1 intent surface. `.open` with entity routes through `DeepLinkService` to Outlook or Teams. The disambiguation panel wires up when two senders match (per D33's `disambiguating` state). The confirmation panel wires up for the Day 1 confirmation case (sign-out). `.refresh`, `.repeatLast`, and `.exit` plumbed end-to-end.
+
+Done when: every Day 1 intent the classifier emits drives a real side effect or a real response; nothing falls through to the no-op fallback that 5.2 will have removed.
+
+Candidate split if the slice bloats: `.open` deep-link routing becomes 5.3a; disambiguation and confirmation panels become 5.3b; remaining plumbing (`.refresh`, `.repeatLast`, `.exit`) becomes 5.3c. Call this at slice-start.
+
+**5.4 — Conversation mode and D8 barge-in.** The architectural lift Mac-Claude diagnosed 2026-05-15. Wire `SFSpeechRecognizer`'s natural `isFinal` delivery into a `listening → processing → speaking` transition in conversation mode, so hands-free turn-taking actually advances the state machine without a mic tap. Once that's in, D8 auto-cut barge-in: VAD on the input tap during `.speaking` cuts the synthesizer at the next word boundary (the scaffold from 5.0 emits the events). Settings' Listening Mode toggle, currently exposed but pointing at the broken path, becomes correct.
+
+Done when: conversation mode runs a multi-turn loop on device without mic taps; D8 barge-in cuts the synthesizer cleanly mid-response and re-enters listening.
+
+This slice may split. Auto-finalization could turn out hairier than it looks (the `endAudio()` rapid-call issue Mac-Claude found on 2026-05-15 may want its own investigation). Call at slice-start.
+
+**5.5 — Privacy audit and pre-TestFlight gate.** Rolls forward into Phase 6 entrance.
+
+- Confirm no `URLSession` calls outside Microsoft Graph and Microsoft identity endpoints.
+- Confirm no analytics, crash reporters, or telemetry SDKs anywhere in the dependency graph.
+- Persona drift sweep across `ResponseTemplateRegistry` — every phrase reviewed against `PERSONA.md`.
+- Accessibility pass: VoiceOver labels, Dynamic Type at largest size, reduced-motion variants per D22.
+
+Done when: privacy posture is provably clean by code inspection; persona phrasing is consistent end-to-end; accessibility runs without warnings at the largest Dynamic Type setting.
 
 ### Phase 6: Pre-TestFlight checklist
 
