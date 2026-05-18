@@ -112,7 +112,10 @@ enum IntentAnchors {
             "go to my calendar",
             "pull up bob's email",
             "take me to teams",
-            "open the meeting"
+            "open the meeting",
+            "open emails from tony",
+            "open my email from tony",
+            "open the email from sarah"
         ]),
 
         (.exit, [

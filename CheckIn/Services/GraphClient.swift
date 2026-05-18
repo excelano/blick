@@ -111,7 +111,7 @@ final class GraphClient {
     /// This heuristic mirrors the Go CLI exactly (teams.go lines 62-108).
     func pendingChats() async throws -> [ChatMessage] {
         let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
-            "$select": "id,topic,chatType,lastMessagePreview",
+            "$select": "id,topic,chatType,webUrl,lastMessagePreview",
             "$expand": "lastMessagePreview",
             "$top": "50"
         ])
@@ -147,7 +147,8 @@ final class GraphClient {
                 topic: topic,
                 from: from.displayName,
                 preview: stripHTML(preview.body.content),
-                sent: sent
+                sent: sent,
+                webUrl: chat.webUrl
             ))
         }
 
@@ -346,6 +347,7 @@ private struct ChatResponse: Decodable {
     let id: String
     let topic: String?
     let chatType: String
+    let webUrl: String?
     let lastMessagePreview: ChatPreviewResponse?
 }
 

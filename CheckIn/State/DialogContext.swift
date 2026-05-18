@@ -52,7 +52,13 @@ struct DialogContext {
             turnHistory.removeFirst(turnHistory.count - Self.turnHistoryLimit)
         }
         lastUtterance = user
-        lastSystemResponse = system
+        // Silent-by-design intents (.stop, .refresh, .open on a successful
+        // deep-link route) carry an empty `system`. They shouldn't shadow
+        // the prior spoken response — `.repeatLast` should still surface
+        // the last sentence the user actually heard.
+        if !system.isEmpty {
+            lastSystemResponse = system
+        }
     }
 
     mutating func rememberPhrasing(_ phrasing: String, in category: ResponseCategory) {

@@ -4,6 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import Foundation
+import UIKit
 import os
 
 /// Translates `StateMachine` transitions into service side effects. The
@@ -25,6 +26,7 @@ final class SessionCoordinator {
     private let intentClassifier: any IntentClassifier
     private let rankedClassifier: (any RankedIntentClassifier)?
     private let responseGenerator: any ResponseGenerator
+    private let entityMatcher: any EntityMatcher
     private let utteranceLog: any UtteranceLog
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "coordinator")
@@ -40,6 +42,7 @@ final class SessionCoordinator {
          summaryService: any SummaryService,
          intentClassifier: any IntentClassifier,
          responseGenerator: any ResponseGenerator,
+         entityMatcher: any EntityMatcher,
          utteranceLog: any UtteranceLog) {
         self.stateMachine = stateMachine
         self.speechService = speechService
@@ -49,6 +52,7 @@ final class SessionCoordinator {
         self.intentClassifier = intentClassifier
         self.rankedClassifier = intentClassifier as? RankedIntentClassifier
         self.responseGenerator = responseGenerator
+        self.entityMatcher = entityMatcher
         self.utteranceLog = utteranceLog
     }
 
@@ -208,8 +212,15 @@ final class SessionCoordinator {
                 #endif
             }
 
-            let response = responseGenerator.generate(
+            let baseResponse = responseGenerator.generate(
                 for: classified,
+                context: stateMachine.context
+            )
+
+            let (response, returnTo) = await resolveSideEffects(
+                classified: classified,
+                utterance: update.text,
+                baseResponse: baseResponse,
                 context: stateMachine.context
             )
 
@@ -233,14 +244,12 @@ final class SessionCoordinator {
             #endif
 
             if case .active(.processing) = stateMachine.currentState {
-                let returnTo = stateMachine.preferredRestState
                 if response.text.isEmpty {
-                    // Silent-by-design intents (.stop is the present
-                    // example, where "the silence is the answer") return
-                    // straight to the rest state. AVSpeechSynthesizer fires
-                    // no delegate callbacks for an empty utterance, so
-                    // routing through .speaking would strand the state
-                    // machine there.
+                    // Silent-by-design intents (.stop, .open on a successful
+                    // deep-link route) return straight to the rest state.
+                    // AVSpeechSynthesizer fires no delegate callbacks for an
+                    // empty utterance, so routing through .speaking would
+                    // strand the state machine there.
                     stateMachine.transition(to: dialogState(forRest: returnTo))
                 } else {
                     stateMachine.transition(
@@ -249,6 +258,185 @@ final class SessionCoordinator {
                 }
             }
         }
+    }
+
+    /// Apply per-intent side effects after the response is generated.
+    /// `.open` resolves the entity and fires the deep link; `.exit` forces a
+    /// return to `.idle` so a conversation-mode session ends cleanly. The
+    /// pair `(response, returnTo)` lets the caller record what was actually
+    /// spoken and route the state machine to the right rest state.
+    private func resolveSideEffects(classified: ClassifiedIntent,
+                                    utterance: String,
+                                    baseResponse: SpokenResponse,
+                                    context: DialogContext) async -> (SpokenResponse, RestState) {
+        let defaultRest = stateMachine.preferredRestState
+
+        switch classified.intent {
+        case .open:
+            let outcome = await handleOpen(utterance: utterance, context: context)
+            return (outcome.spoken ?? baseResponse, defaultRest)
+        case .exit:
+            // Even in conversation mode, "done" ends the session — drop
+            // back to idle so the recognizer doesn't auto-restart.
+            return (baseResponse, .idle)
+        default:
+            return (baseResponse, defaultRest)
+        }
+    }
+
+    /// What `handleOpen` returns: either a deep-link was fired (silent
+    /// success — `spoken` stays nil so the empty base response carries
+    /// through) or a spoken explanation overrides the base response.
+    private struct OpenOutcome {
+        let spoken: SpokenResponse?
+    }
+
+    private enum OpenTarget {
+        case meeting   // "open my next meeting" — only if one exists
+        case calendar  // "open my calendar" — always launches the calendar app
+        case chat
+        case email
+    }
+
+    private func openTarget(in utterance: String) -> OpenTarget {
+        let lower = utterance.lowercased()
+        if lower.contains("meeting") || lower.contains("event")
+            || lower.contains("appointment") {
+            return .meeting
+        }
+        if lower.contains("calendar") {
+            return .calendar
+        }
+        if lower.contains("chat") || lower.contains("teams") {
+            return .chat
+        }
+        return .email
+    }
+
+    private func handleOpen(utterance: String, context: DialogContext) async -> OpenOutcome {
+        switch openTarget(in: utterance) {
+        case .meeting:
+            return await openMeeting(context: context)
+        case .calendar:
+            return await openCalendar()
+        case .chat:
+            return await openChat(utterance: utterance, context: context)
+        case .email:
+            return await openEmail(utterance: utterance, context: context)
+        }
+    }
+
+    private func openMeeting(context: DialogContext) async -> OpenOutcome {
+        guard context.summary?.meeting != nil else {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openMeetingNone,
+                category: .answer))
+        }
+        guard let url = DeepLinkService.outlookCalendar else {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openLaunchFailed,
+                category: .error))
+        }
+        return await openURL(url)
+    }
+
+    private func openCalendar() async -> OpenOutcome {
+        guard let url = DeepLinkService.outlookCalendar else {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openLaunchFailed,
+                category: .error))
+        }
+        return await openURL(url)
+    }
+
+    private func openChat(utterance: String, context: DialogContext) async -> OpenOutcome {
+        let matches = entityMatcher.match(text: utterance, domain: .person, context: context)
+        let chats = context.summary?.chats ?? []
+        let resolved = chats.filter { chat in
+            matches.contains { match in
+                chat.from.localizedCaseInsensitiveCompare(match.canonical) == .orderedSame
+            }
+        }
+        if resolved.count > 1 {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openAmbiguous,
+                category: .answer))
+        }
+        if let single = resolved.first {
+            if let urlString = single.webUrl, let url = DeepLinkService.passthrough(urlString) {
+                return await openURL(url)
+            }
+            // Fallback: generic Teams launch when Graph didn't surface a
+            // passthrough URL. The user lands on the chat list rather than
+            // the specific chat.
+            if let url = DeepLinkService.teams {
+                return await openURL(url)
+            }
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openLaunchFailed,
+                category: .error))
+        }
+        let name = matches.first?.surface ?? "anyone"
+        return OpenOutcome(spoken: SpokenResponse(
+            text: ResponseTemplateRegistry.openNotFound(name),
+            category: .answer))
+    }
+
+    private func openEmail(utterance: String, context: DialogContext) async -> OpenOutcome {
+        let emails = context.summary?.emails ?? []
+        let matches = entityMatcher.match(text: utterance, domain: .person, context: context)
+
+        // Bare "open my inbox" / "open my email" — no person mentioned, just
+        // launch Outlook on the inbox.
+        if matches.isEmpty {
+            if let url = DeepLinkService.outlookInbox {
+                return await openURL(url)
+            }
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openLaunchFailed,
+                category: .error))
+        }
+
+        let resolved = emails.filter { email in
+            matches.contains { match in
+                email.from.localizedCaseInsensitiveCompare(match.canonical) == .orderedSame
+            }
+        }
+        if resolved.isEmpty {
+            let name = matches.first?.surface ?? "that"
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openNotFound(name),
+                category: .answer))
+        }
+        let distinctSenders = Set(resolved.map { $0.from })
+        if distinctSenders.count > 1 {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openAmbiguous,
+                category: .answer))
+        }
+        // Outlook iOS doesn't expose a per-message open scheme; the inbox is
+        // the documented best. Resolution still served as the existence
+        // check that gated us here.
+        if let url = DeepLinkService.outlookInbox {
+            return await openURL(url)
+        }
+        return OpenOutcome(spoken: SpokenResponse(
+            text: ResponseTemplateRegistry.openLaunchFailed,
+            category: .error))
+    }
+
+    private func openURL(_ url: URL) async -> OpenOutcome {
+        let ok = await UIApplication.shared.open(url)
+        #if DEBUG
+        print("[open] \(url.absoluteString) ok=\(ok)")
+        #endif
+        if !ok {
+            logger.error("openURL failed for \(url.absoluteString, privacy: .public)")
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openLaunchFailed,
+                category: .error))
+        }
+        return OpenOutcome(spoken: nil)
     }
 
     /// Drive the state machine out of `.speaking` when the synthesizer

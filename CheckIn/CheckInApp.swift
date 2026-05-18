@@ -23,6 +23,7 @@ struct CheckInApp: App {
                                           teamsEnabled: Constants.teamsEnabled)
         let classifier: any IntentClassifier = NLEmbeddingIntentClassifier()
         let generator: any ResponseGenerator = PersonaResponseGenerator()
+        let entityMatcher: any EntityMatcher = NLTaggerEntityMatcher()
         let utteranceLog: any UtteranceLog
         #if DEBUG
         utteranceLog = FileUtteranceLog()
@@ -39,6 +40,7 @@ struct CheckInApp: App {
             summaryService: summary,
             intentClassifier: classifier,
             responseGenerator: generator,
+            entityMatcher: entityMatcher,
             utteranceLog: utteranceLog
         )
     }

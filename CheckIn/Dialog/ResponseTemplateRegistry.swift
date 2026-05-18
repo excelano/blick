@@ -279,6 +279,16 @@ enum ResponseTemplateRegistry {
     static let settingsOpened: String = ""             // Settings sheet replaces speech.
     static let helpOpened: String = ""                 // Same: help sheet replaces speech.
 
+    // MARK: - Open routing (5.3a)
+
+    static func openNotFound(_ entity: String) -> String {
+        "I don't have anything from \(entity). Try refreshing."
+    }
+
+    static let openAmbiguous: String = "I have a few. Could you be more specific?"
+    static let openMeetingNone: String = "Nothing on your calendar to open."
+    static let openLaunchFailed: String = "Couldn't open it. Make sure the app is installed."
+
     // MARK: - Summary phrasing
 
     /// Builds a Day 1 summary sentence from the current `CheckInSummary`.
@@ -287,6 +297,12 @@ enum ResponseTemplateRegistry {
     /// the call site instead of branching here.
     static func summarySentence(from summary: CheckInSummary) -> String {
         var parts: [String] = []
+
+        if let meeting = summary.meeting {
+            parts.append(meetingPhrase(meeting))
+        } else {
+            parts.append("Nothing on your calendar coming up.")
+        }
 
         switch summary.emails.count {
         case 0:
@@ -297,7 +313,7 @@ enum ResponseTemplateRegistry {
             parts.append("Two unread, from \(summary.emails[0].from) and \(summary.emails[1].from).")
         case let n:
             let first = summary.emails[0].from
-            parts.append("\(spellCount(n)) unread, including one from \(first).")
+            parts.append("\(spellCount(n)) unread, the latest from \(first).")
         }
 
         if summary.teamsEnabled {
@@ -306,12 +322,6 @@ enum ResponseTemplateRegistry {
             case 1: parts.append("One chat, from \(summary.chats[0].from).")
             default: parts.append("\(spellCount(summary.chats.count)) chats.")
             }
-        }
-
-        if let meeting = summary.meeting {
-            parts.append(meetingPhrase(meeting))
-        } else {
-            parts.append("Nothing on your calendar coming up.")
         }
 
         return parts.joined(separator: " ")
