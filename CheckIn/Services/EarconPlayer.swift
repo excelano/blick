@@ -4,6 +4,8 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import Foundation
+import AVFoundation
+import os
 
 /// Plays the three short earcons defined in `Sounds/`. The state machine
 /// fires these on entry to `active.listening`, `active.processing`, and
@@ -27,9 +29,39 @@ enum Earcon: String, CaseIterable {
     var fileExtension: String { "wav" }
 }
 
+/// `AVAudioPlayer`-backed earcon playback. Players are constructed once at
+/// init and reused for each play; `currentTime = 0` lets the same earcon
+/// re-trigger if it fires twice in quick succession. The audio session is
+/// the shared `.playAndRecord` / `.voiceChat` session `SpeechService`
+/// configures; this class does not touch the session.
 final class AppleEarconPlayer: EarconPlayer {
+    private var players: [Earcon: AVAudioPlayer] = [:]
+    private let logger = Logger(subsystem: "com.excelano.checkin", category: "earcon")
+
+    init() {
+        for earcon in Earcon.allCases {
+            guard let url = Bundle.main.url(forResource: earcon.resourceName,
+                                            withExtension: earcon.fileExtension) else {
+                logger.error("earcon missing from bundle: \(earcon.rawValue, privacy: .public)")
+                continue
+            }
+            do {
+                let player = try AVAudioPlayer(contentsOf: url)
+                player.prepareToPlay()
+                players[earcon] = player
+            } catch {
+                logger.error("earcon load failed for \(earcon.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     func play(_ earcon: Earcon) {
-        fatalError("Phase 3: AVAudioPlayer against the SpeechService audio session")
+        guard let player = players[earcon] else {
+            logger.error("earcon not loaded: \(earcon.rawValue, privacy: .public)")
+            return
+        }
+        player.currentTime = 0
+        player.play()
     }
 }
 

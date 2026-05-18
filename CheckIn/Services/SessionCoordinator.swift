@@ -20,6 +20,7 @@ final class SessionCoordinator {
     private let stateMachine: StateMachine
     private let speechService: any SpeechService
     private let ttsService: any TTSService
+    private let earconPlayer: any EarconPlayer
     private let intentClassifier: any IntentClassifier
     private let rankedClassifier: (any RankedIntentClassifier)?
     private let responseGenerator: any ResponseGenerator
@@ -34,12 +35,14 @@ final class SessionCoordinator {
     init(stateMachine: StateMachine,
          speechService: any SpeechService,
          ttsService: any TTSService,
+         earconPlayer: any EarconPlayer,
          intentClassifier: any IntentClassifier,
          responseGenerator: any ResponseGenerator,
          utteranceLog: any UtteranceLog) {
         self.stateMachine = stateMachine
         self.speechService = speechService
         self.ttsService = ttsService
+        self.earconPlayer = earconPlayer
         self.intentClassifier = intentClassifier
         self.rankedClassifier = intentClassifier as? RankedIntentClassifier
         self.responseGenerator = responseGenerator
@@ -132,6 +135,35 @@ final class SessionCoordinator {
         default:
             break
         }
+
+        // Earcons per D13: fire on entry to a state category, not on
+        // intra-category transitions (processing(.thinking) shifting to
+        // processing(.speakingPlaceholder) is one processing visit, not
+        // two). Fire-and-forget; each earcon is under 500 ms.
+        if isListening(event.to) && !isListening(event.from) {
+            earconPlayer.play(.listening)
+        }
+        if isProcessing(event.to) && !isProcessing(event.from) {
+            earconPlayer.play(.thinking)
+        }
+        if isConfirming(event.to) && !isConfirming(event.from) {
+            earconPlayer.play(.confirmation)
+        }
+    }
+
+    private func isListening(_ state: DialogState) -> Bool {
+        if case .active(.listening) = state { return true }
+        return false
+    }
+
+    private func isProcessing(_ state: DialogState) -> Bool {
+        if case .active(.processing) = state { return true }
+        return false
+    }
+
+    private func isConfirming(_ state: DialogState) -> Bool {
+        if case .active(.confirming) = state { return true }
+        return false
     }
 
     private func handle(_ update: TranscriptUpdate) async {
@@ -174,9 +206,19 @@ final class SessionCoordinator {
 
             if case .active(.processing) = stateMachine.currentState {
                 let returnTo = stateMachine.preferredRestState
-                stateMachine.transition(
-                    to: .active(.speaking(response: response, returnTo: returnTo))
-                )
+                if response.text.isEmpty {
+                    // Silent-by-design intents (.stop is the present
+                    // example, where "the silence is the answer") return
+                    // straight to the rest state. AVSpeechSynthesizer fires
+                    // no delegate callbacks for an empty utterance, so
+                    // routing through .speaking would strand the state
+                    // machine there.
+                    stateMachine.transition(to: dialogState(forRest: returnTo))
+                } else {
+                    stateMachine.transition(
+                        to: .active(.speaking(response: response, returnTo: returnTo))
+                    )
+                }
             }
         }
     }
@@ -193,13 +235,17 @@ final class SessionCoordinator {
         switch event {
         case .finished, .cancelled:
             if case .active(.speaking(_, let returnTo)) = stateMachine.currentState {
-                let next: DialogState = (returnTo == .listening)
-                    ? .active(.listening)
-                    : .active(.idle)
-                stateMachine.transition(to: next)
+                stateMachine.transition(to: dialogState(forRest: returnTo))
             }
         default:
             break
+        }
+    }
+
+    private func dialogState(forRest rest: RestState) -> DialogState {
+        switch rest {
+        case .idle: return .active(.idle)
+        case .listening: return .active(.listening)
         }
     }
 

@@ -71,9 +71,28 @@ final class AppleTTSService: NSObject, TTSService {
 
     func speak(_ text: String) throws {
         let utterance = AVSpeechUtterance(string: text)
-        // One-line locale match per the slice brief; UK-voice tuning is
-        // aspirational and lands after PERSONA.md voice tuning.
-        utterance.voice = AVSpeechSynthesisVoice(language: AVSpeechSynthesisVoice.currentLanguageCode())
+
+        // Voice and rate are read fresh from UserDefaults on every utterance.
+        // `@AppStorage` in `SettingsView` writes the same keys; reading here
+        // means the next utterance picks up changes without an observer.
+        let defaults = UserDefaults.standard
+        let voiceIdentifier = defaults.string(forKey: "voiceIdentifier") ?? ""
+        if !voiceIdentifier.isEmpty,
+           let voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) {
+            utterance.voice = voice
+        } else {
+            utterance.voice = AVSpeechSynthesisVoice(language: AVSpeechSynthesisVoice.currentLanguageCode())
+        }
+
+        // `UserDefaults.double(forKey:)` returns 0 when the key is absent,
+        // which is below `AVSpeechUtteranceMinimumSpeechRate`. Treat 0 as
+        // "user hasn't touched the slider yet" and leave the utterance's
+        // default rate in place.
+        let storedRate = defaults.double(forKey: "speechRate")
+        if storedRate > 0 {
+            utterance.rate = Float(storedRate)
+        }
+
         synthesizer.speak(utterance)
     }
 

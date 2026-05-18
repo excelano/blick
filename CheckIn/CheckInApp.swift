@@ -16,6 +16,7 @@ struct CheckInApp: App {
         let sm = StateMachine()
         let speech = AppleSpeechService()
         let tts = AppleTTSService()
+        let earcons = AppleEarconPlayer()
         let classifier: any IntentClassifier = NLEmbeddingIntentClassifier()
         let generator: any ResponseGenerator = PersonaResponseGenerator()
         let utteranceLog: any UtteranceLog
@@ -29,6 +30,7 @@ struct CheckInApp: App {
             stateMachine: sm,
             speechService: speech,
             ttsService: tts,
+            earconPlayer: earcons,
             intentClassifier: classifier,
             responseGenerator: generator,
             utteranceLog: utteranceLog
