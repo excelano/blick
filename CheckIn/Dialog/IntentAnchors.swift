@@ -53,7 +53,9 @@ enum IntentAnchors {
             "how many emails from tony",
             "how many emails do i have from tony",
             "count the emails from tony",
-            "any emails from tony"
+            "any emails from tony",
+            "anything from microsoft security",
+            "anything from microsoft 365 message center"
         ]),
 
         (.refresh, [
