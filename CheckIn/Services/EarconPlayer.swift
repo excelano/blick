@@ -32,8 +32,8 @@ enum Earcon: String, CaseIterable {
 /// `AVAudioPlayer`-backed earcon playback. Players are constructed once at
 /// init and reused for each play; `currentTime = 0` lets the same earcon
 /// re-trigger if it fires twice in quick succession. The audio session is
-/// the shared `.playAndRecord` / `.voiceChat` session `SpeechService`
-/// configures; this class does not touch the session.
+/// the shared session `SpeechService` configures; this class does not
+/// touch the session.
 final class AppleEarconPlayer: EarconPlayer {
     private var players: [Earcon: AVAudioPlayer] = [:]
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "earcon")

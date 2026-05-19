@@ -252,31 +252,36 @@ enum ResponseTemplateRegistry {
 
     // MARK: - D7 disambiguation
     //
-    // Names the original utterance back to the user so they understand
-    // what's being asked, then enumerates candidates briefly.
+    // Question-led: state the ambiguity, ask which one, then enumerate.
+    // The retry borrows PERSONA's "I missed that." error opener so the
+    // second try stays terse without re-speaking the full prompt.
 
     static func disambiguationPrompt(heardSurface: String,
                                      candidates: [Candidate]) -> String {
-        let names = candidates.map { $0.label }
-        let joined: String
-        switch names.count {
-        case 0: joined = ""
-        case 1: joined = names[0]
-        case 2: joined = "\(names[0]) or \(names[1])"
-        default:
-            let last = names.last ?? ""
-            let lead = names.dropLast().joined(separator: ", ")
-            joined = "\(lead), or \(last)"
-        }
-        return "I heard '\(heardSurface).' Did you mean \(joined)?"
+        let joined = joinedCandidateList(candidates)
+        return "There are multiple senders that match \(heardSurface). Which one are you asking about? \(joined)."
     }
 
     /// Spoken when a voice-resolution attempt in `.disambiguating` doesn't
-    /// match any candidate. Pairs the original prompt back so the user
-    /// hears the choices again without a separate retry phrasing.
+    /// match any candidate. Re-presents the candidate list without the
+    /// full ambiguity preamble; the user already heard that on first try.
     static func disambiguationRetry(heardSurface: String,
                                     candidates: [Candidate]) -> String {
-        "I didn't catch that one. \(disambiguationPrompt(heardSurface: heardSurface, candidates: candidates))"
+        let joined = joinedCandidateList(candidates)
+        return "I missed that. Which one — \(joined)?"
+    }
+
+    private static func joinedCandidateList(_ candidates: [Candidate]) -> String {
+        let names = candidates.map { $0.label }
+        switch names.count {
+        case 0: return ""
+        case 1: return names[0]
+        case 2: return "\(names[0]) or \(names[1])"
+        default:
+            let last = names.last ?? ""
+            let lead = names.dropLast().joined(separator: ", ")
+            return "\(lead), or \(last)"
+        }
     }
 
     /// Spoken on bail-out from disambiguation after two failed voice

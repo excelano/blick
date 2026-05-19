@@ -45,9 +45,13 @@ enum TTSServiceError: Error {
 /// delegate directly rather than wrapping one. NSObject inheritance is the
 /// minimum needed for `AVSpeechSynthesizerDelegate` conformance.
 ///
-/// The synthesizer reuses the audio session `SpeechService` configures
-/// (`.playAndRecord` / `.voiceChat`) so listening and speaking share one
-/// full-duplex session. We do not reconfigure it here.
+/// Speaking swaps the audio session to `.soloAmbient` before each
+/// utterance. `SpeechService` configures `.playAndRecord` for listening,
+/// which on iOS always bypasses the silent switch (there's no
+/// recording-capable category that doesn't). `.soloAmbient` is the
+/// silent-respecting category, so TTS honors the hardware silent switch
+/// like Mail/Calendar notifications do. The next mic tap re-sets
+/// `.playAndRecord` from `SpeechService`, so the swap is one-way per turn.
 final class AppleTTSService: NSObject, TTSService {
     let events: AsyncStream<TTSEvent>
     private let continuation: AsyncStream<TTSEvent>.Continuation
@@ -70,6 +74,23 @@ final class AppleTTSService: NSObject, TTSService {
     }
 
     func speak(_ text: String) throws {
+        // Per-phase audio session swap: respect the hardware silent switch
+        // during TTS playback. SpeechService's `.playAndRecord` bypasses
+        // silent because the recording-capable categories all do; swap to
+        // `.soloAmbient` here so a phone set to silent stays silent.
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.soloAmbient)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            #if DEBUG
+            print("[audio] tts category=\(session.category.rawValue) mode=\(session.mode.rawValue) options=\(session.categoryOptions.rawValue)")
+            #endif
+        } catch {
+            logger.error("tts audio session swap failed: \(error.localizedDescription, privacy: .public)")
+            // Proceed anyway; the synthesizer can still play under whatever
+            // category is active. A logged warning is the right surface.
+        }
+
         let utterance = AVSpeechUtterance(string: text)
 
         // Voice and rate are read fresh from UserDefaults on every utterance.

@@ -17,7 +17,9 @@ import os
 /// VAD off the audio engine input tap, primes recognition with
 /// `contextualStrings` from the current summary's senders, subjects, and
 /// chat topics, and configures `AVAudioSession` `.playAndRecord` with
-/// `.voiceChat` mode for echo cancellation and barge-in per D8.
+/// `.spokenAudio` mode for listening. TTS swaps to `.soloAmbient` in
+/// `TTSService` so speaking respects the hardware silent switch. D8
+/// barge-in echo cancellation lands in 5.4.
 protocol SpeechService: AnyObject {
     var isListening: Bool { get }
     var transcripts: AsyncStream<TranscriptUpdate> { get }
@@ -51,8 +53,11 @@ enum SpeechServiceError: Error {
 /// Apple-backed implementation per D9. Configures `SFSpeechRecognizer` with
 /// `requiresOnDeviceRecognition = true`, drives the buffer feed off the
 /// audio engine input tap, primes recognition with `contextualStrings`,
-/// and configures `AVAudioSession` `.playAndRecord` with `.voiceChat` mode
-/// for echo cancellation and barge-in per D8.
+/// and configures `AVAudioSession` `.playAndRecord` with `.spokenAudio`
+/// mode for the listening phase. The recording-capable category bypasses
+/// the hardware silent switch by iOS design; TTS swaps to `.soloAmbient`
+/// in `TTSService` so the speaking phase honors silent. D8 barge-in echo
+/// cancellation (5.4) will likely revert to `.voiceChat` for that slice.
 ///
 /// Custom language model attachment (D10) is wired in a later slice.
 final class AppleSpeechService: SpeechService {
@@ -109,9 +114,12 @@ final class AppleSpeechService: SpeechService {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playAndRecord,
-                                    mode: .voiceChat,
+                                    mode: .spokenAudio,
                                     options: [.duckOthers, .defaultToSpeaker])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            #if DEBUG
+            print("[audio] category=\(session.category.rawValue) mode=\(session.mode.rawValue) options=\(session.categoryOptions.rawValue)")
+            #endif
         } catch {
             logger.error("audio session setup failed: \(error.localizedDescription, privacy: .public)")
             throw SpeechServiceError.audioSessionUnavailable
@@ -124,6 +132,10 @@ final class AppleSpeechService: SpeechService {
         self.request = req
 
         let inputNode = audioEngine.inputNode
+        // Defensive: remove any leftover tap from a prior session whose
+        // teardown raced with an external engine stop. Idempotent if no
+        // tap is installed.
+        inputNode.removeTap(onBus: 0)
         let format = inputNode.outputFormat(forBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             req.append(buffer)
@@ -169,8 +181,12 @@ final class AppleSpeechService: SpeechService {
     private func teardown() {
         if audioEngine.isRunning {
             audioEngine.stop()
-            audioEngine.inputNode.removeTap(onBus: 0)
         }
+        // Always remove the tap, not gated on isRunning. TTSService's
+        // category swap to `.soloAmbient` can stop the engine externally
+        // before this runs, leaving a stale tap that breaks the next
+        // installTap call with "input node already has a tap installed".
+        audioEngine.inputNode.removeTap(onBus: 0)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         task = nil
         request = nil
