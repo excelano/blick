@@ -12,8 +12,6 @@ CheckIn is a voice-first iOS app that talks to your Microsoft 365 account on you
 
 **Microsoft 365 data.** When you ask for your summary, CheckIn fetches calendar events, unread emails, and Teams chats from the Microsoft Graph API using your account's own credentials. The fetched data is held in memory long enough to render the summary on screen and speak it aloud. Nothing is persisted to disk, including caches. Closing or backgrounding the app discards the data.
 
-**Custom language model (off by default).** CheckIn implements an opt-in proper-noun recognition aid that biases the on-device speech recognizer toward your own contact list. The feature is disabled by default. If you turn it on in Settings, your contact display names are used to build a recognizer model that lives only on your device. The contact data and the resulting model are never transmitted. Turning the feature off clears the cached model immediately.
-
 ## What leaves your device
 
 **Microsoft Graph API calls.** When you ask for your summary, CheckIn issues HTTPS requests to your Microsoft 365 service. These calls go to `graph.microsoft.com` (and regional equivalents) and `login.microsoftonline.com`. They carry your access token, which Microsoft uses to identify you, and they return the calendar, mail, and chat data your account has access to. This is the same traffic that any Microsoft Graph client makes; CheckIn does not add headers, identifiers, or analytics to it.
