@@ -21,7 +21,7 @@ final class SessionCoordinator {
     private let stateMachine: StateMachine
     private let speechService: any SpeechService
     private let ttsService: any TTSService
-    private let earconPlayer: any EarconPlayer
+    private let audioController: AudioSessionController
     private let summaryService: any SummaryService
     private let intentClassifier: any IntentClassifier
     private let rankedClassifier: (any RankedIntentClassifier)?
@@ -38,7 +38,7 @@ final class SessionCoordinator {
     init(stateMachine: StateMachine,
          speechService: any SpeechService,
          ttsService: any TTSService,
-         earconPlayer: any EarconPlayer,
+         audioController: AudioSessionController,
          summaryService: any SummaryService,
          intentClassifier: any IntentClassifier,
          responseGenerator: any ResponseGenerator,
@@ -47,7 +47,7 @@ final class SessionCoordinator {
         self.stateMachine = stateMachine
         self.speechService = speechService
         self.ttsService = ttsService
-        self.earconPlayer = earconPlayer
+        self.audioController = audioController
         self.summaryService = summaryService
         self.intentClassifier = intentClassifier
         self.rankedClassifier = intentClassifier as? RankedIntentClassifier
@@ -117,9 +117,37 @@ final class SessionCoordinator {
         print("[coordinator] \(event.from) -> \(event.to)")
         #endif
 
+        // Speaking-state side effects run before listening's so the synth
+        // is stopped cleanly ahead of any session category swap. The synth
+        // is per-utterance now, so a swap mid-utterance only impacts that
+        // single utterance, but stopping first is still the right order.
+        // D8 barge-in (auto-cut when VAD detects user speech mid-utterance)
+        // is deferred past v1.
+        switch (event.from, event.to) {
+        case (_, .active(.speaking(let response, _))):
+            audioController.configure(for: .speaking)
+            do {
+                try ttsService.speak(response.text)
+            } catch {
+                logger.error("tts.speak failed: \(error.localizedDescription, privacy: .public)")
+                #if DEBUG
+                print("[coordinator] tts.speak failed: \(error.localizedDescription)")
+                #endif
+                stateMachine.transition(to: .active(.idle))
+            }
+        case (.active(.speaking), _):
+            if ttsService.isSpeaking {
+                ttsService.stop()
+            }
+        default:
+            break
+        }
+
         switch (event.from, event.to) {
         case (.active(.idle), .active(.listening)),
-             (.active(.speaking), .active(.listening)):
+             (.active(.speaking), .active(.listening)),
+             (.active(.disambiguating), .active(.listening)),
+             (.active(.confirming), .active(.listening)):
             await beginListening()
         case (.active(.listening), .active(.processing)):
             // User signaled "I'm done speaking." Finalize the recognizer;
@@ -134,25 +162,12 @@ final class SessionCoordinator {
             break
         }
 
-        // Speaking-state side effects are independent of the listening
-        // handling above. Entering speaking starts the synthesizer; leaving
-        // speaking for any reason cancels it as resource hygiene. D8 barge-in
-        // (auto-cut when VAD detects user speech mid-utterance) lands later.
-        switch (event.from, event.to) {
-        case (_, .active(.speaking(let response, _))):
-            do {
-                try ttsService.speak(response.text)
-            } catch {
-                logger.error("tts.speak failed: \(error.localizedDescription, privacy: .public)")
-                #if DEBUG
-                print("[coordinator] tts.speak failed: \(error.localizedDescription)")
-                #endif
-                stateMachine.transition(to: .active(.idle))
-            }
-        case (.active(.speaking), _):
-            if ttsService.isSpeaking {
-                ttsService.stop()
-            }
+        // Audio session deactivates on entry to rest-without-mic states.
+        // Speaking, listening, disambiguating, confirming, and processing
+        // all hold an active session; idle/help/settings release it.
+        switch event.to {
+        case .active(.idle), .active(.helpDisplayed), .active(.settingsDisplayed):
+            audioController.configure(for: .inactive)
         default:
             break
         }
@@ -181,15 +196,17 @@ final class SessionCoordinator {
         // Earcons per D13: fire on entry to a state category, not on
         // intra-category transitions (processing(.thinking) shifting to
         // processing(.speakingPlaceholder) is one processing visit, not
-        // two). Fire-and-forget; each earcon is under 500 ms.
+        // two). Routed through the audio controller so each plays under
+        // the phase's category — silent during speaking, bypassed during
+        // listening/confirming/disambiguating. Fire-and-forget.
         if isListening(event.to) && !isListening(event.from) {
-            earconPlayer.play(.listening)
+            audioController.play(.listening)
         }
         if isProcessing(event.to) && !isProcessing(event.from) {
-            earconPlayer.play(.thinking)
+            audioController.play(.thinking)
         }
         if isConfirming(event.to) && !isConfirming(event.from) {
-            earconPlayer.play(.confirmation)
+            audioController.play(.confirmation)
         }
     }
 
@@ -799,6 +816,7 @@ final class SessionCoordinator {
             stateMachine.transition(to: .active(.idle))
             return
         }
+        audioController.configure(for: .listening)
         do {
             try speechService.startListening(contextualStrings: [])
         } catch {

@@ -12,9 +12,12 @@ import os
 /// `AVSpeechSynthesizer`.
 ///
 /// The real implementation in `AppleTTSService` uses `AVSpeechSynthesizer`
-/// with a locale-matched voice (en-GB device gets a British voice), tracks
-/// word-boundary callbacks so D8 barge-in can cut cleanly at a word break,
-/// and respects the audio session configuration owned by `SpeechService`.
+/// with a locale-matched voice (en-GB device gets a British voice) and
+/// builds a fresh synthesizer per utterance. The per-utterance recreation
+/// is deliberate: an in-flight `AVSpeechSynthesizer` wedges for the rest of
+/// the session if the audio session category changes mid-utterance, so a
+/// short-lived synth limits the blast radius to a single utterance worst
+/// case. `AudioSessionController` owns category transitions.
 protocol TTSService: AnyObject {
     var isSpeaking: Bool { get }
     var events: AsyncStream<TTSEvent> { get }
@@ -45,28 +48,24 @@ enum TTSServiceError: Error {
 /// delegate directly rather than wrapping one. NSObject inheritance is the
 /// minimum needed for `AVSpeechSynthesizerDelegate` conformance.
 ///
-/// Speaking swaps the audio session to `.soloAmbient` before each
-/// utterance. `SpeechService` configures `.playAndRecord` for listening,
-/// which on iOS always bypasses the silent switch (there's no
-/// recording-capable category that doesn't). `.soloAmbient` is the
-/// silent-respecting category, so TTS honors the hardware silent switch
-/// like Mail/Calendar notifications do. The next mic tap re-sets
-/// `.playAndRecord` from `SpeechService`, so the swap is one-way per turn.
+/// Each call to `speak` builds a fresh `AVSpeechSynthesizer`. The previous
+/// instance (if any) is cancelled first. `AudioSessionController` is
+/// responsible for setting the right session category before `speak` is
+/// called.
 final class AppleTTSService: NSObject, TTSService {
     let events: AsyncStream<TTSEvent>
     private let continuation: AsyncStream<TTSEvent>.Continuation
 
-    private let synthesizer = AVSpeechSynthesizer()
+    private var currentSynth: AVSpeechSynthesizer?
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "tts")
 
-    var isSpeaking: Bool { synthesizer.isSpeaking }
+    var isSpeaking: Bool { currentSynth?.isSpeaking ?? false }
 
     override init() {
         let (stream, continuation) = AsyncStream<TTSEvent>.makeStream(bufferingPolicy: .unbounded)
         self.events = stream
         self.continuation = continuation
         super.init()
-        synthesizer.delegate = self
     }
 
     deinit {
@@ -74,22 +73,15 @@ final class AppleTTSService: NSObject, TTSService {
     }
 
     func speak(_ text: String) throws {
-        // Per-phase audio session swap: respect the hardware silent switch
-        // during TTS playback. SpeechService's `.playAndRecord` bypasses
-        // silent because the recording-capable categories all do; swap to
-        // `.soloAmbient` here so a phone set to silent stays silent.
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.soloAmbient)
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            #if DEBUG
-            print("[audio] tts category=\(session.category.rawValue) mode=\(session.mode.rawValue) options=\(session.categoryOptions.rawValue)")
-            #endif
-        } catch {
-            logger.error("tts audio session swap failed: \(error.localizedDescription, privacy: .public)")
-            // Proceed anyway; the synthesizer can still play under whatever
-            // category is active. A logged warning is the right surface.
+        // Drop any in-flight synth before constructing a new one. The old
+        // instance is released when the local reference goes out of scope.
+        if let prior = currentSynth, prior.isSpeaking {
+            prior.stopSpeaking(at: .immediate)
         }
+
+        let synth = AVSpeechSynthesizer()
+        synth.delegate = self
+        currentSynth = synth
 
         let utterance = AVSpeechUtterance(string: text)
 
@@ -114,21 +106,21 @@ final class AppleTTSService: NSObject, TTSService {
             utterance.rate = Float(storedRate)
         }
 
-        synthesizer.speak(utterance)
+        synth.speak(utterance)
     }
 
     func stop() {
-        // `.word` cuts at the next word boundary so future D8 barge-in
-        // doesn't sound jarring. `.immediate` would chop mid-syllable.
-        synthesizer.stopSpeaking(at: .word)
+        // `.immediate` so cancellation is synchronous; a category swap that
+        // follows a stop can't race with a still-finalizing utterance.
+        currentSynth?.stopSpeaking(at: .immediate)
     }
 
     func pause() {
-        synthesizer.pauseSpeaking(at: .word)
+        currentSynth?.pauseSpeaking(at: .word)
     }
 
     func resume() {
-        synthesizer.continueSpeaking()
+        currentSynth?.continueSpeaking()
     }
 }
 
@@ -157,10 +149,16 @@ extension AppleTTSService: AVSpeechSynthesizerDelegate {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                            didFinish utterance: AVSpeechUtterance) {
         continuation.yield(.finished)
+        if synthesizer === currentSynth {
+            currentSynth = nil
+        }
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                            didCancel utterance: AVSpeechUtterance) {
         continuation.yield(.cancelled)
+        if synthesizer === currentSynth {
+            currentSynth = nil
+        }
     }
 }

@@ -18,6 +18,7 @@ struct CheckInApp: App {
         let speech = AppleSpeechService()
         let tts = AppleTTSService()
         let earcons = AppleEarconPlayer()
+        let audioController = AudioSessionController(earconPlayer: earcons)
         let graph = GraphClient(authService: auth, enableTeams: Constants.teamsEnabled)
         let summary = GraphSummaryService(graphClient: graph,
                                           teamsEnabled: Constants.teamsEnabled)
@@ -36,7 +37,7 @@ struct CheckInApp: App {
             stateMachine: sm,
             speechService: speech,
             ttsService: tts,
-            earconPlayer: earcons,
+            audioController: audioController,
             summaryService: summary,
             intentClassifier: classifier,
             responseGenerator: generator,

@@ -14,12 +14,10 @@ import os
 ///
 /// The real implementation in `AppleSpeechService` configures
 /// `SFSpeechRecognizer` with `requiresOnDeviceRecognition = true`, drives
-/// VAD off the audio engine input tap, primes recognition with
+/// VAD off the audio engine input tap, and primes recognition with
 /// `contextualStrings` from the current summary's senders, subjects, and
-/// chat topics, and configures `AVAudioSession` `.playAndRecord` with
-/// `.spokenAudio` mode for listening. TTS swaps to `.soloAmbient` in
-/// `TTSService` so speaking respects the hardware silent switch. D8
-/// barge-in echo cancellation lands in 5.4.
+/// chat topics. `AudioSessionController` owns the audio session category
+/// transitions; this service starts/stops the engine and recognizer only.
 protocol SpeechService: AnyObject {
     var isListening: Bool { get }
     var transcripts: AsyncStream<TranscriptUpdate> { get }
@@ -52,12 +50,9 @@ enum SpeechServiceError: Error {
 
 /// Apple-backed implementation per D9. Configures `SFSpeechRecognizer` with
 /// `requiresOnDeviceRecognition = true`, drives the buffer feed off the
-/// audio engine input tap, primes recognition with `contextualStrings`,
-/// and configures `AVAudioSession` `.playAndRecord` with `.spokenAudio`
-/// mode for the listening phase. The recording-capable category bypasses
-/// the hardware silent switch by iOS design; TTS swaps to `.soloAmbient`
-/// in `TTSService` so the speaking phase honors silent. D8 barge-in echo
-/// cancellation (5.4) will likely revert to `.voiceChat` for that slice.
+/// audio engine input tap, and primes recognition with `contextualStrings`.
+/// `AudioSessionController` configures the session before this service is
+/// asked to start.
 ///
 /// Custom language model attachment (D10) is wired in a later slice.
 final class AppleSpeechService: SpeechService {
@@ -108,22 +103,11 @@ final class AppleSpeechService: SpeechService {
             throw SpeechServiceError.recognizerUnavailable
         }
 
-        // Tear down any prior session before starting a fresh one.
+        // Tear down any prior session before starting a fresh one. The
+        // audio session category is owned by `AudioSessionController`; the
+        // caller has already configured it to `.listening` by the time we
+        // get here.
         teardown()
-
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playAndRecord,
-                                    mode: .spokenAudio,
-                                    options: [.duckOthers, .defaultToSpeaker])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            #if DEBUG
-            print("[audio] category=\(session.category.rawValue) mode=\(session.mode.rawValue) options=\(session.categoryOptions.rawValue)")
-            #endif
-        } catch {
-            logger.error("audio session setup failed: \(error.localizedDescription, privacy: .public)")
-            throw SpeechServiceError.audioSessionUnavailable
-        }
 
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.requiresOnDeviceRecognition = true
@@ -182,12 +166,11 @@ final class AppleSpeechService: SpeechService {
         if audioEngine.isRunning {
             audioEngine.stop()
         }
-        // Always remove the tap, not gated on isRunning. TTSService's
-        // category swap to `.soloAmbient` can stop the engine externally
-        // before this runs, leaving a stale tap that breaks the next
-        // installTap call with "input node already has a tap installed".
+        // Always remove the tap, not gated on isRunning. A category swap
+        // by `AudioSessionController` can stop the engine externally before
+        // this runs, leaving a stale tap that breaks the next installTap
+        // call with "input node already has a tap installed".
         audioEngine.inputNode.removeTap(onBus: 0)
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         task = nil
         request = nil
         isListening = false
