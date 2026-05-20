@@ -197,13 +197,21 @@ final class GraphClient {
 
     // MARK: - HTTP Layer
 
-    private func get<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
-        var components = URLComponents(string: Constants.graphBaseURL + path)!
+    private func makeURL(path: String, query: [String: String] = [:]) throws -> URL {
+        guard var components = URLComponents(string: Constants.graphBaseURL + path) else {
+            throw GraphError.invalidURL(path: path)
+        }
         if !query.isEmpty {
             components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
         }
+        guard let url = components.url else {
+            throw GraphError.invalidURL(path: path)
+        }
+        return url
+    }
 
-        var request = URLRequest(url: components.url!)
+    private func get<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
+        var request = URLRequest(url: try makeURL(path: path, query: query))
         request.httpMethod = "GET"
         request = try await authorize(request)
 
@@ -213,7 +221,7 @@ final class GraphClient {
     }
 
     private func patch(_ path: String, body: some Encodable) async throws {
-        var request = URLRequest(url: URL(string: Constants.graphBaseURL + path)!)
+        var request = URLRequest(url: try makeURL(path: path))
         request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
@@ -225,7 +233,7 @@ final class GraphClient {
 
     @discardableResult
     private func post(_ path: String, body: some Encodable) async throws -> Data {
-        var request = URLRequest(url: URL(string: Constants.graphBaseURL + path)!)
+        var request = URLRequest(url: try makeURL(path: path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
@@ -282,11 +290,14 @@ private func parseGraphDate(_ dateString: String, timeZone: String) -> Date {
 // MARK: - Errors
 
 enum GraphError: LocalizedError {
+    case invalidURL(path: String)
     case invalidResponse
     case httpError(method: String, path: String, status: Int, body: String)
 
     var errorDescription: String? {
         switch self {
+        case .invalidURL(let path):
+            return "Could not construct Graph URL for path \(path)."
         case .invalidResponse:
             return "Invalid response from Microsoft Graph."
         case .httpError(let method, let path, let status, let body):

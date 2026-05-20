@@ -7,13 +7,8 @@ import SwiftUI
 import AVFoundation
 
 /// Settings sheet over the main screen per D27. Sections per D5 (Voice),
-/// D17 (Listening Mode), D10 (Voice Recognition Tuning), D25 (Advanced).
-/// Sign-out lives here per STATES.md.
-///
-/// Phase 4 establishes the surface and the @AppStorage keys. Phase 5 wires
-/// the live effects: voice picker into TTSService, mode change into the
-/// rest-state preference on StateMachine, voice tuning into a contact
-/// fetch, custom client ID into AuthService.
+/// D17 (Listening Mode), D25 (Advanced). Sign-out lives here per STATES.md.
+/// D10 Voice Recognition Tuning is deferred to v2 with D10 itself.
 struct SettingsView: View {
     var authService: AuthService
     var stateMachine: StateMachine
@@ -28,11 +23,6 @@ struct SettingsView: View {
     // D17 Listening Mode
     @AppStorage("listeningMode") private var listeningMode: String = "tapToTalk"
 
-    // D10 Voice Recognition Tuning
-    @AppStorage("voiceTuningEnabled") private var voiceTuningEnabled: Bool = false
-    @State private var showTuningDisclosure = false
-    @State private var lmManager = CustomLanguageModelManager()
-
     // D25 Advanced
     @AppStorage("customClientID") private var customClientID: String = ""
     @AppStorage("customAuthority") private var customAuthority: String = ""
@@ -45,9 +35,6 @@ struct SettingsView: View {
             Form {
                 voiceSection
                 listeningModeSection
-                #if DEBUG
-                voiceTuningSection
-                #endif
                 advancedSection
                 signOutSection
             }
@@ -61,9 +48,6 @@ struct SettingsView: View {
                         .foregroundStyle(Brand.accent)
                         .accessibilityLabel("Close settings")
                 }
-            }
-            .sheet(isPresented: $showTuningDisclosure) {
-                VoiceTuningDisclosureSheet(enabled: $voiceTuningEnabled)
             }
             .sheet(isPresented: $showAdvancedExplainer) {
                 AdvancedExplainerSheet()
@@ -163,25 +147,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Voice Recognition Tuning (D10)
-
-    private var voiceTuningSection: some View {
-        Section {
-            Toggle("Voice Recognition Tuning", isOn: $voiceTuningEnabled)
-                .onChange(of: voiceTuningEnabled) { _, new in
-                    if new {
-                        showTuningDisclosure = true
-                    } else {
-                        lmManager.disable()
-                    }
-                }
-        } header: {
-            Text("Voice Recognition Tuning")
-        } footer: {
-            Text("Off by default. When on, CheckIn biases speech recognition toward your contacts. Contact data stays on this device.")
-        }
-    }
-
     // MARK: - Advanced (D25)
 
     private var advancedSection: some View {
@@ -234,72 +199,6 @@ struct SettingsView: View {
             stateMachine.transition(to: .signedOut)
             stateMachine.resetContext()
         }
-    }
-}
-
-// MARK: - D10 disclosure sheet
-
-private struct VoiceTuningDisclosureSheet: View {
-    @Binding var enabled: Bool
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("How Voice Recognition Tuning works")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
-                    paragraph("CheckIn builds a small recognition model from your contact display names. The model lets the speech recognizer hear \u{201C}Hernandez\u{201D} or \u{201C}MacAuley\u{201D} correctly the first time.")
-                    paragraph("The model is built on this device. Nothing about your contacts is sent anywhere. The model attaches to the on-device speech recognizer; recognition itself stays local.")
-                    paragraph("Turning the toggle off clears the model immediately. You can clear it any time.")
-                    paragraph("The base recognition path works without this. If you decline, contact names may sometimes be misheard; you can still correct them by saying the first name alone or selecting from a list.")
-                    Spacer(minLength: 24)
-                    HStack(spacing: 12) {
-                        Button {
-                            enabled = false
-                            dismiss()
-                        } label: {
-                            Text("Not now")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Brand.bgDarker)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        Button {
-                            // Toggle already wrote `true` to AppStorage when
-                            // the user tapped it; this just confirms and
-                            // proceeds. Phase 5 wires the contact fetch +
-                            // buildModel call.
-                            dismiss()
-                        } label: {
-                            Text("Turn on")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Brand.accent)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                    }
-                }
-                .padding(20)
-            }
-            .background(Brand.bg)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(Brand.accent)
-                }
-            }
-        }
-        .preferredColorScheme(.dark)
-    }
-
-    private func paragraph(_ text: String) -> some View {
-        Text(text)
-            .font(.body)
-            .foregroundStyle(Brand.textMuted)
     }
 }
 

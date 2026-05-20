@@ -159,6 +159,7 @@ struct HelpView: View {
                     .foregroundStyle(Brand.textMuted)
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func laterRow(_ label: String, _ phrases: String...) -> some View {
@@ -170,6 +171,7 @@ struct HelpView: View {
                 .font(.callout)
                 .foregroundStyle(Brand.textMuted)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func dontDoRow(_ label: String, _ explanation: String) -> some View {
@@ -181,5 +183,6 @@ struct HelpView: View {
                 .font(.callout)
                 .foregroundStyle(Brand.textMuted)
         }
+        .accessibilityElement(children: .combine)
     }
 }

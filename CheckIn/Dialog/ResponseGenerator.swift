@@ -16,6 +16,7 @@ protocol ResponseGenerator {
                   context: DialogContext) -> SpokenResponse
 }
 
+#if DEBUG
 /// Deterministic stub for tests and previews. Fixed strings, no rotation.
 /// PERSONA.md-shaped output lands in Phase 3.
 struct StubResponseGenerator: ResponseGenerator {
@@ -63,3 +64,4 @@ struct StubResponseGenerator: ResponseGenerator {
         }
     }
 }
+#endif

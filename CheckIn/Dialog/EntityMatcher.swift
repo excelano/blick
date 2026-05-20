@@ -26,6 +26,7 @@ struct EntityMatch: Equatable {
     let confidence: Double
 }
 
+#if DEBUG
 /// Deterministic stub. Returns no matches; tests that need fixed matches
 /// inject their own implementation.
 struct StubEntityMatcher: EntityMatcher {
@@ -33,3 +34,4 @@ struct StubEntityMatcher: EntityMatcher {
         []
     }
 }
+#endif

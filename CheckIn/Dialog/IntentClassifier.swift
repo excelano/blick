@@ -94,6 +94,7 @@ protocol RankedIntentClassifier: IntentClassifier {
     func rank(utterance: String, context: DialogContext) -> [IntentRanking]
 }
 
+#if DEBUG
 /// Deterministic stub for tests and SwiftUI previews. Pattern-matches on
 /// keyword presence; no fuzzy logic, no fallbacks. The real classifier
 /// is `NLEmbeddingIntentClassifier`.
@@ -140,3 +141,4 @@ struct StubIntentClassifier: IntentClassifier {
         return ClassifiedIntent(intent: intent, confidence: 1.0)
     }
 }
+#endif

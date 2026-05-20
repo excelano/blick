@@ -172,6 +172,7 @@ final class AppleSpeechService: SpeechService {
     }
 }
 
+#if DEBUG
 /// No-op stub for previews, unit tests, and the Phase 5 spine build before
 /// `AppleSpeechService` is implemented. Returns `.notDetermined` from
 /// authorization, never yields transcripts, silently accepts start/stop/cancel.
@@ -196,3 +197,4 @@ final class StubSpeechService: SpeechService {
     func stopListening() {}
     func cancel() {}
 }
+#endif
