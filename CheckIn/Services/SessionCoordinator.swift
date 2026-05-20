@@ -144,12 +144,35 @@ final class SessionCoordinator {
                 try ttsService.speak(response.text)
             } catch {
                 logger.error("tts.speak failed: \(error.localizedDescription, privacy: .public)")
+                #if DEBUG
                 print("[coordinator] tts.speak failed: \(error.localizedDescription)")
+                #endif
                 stateMachine.transition(to: .active(.idle))
             }
         case (.active(.speaking), _):
             if ttsService.isSpeaking {
                 ttsService.stop()
+            }
+        default:
+            break
+        }
+
+        // End-of-turn disambig sweep. Any rest-state entry clears
+        // pendingDisambiguation and disambiguationFailedAttempts so transient
+        // state can't leak into the next turn. Catches non-coordinator exits
+        // (deep-link tap from SummaryView while the panel is up, TTS-throw
+        // recovery into .idle from either the initial prompt or a retry
+        // prompt). Bail and resume retain their pre-transition clears because
+        // both route through .speaking, and handle(tts:) treats a still-set
+        // pendingDisambiguation as the signal to re-enter .disambiguating.
+        switch event.to {
+        case .active(.idle), .active(.listening):
+            if stateMachine.context.pendingDisambiguation != nil
+                || stateMachine.context.disambiguationFailedAttempts != 0 {
+                stateMachine.updateContext {
+                    $0.pendingDisambiguation = nil
+                    $0.disambiguationFailedAttempts = 0
+                }
             }
         default:
             break
@@ -409,12 +432,9 @@ final class SessionCoordinator {
 
     /// User cancelled disambiguation (touch Cancel button or mic-tap
     /// per the 5.3b brief). Silent return to rest — the absence of
-    /// speech is the acknowledgment, mirroring `.stop`.
+    /// speech is the acknowledgment, mirroring `.stop`. The rest-entry
+    /// sweep in `handle(_:)` clears pendingDisambiguation.
     func cancelDisambiguation() {
-        stateMachine.updateContext {
-            $0.pendingDisambiguation = nil
-            $0.disambiguationFailedAttempts = 0
-        }
         let rest = dialogState(forRest: stateMachine.preferredRestState)
         stateMachine.transition(to: rest)
         #if DEBUG
@@ -773,7 +793,9 @@ final class SessionCoordinator {
         let auth = await speechService.requestAuthorization()
         guard auth == .authorized else {
             logger.error("speech authorization not granted: \(String(describing: auth), privacy: .public)")
+            #if DEBUG
             print("[coordinator] auth not granted: \(auth)")
+            #endif
             stateMachine.transition(to: .active(.idle))
             return
         }
@@ -781,7 +803,9 @@ final class SessionCoordinator {
             try speechService.startListening(contextualStrings: [])
         } catch {
             logger.error("startListening failed: \(error.localizedDescription, privacy: .public)")
+            #if DEBUG
             print("[coordinator] startListening failed: \(error.localizedDescription)")
+            #endif
             stateMachine.transition(to: .active(.idle))
         }
     }

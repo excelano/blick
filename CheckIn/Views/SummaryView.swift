@@ -165,7 +165,7 @@ struct SummaryView: View {
                                     onCancel: { stateMachine.onDisambiguationCancelled?() })
             case .active(.confirming(let action)):
                 ConfirmingPanel(action: action,
-                                onYes: { /* Phase 5 wires the executor */ },
+                                onYes: { /* Day 2 wires the executor */ },
                                 onNo: { stateMachine.transition(to: .active(restState())) })
             default:
                 EmptyView()

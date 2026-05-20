@@ -144,11 +144,13 @@ struct NLTaggerEntityMatcher: EntityMatcher {
                                                canonical: person,
                                                confidence: 0.6))
                 }
-            } else {
-                matches.append(EntityMatch(surface: surface,
-                                           canonical: surface,
-                                           confidence: 0.5))
             }
+            // else: NLTagger tagged a name that doesn't match anyone in
+            // scope. Drop it so SessionCoordinator.resolveSender returns
+            // .resolved(nil); extractFromName then catches the "from <X>"
+            // surface and routes to .unknown(name:) → filterUnknownSender.
+            // The prior surface-as-canonical fallback at confidence 0.5
+            // silently misrouted through summaryFilteredBySender.
         }
         return matches
     }
