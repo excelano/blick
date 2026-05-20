@@ -11,10 +11,6 @@ import UIKit
 /// button is the primary voice control for both modes (D17): in tap-to-talk
 /// it starts a turn; in conversation mode it cancels listening to return to
 /// idle.
-///
-/// Phase 4 establishes the surface and the state-driven indicators. Phase 5
-/// wires the real SpeechService start/stop to the listening transitions and
-/// the GraphClient fetch to refresh.
 struct SummaryView: View {
     var stateMachine: StateMachine
     var authService: AuthService
@@ -171,7 +167,7 @@ struct SummaryView: View {
                     CaptioningView(text: response.text)
                 case .active(.confirming(let action)):
                     ConfirmingPanel(action: action,
-                                    onYes: { /* Day 2 wires the executor */ },
+                                    onYes: { },
                                     onNo: { stateMachine.transition(to: .active(restState())) })
                 default:
                     EmptyView()
@@ -246,12 +242,11 @@ struct SummaryView: View {
             // final transcript arrives shortly after as an isFinal update.
             stateMachine.transition(to: .active(.processing(.thinking)))
         case .active(.disambiguating):
-            // Mic-tap during disambiguation = cancel (per 5.3b brief).
-            // Routes through the coordinator so pending state clears too.
+            // Mic-tap during disambiguation = cancel. Routes through the
+            // coordinator so pending state clears too.
             stateMachine.onDisambiguationCancelled?()
         case .active(.speaking):
-            // Barge-in per D8: TTSService.stop() lands with the speaking
-            // wiring; for now the transition alone restarts listening.
+            // Barge-in per D8.
             stateMachine.transition(to: .active(.listening))
         default:
             break

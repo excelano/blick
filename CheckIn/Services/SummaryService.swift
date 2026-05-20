@@ -6,7 +6,7 @@
 import Foundation
 import os
 
-/// Pulls the three Day 1 surfaces (next meeting, unread email, pending
+/// Pulls the three launch surfaces (next meeting, unread email, pending
 /// Teams chats) into a single `CheckInSummary` for the response generator
 /// to consume.
 ///

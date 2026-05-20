@@ -15,13 +15,9 @@ The repo carries a deliberate set of design and reference documents. Read them i
 1. `README.md` — short project description and build instructions.
 2. `DESIGN.md` — the spec. 33 numbered decisions (D1, D2, …) that are the source of truth for behavior. When code or another doc cites `D27`, look it up here.
 3. `STATES.md` — the hierarchical state machine that drives the entire app. Every voice or touch action transitions through it.
-4. `GUIDE.md` — architecture and Swift bridge for a senior engineer new to Swift and iOS. The four layers, a complete voice-turn end-to-end, Swift idioms compared to Java/Go/Rust, and project conventions.
-5. `SWIFT-MODERN.md` — companion to `GUIDE.md` covering Swift features added after Swift 3.
-6. `PLAN.md` — phase sequence and per-phase scope.
-7. `PERSONA.md` — every spoken phrase the app produces is reviewed against this. If you change response text, read it first.
-8. `CAPABILITIES.md` — empirical scan of the Apple APIs in scope.
-9. `PRIVACY.md` and `SELF-HOSTING.md` — the privacy posture and the two paths for running on your own Azure App Registration.
-10. `PHASE3-NOTES.md` — implementation notes from Phase 3.
+4. `PLAN.md` — phase sequence and per-phase scope.
+5. `PERSONA.md` — every spoken phrase the app produces is reviewed against this. If you change response text, read it first.
+6. `PRIVACY.md` and `SELF-HOSTING.md` — the privacy posture and the two paths for running on your own Azure App Registration.
 
 ## Project guardrails
 
@@ -59,7 +55,7 @@ The author owns the work; AI assistance is acknowledged in-file. Commits end wit
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-The phase sequence in `PLAN.md` is authoritative. Tests live next to the code they test; integration concerns (auth, Graph, on-device speech) verify against real services rather than mocks where practical.
+`PLAN.md` is authoritative for scope and sequencing. Tests live next to the code they test; integration concerns (auth, Graph, on-device speech) verify against real services rather than mocks where practical.
 
 ## Platform note
 

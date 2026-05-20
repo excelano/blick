@@ -5,18 +5,16 @@
 
 import Foundation
 
-/// The intent classification seam per D15. Phase 3 swaps the stub for an
-/// `NLEmbedding`-based implementation that scores semantic similarity
-/// between the utterance and a fixed catalog of intent prototypes.
+/// The intent classification seam per D15. `NLEmbeddingIntentClassifier`
+/// is the real implementation: it scores semantic similarity between the
+/// utterance and a fixed catalog of intent prototypes.
 protocol IntentClassifier {
     func classify(utterance: String, context: DialogContext) -> ClassifiedIntent
 }
 
-/// The Day 1 intent surface per PLAN.md, plus the two scope categories
+/// The launch intent surface per PLAN.md, plus the two scope categories
 /// (D18 out-of-scope, D19 in-scope-unsupported with sub-kinds) the
 /// classifier emits when the utterance falls outside what voice can do.
-///
-/// Phase 3 maps `NLEmbedding` similarity scores onto these cases.
 enum Intent: Hashable {
     case summary
     case filter            // sender or topic filter
@@ -35,7 +33,7 @@ enum Intent: Hashable {
     case ordinalSelection  // "the first", "number two"
 
     /// In-scope subject (calendar, email, chats) but the requested action
-    /// isn't a Day 1 voice capability. Sub-kind selects the redirect pool.
+    /// isn't a launch voice capability. Sub-kind selects the redirect pool.
     case inScopeUnsupported(UnsupportedKind)
 
     /// Outside the bounded scope entirely. D18 refusal pool applies.

@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// Day 1 response generator per D15. Picks a phrasing from
+/// Launch response generator per D15. Picks a phrasing from
 /// `ResponseTemplateRegistry` based on the classified intent and the
 /// current dialog context. Honors anti-repeat: never re-uses a refusal
 /// or redirect phrasing that sits in the recent-phrasings window in
@@ -108,7 +108,7 @@ struct PersonaResponseGenerator: ResponseGenerator {
         return SpokenResponse(text: text, category: .summary)
     }
 
-    /// `.filter` is implicitly email-domain for Day 1. Resolved sender
+    /// `.filter` is implicitly email-domain at launch. Resolved sender
     /// wins (sender narrowing). Otherwise apply domain detection — the
     /// classifier sometimes routes plain "how many emails" to `.filter`
     /// rather than `.summary`, so the narrowing has to live on both

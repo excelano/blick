@@ -10,9 +10,9 @@ import os
 /// The hierarchical state machine spine per D1 and D33.
 ///
 /// Voice and touch both transition through a single source of truth.
-/// `currentState` and `context` are observable so SwiftUI views in Phase 4
-/// re-render automatically. Mutators are the only public entry points;
-/// direct property writes are not allowed.
+/// `currentState` and `context` are observable so SwiftUI views re-render
+/// automatically. Mutators are the only public entry points; direct
+/// property writes are not allowed.
 @Observable
 final class StateMachine {
 

@@ -8,8 +8,6 @@ All planned phases through F plus the post-review batch and a first backlog-driv
 
 Remaining v1 work continues from `~/notes/BACKLOG.md` as software polish. TestFlight upload is held off until we decide we're ready; there's no submission deadline driving the work.
 
-The earlier per-slice plan (5.3f through 5.5) and the original "ship to TestFlight" milestone framing are superseded by this document.
-
 ## Destination
 
 The destination is the public Apple App Store. TestFlight is the on-ramp, not the endpoint — the first TestFlight upload triggers Apple's lighter Beta App Review, which is the natural rehearsal for full App Store review.
@@ -55,8 +53,8 @@ Also lands the F12 immediate-render disambig panel binding (already in the worki
 
 ### Phase D — Conversation mode
 
-- Auto-finalization wire: `SFSpeechRecognizer`'s natural `isFinal` drives `.listening → .processing → .speaking` so hands-free turn-taking works without a mic tap. (Was 5.4a.)
-- Voice-disambig auto-listen: gate entry to `.disambiguating` on `preferredRestState == .listening` so `handleDisambiguationUtterance` goes live in conversation mode. (Was 5.4c.)
+- Auto-finalization wire: `SFSpeechRecognizer`'s natural `isFinal` drives `.listening → .processing → .speaking` so hands-free turn-taking works without a mic tap.
+- Voice-disambig auto-listen: gate entry to `.disambiguating` on `preferredRestState == .listening` so `handleDisambiguationUtterance` goes live in conversation mode.
 - Listening Mode toggle becomes functional.
 - Voice barge-in dropped from v1 per the silent-switch policy decision. Touch barge-in (tap-mic-during-TTS) stays. D8 in `DESIGN.md` updated.
 
@@ -94,7 +92,7 @@ Four load-bearing items from `~/notes/BACKLOG.md` shipped in one commit:
 - `GraphClient`: four `URL(string:)!` force-unwraps collapsed into a single `makeURL` helper that throws a typed `GraphError.invalidURL`.
 - Stub generators (`StubIntentClassifier`, `StubEntityMatcher`, `StubResponseGenerator`, `StubSpeechService`) wrapped in `#if DEBUG` per the CLAUDE.md diagnostic-features pattern. None were referenced from Release-reachable code; they remain available for previews and tests.
 - `HelpView` example, later, and don't-do rows wrapped in `accessibilityElement(children: .combine)` so each surfaces as a single VoiceOver element.
-- D10 surface deleted for v1: `CustomLanguageModelManager`, the Voice Recognition Tuning toggle, the disclosure sheet, and the `voiceTuningEnabled` @AppStorage key. The on-toggle path was a Phase 5 placeholder that never wired; resurrect from git history when D10 ships in v2.
+- D10 surface deleted for v1: `CustomLanguageModelManager`, the Voice Recognition Tuning toggle, the disclosure sheet, and the `voiceTuningEnabled` @AppStorage key. The on-toggle path was a placeholder that never wired; resurrect from git history when D10 ships in v2.
 
 ## Session cadence
 
@@ -142,7 +140,4 @@ Backlog at `~/notes/BACKLOG.md` accumulates v2 work and any deferred polish as i
 - `PERSONA.md` — voice persona.
 - `PRIVACY.md` — privacy posture.
 - `SELF-HOSTING.md` — D25 and D26 self-hosting walkthrough.
-- `GUIDE.md` — architecture and Swift bridge for a Swift-newcomer reader.
-- `SWIFT-MODERN.md` — Swift idioms post-2016.
-- `CAPABILITIES.md` — Apple API capability scan.
 - `~/notes/BACKLOG.md` — captured items deferred from current execution.

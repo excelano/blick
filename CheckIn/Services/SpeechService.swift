@@ -8,7 +8,7 @@ import Speech
 import AVFoundation
 import os
 
-/// On-device speech recognition per D9. The protocol seam exists so Phase 4
+/// On-device speech recognition per D9. The protocol seam exists so
 /// SwiftUI previews and unit tests can wire a deterministic mock without
 /// touching the microphone or `SFSpeechRecognizer`.
 ///
@@ -173,8 +173,7 @@ final class AppleSpeechService: SpeechService {
 }
 
 #if DEBUG
-/// No-op stub for previews, unit tests, and the Phase 5 spine build before
-/// `AppleSpeechService` is implemented. Returns `.notDetermined` from
+/// No-op stub for previews and unit tests. Returns `.notDetermined` from
 /// authorization, never yields transcripts, silently accepts start/stop/cancel.
 final class StubSpeechService: SpeechService {
     let transcripts: AsyncStream<TranscriptUpdate>

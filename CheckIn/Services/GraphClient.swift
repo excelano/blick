@@ -1,7 +1,5 @@
 // GraphClient.swift
 // CheckIn
-// Port of Go graph.go, calendar.go, mail.go, teams.go from nursery/checkin
-//
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
@@ -89,35 +87,9 @@ final class GraphClient {
         }
     }
 
-    // VIOLATES D27, D12: getEmailBody (no body display per single-screen + deep-link) and markEmailRead/replyToEmail (Day 2/3 voice scope). Day 1 only fetches summaries; mark-as-read returns in Day 2; reply is handled by Outlook deep-link, not Graph POST.
-    /*
-    func getEmailBody(id: String) async throws -> String {
-        let data: EmailBodyResponse = try await get("/me/messages/\(id)", query: [
-            "$select": "body"
-        ])
-
-        let text: String
-        if data.body.contentType.lowercased() == "html" {
-            text = stripHTML(data.body.content)
-        } else {
-            text = data.body.content
-        }
-        return stripEmailQuotes(text)
-    }
-
-    func markEmailRead(id: String) async throws {
-        try await patch("/me/messages/\(id)", body: ["isRead": true])
-    }
-
-    func replyToEmail(id: String, comment: String) async throws {
-        try await post("/me/messages/\(id)/reply", body: ["comment": comment])
-    }
-    */
-
     // MARK: - Teams
 
     /// Fetch pending chats: chats where someone else sent the last message within 24 hours.
-    /// This heuristic mirrors the Go CLI exactly (teams.go lines 62-108).
     func pendingChats() async throws -> [ChatMessage] {
         let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
             "$select": "id,topic,chatType,webUrl,lastMessagePreview",
@@ -163,37 +135,6 @@ final class GraphClient {
 
         return messages
     }
-
-    // VIOLATES D27, D12: chat thread display replaced by deep-link to Teams; sending chat messages is Day 2/3 (and Teams deep-link, not Graph POST, is the right path).
-    /*
-    func getChatMessages(chatID: String, count: Int = 5) async throws -> [ChatMessage] {
-        let data: GraphList<ChatMessageResponse> = try await get(
-            "/me/chats/\(chatID)/messages",
-            query: ["$top": "\(count)"]
-        )
-
-        return data.value.compactMap { m in
-            guard m.messageType == "message" else { return nil }
-
-            let from = m.from?.user?.displayName ?? ""
-            let sent = parseISO8601(m.createdDateTime) ?? Date()
-
-            return ChatMessage(
-                chatID: chatID,
-                topic: "",
-                from: from,
-                preview: stripHTML(m.body.content),
-                sent: sent
-            )
-        }
-    }
-
-    func sendChatMessage(chatID: String, text: String) async throws {
-        try await post("/me/chats/\(chatID)/messages", body: [
-            "body": ["content": text]
-        ])
-    }
-    */
 
     // MARK: - HTTP Layer
 

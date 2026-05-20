@@ -10,10 +10,10 @@ import Foundation
 /// classifier picks the intent whose closest anchor sits nearest the
 /// utterance vector. Adding anchors broadens recall; removing them
 /// tightens precision. Phrases are written in lowercase, contractions
-/// allowed, no punctuation. Day 1 set per PLAN.md and D29.
+/// allowed, no punctuation. Launch set per PLAN.md and D29.
 enum IntentAnchors {
 
-    /// The Day 1 catalog: every intent the classifier may emit, keyed by
+    /// The launch catalog: every intent the classifier may emit, keyed by
     /// `Intent`, with the anchor phrases it scores against.
     static let catalog: [(Intent, [String])] = [
         (.summary, [

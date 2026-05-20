@@ -31,8 +31,6 @@ DESIGN.md          33 design decisions; the source of truth
 PERSONA.md         voice persona reference for TTS strings
 STATES.md          application state machine
 PLAN.md            scope and sequencing
-CAPABILITIES.md    Apple voice/audio API capability scan
-PHASE3-NOTES.md    patterns extracted from the archived web prototype
 PRIVACY.md         privacy statement
 SELF-HOSTING.md    self-hosting walkthrough
 
@@ -44,7 +42,7 @@ CheckIn/
     Models/        plain Codable structs for Graph responses
     Services/      MSAL auth, Graph client
     Utilities/     brand, time formatting, constants, HTML stripping
-    Views/         ContentView placeholder (Phase 4 fleshes this out)
+    Views/         ContentView, SummaryView, OnboardingFlow, SettingsView, HelpView, Indicators
 ```
 
 ## Getting set up (macOS)

@@ -5,10 +5,10 @@
 
 import Foundation
 
-/// The response generation seam per D15. Phase 3 swaps the stub for the
-/// real persona-shaped template registry that draws from rotating refusal
-/// (D18) and redirect (D19) pools, with the latency reassurance pool (D21)
-/// attached to `processing` substate transitions.
+/// The response generation seam per D15. `PersonaResponseGenerator` is the
+/// real implementation, drawing from rotating refusal (D18) and redirect
+/// (D19) pools with the latency reassurance pool (D21) attached to
+/// `processing` substate transitions.
 protocol ResponseGenerator {
     func generate(for intent: ClassifiedIntent,
                   utterance: String,
@@ -18,7 +18,6 @@ protocol ResponseGenerator {
 
 #if DEBUG
 /// Deterministic stub for tests and previews. Fixed strings, no rotation.
-/// PERSONA.md-shaped output lands in Phase 3.
 struct StubResponseGenerator: ResponseGenerator {
     func generate(for intent: ClassifiedIntent,
                   utterance: String,

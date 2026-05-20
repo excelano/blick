@@ -5,9 +5,9 @@
 
 import Foundation
 
-/// The entity matching seam per D15. Phase 3 swaps the stub for an
-/// `NLTagger`-based implementation primed with `contextualStrings` from the
-/// current summary's senders, subjects, and chat topics.
+/// The entity matching seam per D15. `NLTaggerEntityMatcher` is the real
+/// implementation, primed with `contextualStrings` from the current
+/// summary's senders, subjects, and chat topics.
 protocol EntityMatcher {
     func match(text: String, domain: EntityDomain, context: DialogContext) -> [EntityMatch]
 }

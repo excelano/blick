@@ -9,13 +9,9 @@ import os
 
 /// Translates `StateMachine` transitions into service side effects. The
 /// state machine stays free of service dependencies; the coordinator owns
-/// the consequence side: start the recognizer on entry to listening, stop
-/// the synthesizer on exit from speaking, fetch the summary on entry to
-/// active, and so on.
-///
-/// Phase 5 mic-only slice: the coordinator logs every transition and
-/// (in a later slice) drives `SpeechService.startListening` / `cancel`.
-/// Phase 6 onward adds TTS, GraphClient, and intent routing dispatch.
+/// the consequence side: configure the audio session, start the recognizer
+/// on entry to listening, run the dialog layer, drive `TTSService`, fetch
+/// from `GraphClient` when needed, and route disambiguation.
 @MainActor
 final class SessionCoordinator {
     private let stateMachine: StateMachine
@@ -291,8 +287,8 @@ final class SessionCoordinator {
         // Fetch fresh data for intents that need it before generating
         // the spoken response. `.summary` and `.filter` both reference
         // the data directly; `.refresh` populates the context so the
-        // user's next ask picks it up (per 5.2 decision: empty spoken
-        // ack on refresh, summary on next turn).
+        // user's next ask picks it up. Empty spoken ack on refresh;
+        // summary follows on the next turn.
         if needsSummary(classified.intent) {
             #if DEBUG
             print("[summary] fetching for intent=\(classified.intent)")
@@ -387,7 +383,7 @@ final class SessionCoordinator {
         }
     }
 
-    // MARK: - Sender resolution (5.3b)
+    // MARK: - Sender resolution
 
     /// Three-way fork over the `.filter` resolution: one canonical (fall
     /// through to the existing narrowing path), multiple (suspend the turn
@@ -451,11 +447,11 @@ final class SessionCoordinator {
             .joined(separator: " ")
     }
 
-    // MARK: - Disambiguation resume / cancel / voice path (5.3b)
+    // MARK: - Disambiguation resume / cancel / voice path
 
-    /// User picked a candidate (touch tap or — once listening is wired —
-    /// a voice match). Reconstruct the filter intent at full confidence and
-    /// run the normal speaking flow.
+    /// User picked a candidate (touch tap or voice match). Reconstruct
+    /// the filter intent at full confidence and run the normal speaking
+    /// flow.
     func resumeDisambiguation(with candidate: Candidate) {
         guard case .active(.disambiguating(let suspended, _))
                 = stateMachine.currentState else { return }
@@ -473,10 +469,10 @@ final class SessionCoordinator {
         }
     }
 
-    /// User cancelled disambiguation (touch Cancel button or mic-tap
-    /// per the 5.3b brief). Silent return to rest — the absence of
-    /// speech is the acknowledgment, mirroring `.stop`. The rest-entry
-    /// sweep in `handle(_:)` clears pendingDisambiguation.
+    /// User cancelled disambiguation (touch Cancel button or mic-tap).
+    /// Silent return to rest — the absence of speech is the
+    /// acknowledgment, mirroring `.stop`. The rest-entry sweep in
+    /// `handle(_:)` clears pendingDisambiguation.
     func cancelDisambiguation() {
         let rest = dialogState(forRest: stateMachine.preferredRestState)
         stateMachine.transition(to: rest)
@@ -855,9 +851,7 @@ final class SessionCoordinator {
         }
 
         // Distinct canonicals first — fall back to ambiguity refusal when
-        // the matcher tagged two different real people. The disambig
-        // surface from 5.3b is wired for `.filter`, not `.reply`; the
-        // simpler "be more specific" answer keeps reply terse for v1.
+        // the matcher tagged two different real people.
         var seen = Set<String>()
         let distinct: [String] = matches.compactMap {
             seen.insert($0.canonical).inserted ? $0.canonical : nil

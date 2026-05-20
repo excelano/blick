@@ -33,7 +33,7 @@ enum DeepLinkService {
         URL(string: "ms-outlook://emails")
     }
 
-    /// Open a compose window in reply mode. Used by the Day 2 reply flow.
+    /// Open a compose window in reply mode. Used by the reply flow.
     /// Microsoft's documented compose parameters are `to`, `subject`, and
     /// `body`; supplying a `Re:` subject is the closest the documented
     /// scheme gets to "reply to message N", since iOS Outlook does not

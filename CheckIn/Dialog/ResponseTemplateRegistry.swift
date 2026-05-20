@@ -189,7 +189,7 @@ enum ResponseTemplateRegistry {
     // MARK: - D30 help
     //
     // Short voice variant runs about 15 seconds; the long variant covers
-    // every Day 1 capability. The full reference always lives on the
+    // every launch capability. The full reference always lives on the
     // visual surface (HelpView).
 
     static let helpShort: String =
@@ -297,12 +297,12 @@ enum ResponseTemplateRegistry {
     /// attempts — short, terminal, no humor.
     static let disambiguationExit: String = "OK, never mind."
 
-    // MARK: - Filter narrowing (5.3b)
+    // MARK: - Filter narrowing
 
     /// Spoken when `.filter` fires with a "from <X>" surface that the
-    /// entity matcher can't tag to anyone in scope. Closes the silent
-    /// fall-through gap from 5.3d: the user named someone, so the system
-    /// names them back rather than answering as if no name was given.
+    /// entity matcher can't tag to anyone in scope. The user named
+    /// someone, so the system names them back rather than answering
+    /// as if no name was given.
     static func filterUnknownSender(_ name: String) -> String {
         "I don't have anyone called \(name) in your inbox."
     }
@@ -316,7 +316,7 @@ enum ResponseTemplateRegistry {
     static let settingsOpened: String = ""             // Settings sheet replaces speech.
     static let helpOpened: String = ""                 // Same: help sheet replaces speech.
 
-    // MARK: - Open routing (5.3a)
+    // MARK: - Open routing
 
     static func openNotFound(_ entity: String) -> String {
         "I don't have anything from \(entity). Try refreshing."
@@ -449,7 +449,7 @@ enum ResponseTemplateRegistry {
         return .all
     }
 
-    /// Builds a Day 1 summary sentence from the current `CheckInSummary`.
+    /// Builds the summary sentence from the current `CheckInSummary`.
     /// PERSONA.md verbosity defaults to terse: two or three short sentences.
     /// Verbosity expansion (D5) lives outside this function and feeds into
     /// the call site instead of branching here.

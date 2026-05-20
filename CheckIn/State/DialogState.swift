@@ -54,10 +54,6 @@ enum RestState: Equatable {
 }
 
 // MARK: - Payload types
-//
-// These are intentionally light for Phase 2. Phase 3 enriches them as the
-// real intent classifier, entity matcher, and response template registry
-// land behind the protocols in `Dialog/`.
 
 /// A user intent suspended while the system disambiguates an ambiguous
 /// reference per D7. Once the user picks a candidate, the suspended intent
@@ -68,7 +64,7 @@ struct SuspendedIntent: Equatable {
 }
 
 /// A candidate offered during disambiguation. `label` is what the user
-/// hears; `entityRef` is an opaque reference Phase 3 binds to a model.
+/// hears; `entityRef` is an opaque reference to the underlying model.
 struct Candidate: Identifiable, Equatable {
     let id: UUID
     let label: String
@@ -97,9 +93,9 @@ struct PendingAction: Equatable {
     let target: String
 }
 
-/// The destructive or modifying actions CheckIn supports. Day 1 has none;
-/// Day 2 adds `markEmailRead` and `flagEmail`; Day 3 adds the soft-delete
-/// and bulk operations.
+/// The destructive or modifying actions CheckIn supports. Launch has none;
+/// the next release adds `markEmailRead` and `flagEmail`; soft-delete and
+/// bulk operations land later.
 enum ActionKind: Equatable {
     case markEmailRead
     case flagEmail

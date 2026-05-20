@@ -7,7 +7,7 @@ import Foundation
 import NaturalLanguage
 import os.log
 
-/// Day 1 intent classifier per D14 and D15. Uses
+/// Launch intent classifier per D14 and D15. Uses
 /// `NLEmbedding.sentenceEmbedding(for:)` to score the utterance against
 /// every anchor in `IntentAnchors`. The closest anchor wins; the owning
 /// intent is the classification.
@@ -19,9 +19,7 @@ import os.log
 /// closest anchor sits beyond the unknown floor, the dialog returns
 /// `unknown` and the state machine re-prompts.
 ///
-/// Distances are cosine by default and roughly fall in `[0, 2]`. Concrete
-/// floors are tuned against the test corpus in `CAPABILITIES.md`; tweak
-/// once real recognizer transcripts are flowing in Phase 5.
+/// Distances are cosine by default and roughly fall in `[0, 2]`.
 final class NLEmbeddingIntentClassifier: RankedIntentClassifier {
 
     private let embedding: NLEmbedding?

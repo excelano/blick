@@ -48,8 +48,8 @@ struct NLTaggerEntityMatcher: EntityMatcher {
         "tenth": 10, "10th": 10, "ten": 10
     ]
 
-    /// Relative date phrases the dialog accepts at Day 1. Day 2 quick-time
-    /// queries (D29) extend this with explicit times.
+    /// Relative date phrases the dialog accepts at launch. The next-release
+    /// quick-time queries (D29) extend this with explicit times.
     private static let dateWords: Set<String> = [
         "today", "tomorrow", "tonight",
         "this morning", "this afternoon", "this evening",
@@ -68,9 +68,6 @@ struct NLTaggerEntityMatcher: EntityMatcher {
         case .number:
             return matchNumbers(in: lower)
         case .subject:
-            // Day 1 has no structured subject extraction. Phase 4 may add
-            // a fuzzy match against current email subjects when filter by
-            // topic lands in the response surface.
             return []
         }
     }
