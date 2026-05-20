@@ -150,25 +150,32 @@ struct SummaryView: View {
 
     private var voiceArea: some View {
         VStack(spacing: 14) {
-            // Indicator + caption layer reflecting current state.
-            switch stateMachine.currentState {
-            case .active(.listening):
-                ListeningIndicator()
-            case .active(.processing):
-                ThinkingIndicator()
-            case .active(.speaking(let response, _)):
-                CaptioningView(text: response.text)
-            case .active(.disambiguating(let suspended, let candidates)):
-                DisambiguatingPanel(utterance: suspended.utterance,
-                                    candidates: candidates,
+            // The disambig panel renders as soon as pendingDisambiguation
+            // is set in context, not when state == .disambiguating. The
+            // state machine sits in .speaking while the prompt TTS plays,
+            // then transitions to .disambiguating on finish — binding to
+            // pending lets the candidate panel appear immediately so the
+            // user can tap-pick without waiting through the prompt.
+            if let pending = stateMachine.context.pendingDisambiguation {
+                DisambiguatingPanel(utterance: pending.suspendedIntent.utterance,
+                                    candidates: pending.candidates,
                                     onSelect: { stateMachine.onCandidateSelected?($0) },
                                     onCancel: { stateMachine.onDisambiguationCancelled?() })
-            case .active(.confirming(let action)):
-                ConfirmingPanel(action: action,
-                                onYes: { /* Day 2 wires the executor */ },
-                                onNo: { stateMachine.transition(to: .active(restState())) })
-            default:
-                EmptyView()
+            } else {
+                switch stateMachine.currentState {
+                case .active(.listening):
+                    ListeningIndicator()
+                case .active(.processing):
+                    ThinkingIndicator()
+                case .active(.speaking(let response, _)):
+                    CaptioningView(text: response.text)
+                case .active(.confirming(let action)):
+                    ConfirmingPanel(action: action,
+                                    onYes: { /* Day 2 wires the executor */ },
+                                    onNo: { stateMachine.transition(to: .active(restState())) })
+                default:
+                    EmptyView()
+                }
             }
 
             micButton

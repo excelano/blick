@@ -56,6 +56,15 @@ struct PersonaResponseGenerator: ResponseGenerator {
             // the spoken response is empty so the route happens cleanly.
             return SpokenResponse(text: "", category: .answer)
 
+        case .reply, .join:
+            // Side-effect-driven: the coordinator's resolveSideEffects
+            // either supplies the spoken explanation (no sender resolved,
+            // no join URL, launch failure) or fires the deep-link silently.
+            return SpokenResponse(text: "", category: .answer)
+
+        case .timeQuery:
+            return timeQueryResponse(context: context)
+
         case .exit:
             return SpokenResponse(text: ResponseTemplateRegistry.exitAcknowledged,
                                   category: .answer)
@@ -113,7 +122,8 @@ struct PersonaResponseGenerator: ResponseGenerator {
         }
         if let sender = resolvedSender {
             let text = ResponseTemplateRegistry.summaryFilteredBySender(from: summary,
-                                                                        matching: sender)
+                                                                        matching: sender,
+                                                                        utterance: utterance)
             return SpokenResponse(text: text, category: .summary)
         }
         let text: String
@@ -124,6 +134,21 @@ struct PersonaResponseGenerator: ResponseGenerator {
         case .all:     text = ResponseTemplateRegistry.summarySentence(from: summary)
         }
         return SpokenResponse(text: text, category: .summary)
+    }
+
+    // MARK: - Time query (Phase C, D29)
+
+    private func timeQueryResponse(context: DialogContext) -> SpokenResponse {
+        guard let summary = context.summary else {
+            return SpokenResponse(text: "I haven't fetched yet. Say 'check' and I'll grab it.",
+                                  category: .answer)
+        }
+        guard let meeting = summary.meeting else {
+            return SpokenResponse(text: ResponseTemplateRegistry.timeQueryNoMeeting,
+                                  category: .answer)
+        }
+        let text = ResponseTemplateRegistry.timeQueryAnswer(for: meeting)
+        return SpokenResponse(text: text, category: .answer)
     }
 
     // MARK: - D18 refusal (out-of-scope)

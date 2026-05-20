@@ -40,7 +40,7 @@ final class GraphClient {
             "endDateTime": formatter.string(from: end),
             "$top": "1",
             "$orderby": "start/dateTime",
-            "$select": "subject,organizer,location,start,end,isOnlineMeeting,attendees"
+            "$select": "subject,organizer,location,start,end,isOnlineMeeting,onlineMeeting,attendees"
         ])
 
         guard let event = data.value.first else { return nil }
@@ -61,7 +61,8 @@ final class GraphClient {
             start: start,
             end: meetingEnd,
             isOnline: event.isOnlineMeeting,
-            attendees: attendees
+            attendees: attendees,
+            joinUrl: event.onlineMeeting?.joinUrl
         )
     }
 
@@ -81,6 +82,7 @@ final class GraphClient {
                 id: e.id,
                 subject: e.subject,
                 from: e.from.emailAddress.name,
+                fromAddress: e.from.emailAddress.address ?? "",
                 preview: e.bodyPreview,
                 received: received
             )
@@ -310,7 +312,12 @@ private struct CalendarEventResponse: Decodable {
     let start: DateTimeResponse
     let end: DateTimeResponse
     let isOnlineMeeting: Bool
+    let onlineMeeting: OnlineMeetingResponse?
     let attendees: [AttendeeResponse]
+}
+
+private struct OnlineMeetingResponse: Decodable {
+    let joinUrl: String?
 }
 
 private struct OrganizerResponse: Decodable {
@@ -333,6 +340,7 @@ private struct DateTimeResponse: Decodable {
 
 private struct EmailAddressResponse: Decodable {
     let name: String
+    let address: String?
 }
 
 private struct EmailResponse: Decodable {

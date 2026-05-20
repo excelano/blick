@@ -316,6 +316,71 @@ enum ResponseTemplateRegistry {
     static let openMeetingNone: String = "Nothing on your calendar to open."
     static let openLaunchFailed: String = "Couldn't open it. Make sure the app is installed."
 
+    // MARK: - Reply (Phase C)
+
+    /// Spoken before launching Outlook's compose-reply surface. The user
+    /// hears the recipient confirmed back before the app switch so a
+    /// mis-resolved name is obvious before they're typing.
+    static func replyOpening(to recipient: String) -> String {
+        "Opening reply to \(recipient) in Outlook."
+    }
+
+    /// Spoken when the utterance named a sender the matcher can't tie to
+    /// anyone in the unread set. The reply path needs an actual email to
+    /// pull a subject from, so this case is closer to `filterUnknownSender`
+    /// than to `openNotFound`.
+    static func replyUnknownSender(_ name: String) -> String {
+        "I don't have anything from \(name) to reply to."
+    }
+
+    /// Spoken when the user said "reply" without naming who. The voice
+    /// surface doesn't carry a "last referred to" context strong enough
+    /// to disambiguate, so route them through `filterUnknownSender`'s sibling
+    /// register and let them retry.
+    static let replyNoSender: String = "Reply to who?"
+
+    // MARK: - Join meeting (Phase C)
+
+    /// Silent on successful join — the app switch is the answer. This is
+    /// the fallback for the rare misfire (URL malformed, Teams refused).
+    static let meetingJoinFailed: String = "Couldn't open the meeting link."
+
+    /// The next meeting has no `onlineMeeting.joinUrl` — fall through to
+    /// the calendar so the user can see what's actually scheduled.
+    static let meetingNoJoinLink: String = "No join link on this one. Opening your calendar."
+
+    /// No meeting in the lookahead window. Same shape as
+    /// `openMeetingNone` but worded for the join request.
+    static let meetingNoneToJoin: String = "Nothing on your calendar to join."
+
+    // MARK: - Time query (Phase C, D29)
+
+    /// Time-focused response built from current time vs meeting start.
+    /// The thresholds match D29's contextual phrasing: a fixed time well
+    /// in advance, a relative duration when closer, a "starts soon" status
+    /// when very close, and an "in progress" status when already underway.
+    static func timeQueryAnswer(for meeting: Meeting) -> String {
+        let now = Date()
+        let interval = meeting.start.timeIntervalSince(now)
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        let timeString = formatter.string(from: meeting.start)
+        if interval < 0 {
+            return "Your meeting started already."
+        }
+        if interval < 5 * 60 {
+            return "Your meeting's about to start."
+        }
+        if interval < 60 * 60 {
+            let minutes = Int(interval / 60)
+            return "\(minutes) minutes until your next meeting."
+        }
+        return "Your next meeting is at \(timeString)."
+    }
+
+    static let timeQueryNoMeeting: String = "Nothing on your calendar coming up."
+
     // MARK: - Summary phrasing
 
     /// The user's question targets a single domain when they name it
@@ -470,11 +535,17 @@ enum ResponseTemplateRegistry {
         }
     }
 
-    /// Narrow the email list to one sender and read the count back with
-    /// the latest subject. `sender` is the canonical form resolved by
-    /// `EntityMatcher` — case-insensitive against `email.from`.
+    /// Narrow the unread set to one sender. `sender` is the canonical form
+    /// resolved by `EntityMatcher` — case-insensitive against `from`.
+    /// `utterance` selects the domain: a chat-domain ask ("any chats from
+    /// tony") narrows `summary.chats`, otherwise we narrow `summary.emails`
+    /// (the default register for filter).
     static func summaryFilteredBySender(from summary: CheckInSummary,
-                                        matching sender: String) -> String {
+                                        matching sender: String,
+                                        utterance: String) -> String {
+        if detectDomain(utterance) == .chat {
+            return chatsFilteredBySender(from: summary, matching: sender)
+        }
         let matches = summary.emails.filter {
             $0.from.localizedCaseInsensitiveCompare(sender) == .orderedSame
         }
@@ -485,6 +556,26 @@ enum ResponseTemplateRegistry {
             return "One from \(sender), about \(matches[0].subject)."
         case let n:
             return "\(spellCount(n)) from \(sender), the latest about \(matches[0].subject)."
+        }
+    }
+
+    /// The chat-domain sibling of `summaryFilteredBySender`. Chat topics
+    /// vary in usefulness (sometimes the sender's name, sometimes a real
+    /// thread name); we lead with sender and count and leave the topic to
+    /// the visual surface.
+    private static func chatsFilteredBySender(from summary: CheckInSummary,
+                                              matching sender: String) -> String {
+        guard summary.teamsEnabled else { return "Teams isn't enabled." }
+        let matches = summary.chats.filter {
+            $0.from.localizedCaseInsensitiveCompare(sender) == .orderedSame
+        }
+        switch matches.count {
+        case 0:
+            return "No chats from \(sender)."
+        case 1:
+            return "One chat from \(sender)."
+        case let n:
+            return "\(spellCount(n)) chats from \(sender)."
         }
     }
 

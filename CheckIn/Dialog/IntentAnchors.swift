@@ -30,7 +30,6 @@ enum IntentAnchors {
             "what's up",
             "give me my brief",
             "what's my next meeting",
-            "when's my next meeting",
             "what's coming up next",
             "what's next on my calendar",
             "do i have any chats",
@@ -59,7 +58,12 @@ enum IntentAnchors {
             "count the emails from tony",
             "any emails from tony",
             "anything from microsoft security",
-            "anything from microsoft 365 message center"
+            "anything from microsoft 365 message center",
+            "any chats from tony",
+            "any teams messages from tony",
+            "did tony chat me",
+            "messages from tony on teams",
+            "did i hear from tony in teams"
         ]),
 
         (.refresh, [
@@ -120,6 +124,46 @@ enum IntentAnchors {
             "open emails from tony",
             "open my email from tony",
             "open the email from sarah"
+        ]),
+
+        (.reply, [
+            "reply to tony",
+            "reply to tony's email",
+            "reply to the email from tony",
+            "reply to the latest email from tony",
+            "respond to tony",
+            "respond to tony's email",
+            "write back to tony",
+            "reply to that email",
+            "let me reply to tony",
+            "reply to sarah"
+        ]),
+
+        (.join, [
+            "join my meeting",
+            "join the meeting",
+            "join the call",
+            "join now",
+            "join the teams meeting",
+            "open the meeting link",
+            "let me join the meeting",
+            "join my next meeting",
+            "take me into the meeting",
+            "start the meeting"
+        ]),
+
+        (.timeQuery, [
+            "when's my next meeting",
+            "when is my next meeting",
+            "what time is my meeting",
+            "what time is my next meeting",
+            "what time does the meeting start",
+            "when does my meeting start",
+            "how long until my next meeting",
+            "how long until my meeting",
+            "how long do i have until my meeting",
+            "minutes until my meeting",
+            "how much time before my meeting"
         ]),
 
         (.exit, [
@@ -214,12 +258,12 @@ enum IntentAnchors {
         ]),
 
         (.inScopeUnsupported(.voiceReply), [
-            "reply to tony",
             "tell sarah i'll be there",
-            "respond to bob",
             "send sarah a message",
-            "write back to tony",
-            "compose an email to liz"
+            "compose an email to liz",
+            "dictate a reply",
+            "type out a response for me",
+            "write an email for me"
         ]),
 
         (.inScopeUnsupported(.listBrowse), [

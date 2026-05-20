@@ -38,6 +38,12 @@ struct StubResponseGenerator: ResponseGenerator {
             return SpokenResponse(text: "Stub help.", category: .help)
         case .open:
             return SpokenResponse(text: "Opening, stub.", category: .answer)
+        case .reply:
+            return SpokenResponse(text: "Replying, stub.", category: .answer)
+        case .join:
+            return SpokenResponse(text: "Joining, stub.", category: .answer)
+        case .timeQuery:
+            return SpokenResponse(text: "Time query, stub.", category: .answer)
         case .exit:
             return SpokenResponse(text: "", category: .answer)
         case .settings:

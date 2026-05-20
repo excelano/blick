@@ -213,6 +213,7 @@ final class SessionCoordinator {
     private func needsSummary(_ intent: Intent) -> Bool {
         switch intent {
         case .summary, .filter, .refresh: return true
+        case .reply, .join, .timeQuery: return true
         default: return false
         }
     }
@@ -606,6 +607,12 @@ final class SessionCoordinator {
         case .open:
             let outcome = await handleOpen(utterance: utterance, context: context)
             return (outcome.spoken ?? baseResponse, defaultRest)
+        case .reply:
+            let outcome = await handleReply(utterance: utterance, context: context)
+            return (outcome.spoken ?? baseResponse, defaultRest)
+        case .join:
+            let outcome = await handleJoin(context: context)
+            return (outcome.spoken ?? baseResponse, defaultRest)
         case .exit:
             // Even in conversation mode, "done" ends the session — drop
             // back to idle so the recognizer doesn't auto-restart.
@@ -800,6 +807,129 @@ final class SessionCoordinator {
             let idx = n - 1
             return list.indices.contains(idx) ? list[idx] : nil
         }
+    }
+
+    // MARK: - Reply (Phase C)
+
+    /// Resolve a `.reply` turn: pull the named sender from scope, find
+    /// their latest unread message (or an ordinal-selected one), and
+    /// hand Outlook a compose URL with `to` and `Re:` subject pre-filled.
+    /// Outlook iOS doesn't expose a per-message-id reply scheme, so this
+    /// is the closest the documented compose surface gets to "reply to
+    /// message N." The user lands inside an unaddressed reply they can
+    /// finish in Outlook.
+    private func handleReply(utterance: String, context: DialogContext) async -> OpenOutcome {
+        let emails = context.summary?.emails ?? []
+        let matches = entityMatcher.match(text: utterance,
+                                          domain: .person,
+                                          context: context)
+        if matches.isEmpty {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.replyNoSender,
+                category: .answer))
+        }
+
+        // Distinct canonicals first — fall back to ambiguity refusal when
+        // the matcher tagged two different real people. The disambig
+        // surface from 5.3b is wired for `.filter`, not `.reply`; the
+        // simpler "be more specific" answer keeps reply terse for v1.
+        var seen = Set<String>()
+        let distinct: [String] = matches.compactMap {
+            seen.insert($0.canonical).inserted ? $0.canonical : nil
+        }
+        if distinct.count > 1 {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openAmbiguous,
+                category: .answer))
+        }
+        let canonical = distinct[0]
+        let candidates = emails.filter {
+            $0.from.localizedCaseInsensitiveCompare(canonical) == .orderedSame
+        }
+        guard !candidates.isEmpty else {
+            let surface = matches.first?.surface ?? canonical
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.replyUnknownSender(surface),
+                category: .answer))
+        }
+
+        let ordinalMatches = entityMatcher.match(text: utterance,
+                                                 domain: .ordinal,
+                                                 context: context)
+        let ordinal = ordinalMatches.first.flatMap { resolveOrdinalSelector($0.canonical) }
+        let chosen: Email?
+        if let sel = ordinal {
+            chosen = pickByOrdinal(candidates, selector: sel)
+        } else {
+            // Latest unread is the natural default for "reply to Tony".
+            chosen = candidates.first
+        }
+        guard let email = chosen else {
+            let surface = matches.first?.surface ?? canonical
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.replyUnknownSender(surface),
+                category: .answer))
+        }
+
+        // The deep-link's `to` field needs a real SMTP address. Graph
+        // returns it as `from.emailAddress.address` and we pass it through
+        // on the model; the rare missing-address case falls through to
+        // a calendar-style explanation so the user isn't dropped into
+        // Outlook with an empty To field.
+        guard !email.fromAddress.isEmpty,
+              let url = DeepLinkService.outlookReply(to: email.fromAddress,
+                                                     subject: email.subject) else {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openLaunchFailed,
+                category: .error))
+        }
+
+        let surface = matches.first?.surface ?? email.from
+        let opened = await openURL(url)
+        if opened.spoken != nil {
+            // openURL only sets a spoken response on failure; pass it through.
+            return opened
+        }
+        return OpenOutcome(spoken: SpokenResponse(
+            text: ResponseTemplateRegistry.replyOpening(to: surface),
+            category: .answer))
+    }
+
+    // MARK: - Join meeting (Phase C)
+
+    private func handleJoin(context: DialogContext) async -> OpenOutcome {
+        guard let meeting = context.summary?.meeting else {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.meetingNoneToJoin,
+                category: .answer))
+        }
+        if let joinUrlStr = meeting.joinUrl,
+           !joinUrlStr.isEmpty,
+           let url = DeepLinkService.passthrough(joinUrlStr) {
+            let opened = await openURL(url)
+            if opened.spoken != nil {
+                // Failed; openURL set its own error template. Override the
+                // generic launch-failed with the join-specific one.
+                return OpenOutcome(spoken: SpokenResponse(
+                    text: ResponseTemplateRegistry.meetingJoinFailed,
+                    category: .error))
+            }
+            return opened
+        }
+        // No join URL on this event — open the calendar so the user can
+        // see what's actually scheduled and decide what to do.
+        guard let calendarURL = DeepLinkService.outlookCalendar else {
+            return OpenOutcome(spoken: SpokenResponse(
+                text: ResponseTemplateRegistry.openLaunchFailed,
+                category: .error))
+        }
+        let opened = await openURL(calendarURL)
+        if opened.spoken != nil {
+            return opened
+        }
+        return OpenOutcome(spoken: SpokenResponse(
+            text: ResponseTemplateRegistry.meetingNoJoinLink,
+            category: .answer))
     }
 
     private func openURL(_ url: URL) async -> OpenOutcome {

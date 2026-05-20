@@ -25,6 +25,9 @@ enum Intent: Hashable {
     case stop
     case help
     case open              // open by name (deep-link)
+    case reply             // reply to a known sender (deep-link to Outlook compose)
+    case join              // join the next meeting via onlineMeeting.joinUrl
+    case timeQuery         // "when's my next meeting", "how long until"
     case exit              // conversation-mode exit phrase
     case settings
     case yes               // confirmation responses
