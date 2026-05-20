@@ -4,9 +4,17 @@ Updated 2026-05-20.
 
 ## Status
 
-Phases 1-4 and sub-phases 5.0 through 5.3e are committed (current `main` at `e36bcaa`). The voice loop, intent routing, disambiguation, Graph fetch, deep-link routing, and dialog-stack cleanup all work on device. Remaining work to TestFlight is consolidated into six phases below.
+All planned phases through F are committed (current `main` at `b745d8c`). The voice loop, intent routing, disambiguation, Graph fetch, deep-link routing, dialog-stack cleanup, audio architecture, entity matcher rework, new read/navigate intents, conversation mode, accessibility and persona sweep, and privacy gate are all on device and verified. A pre-TestFlight code review followed, addressing scope reduction, persona discipline, and accessibility fixes surfaced during review.
 
-The earlier per-slice plan (5.3f through 5.5) is superseded by this document.
+Remaining v1 work continues from `~/notes/BACKLOG.md` as software polish. TestFlight upload is held off until we decide we're ready; there's no submission deadline driving the work.
+
+The earlier per-slice plan (5.3f through 5.5) and the original "ship to TestFlight" milestone framing are superseded by this document.
+
+## Destination
+
+The destination is the public Apple App Store. TestFlight is the on-ramp, not the endpoint — the first TestFlight upload triggers Apple's lighter Beta App Review, which is the natural rehearsal for full App Store review.
+
+We are not yet on that path. Current posture: continue building software quality. TestFlight upload starts when we agree the binary is ready, not when the calendar says so. App Store metadata work (hosted privacy policy URL, support URL, marketing copy, screenshots, demo-account-for-reviewer, age rating, category) is a distinct workstream after that.
 
 ## Goal
 
@@ -59,24 +67,39 @@ Also lands the F12 immediate-render disambig panel binding (already in the worki
 - Reduced motion variants for `ListeningIndicator` and `ThinkingIndicator`.
 - Persona drift sweep across `ResponseTemplateRegistry` against `PERSONA.md`.
 
-### Phase F — Pre-TestFlight gate
+### Phase F — Pre-TestFlight privacy gate (committed: `1d648b7`)
 
 - `Info.plist` permission strings reviewed.
 - Privacy posture verification: no `URLSession` outside Microsoft Graph and Microsoft identity endpoints; no analytics SDKs anywhere in the dependency graph.
-- App Store Connect "Data Not Collected" prep.
-- Final smoke test on device.
+- App Store Connect "Data Not Collected" prep at `~/notes/2026-05-20T14-24-app-store-connect-prep-mac.md`.
+- Logger emission gaps closed: dropped `privacy: .public` on user-content sites; `NSLog` of MSAL `userInfo` wrapped in `#if DEBUG`.
+
+### Post-review fixes (committed: `b745d8c`)
+
+A code review surfaced four BLOCKERs and five cheap MAJORs; all landed in one commit.
+
+- Constants: dropped `Mail.ReadWrite`, `Mail.Send`, `Chat.ReadWrite` from requested scopes; reduced to `Mail.Read`, `Calendars.Read`, `Chat.Read` to match the read-and-navigate posture.
+- `ResponseTemplateRegistry.notFetched` added; three hard-coded "I haven't fetched yet" strings in `PersonaResponseGenerator` now route through the registry.
+- `OnboardingFlow` invitations pool now uses `ResponseTemplateRegistry.onboardingInvitations` instead of a local array.
+- `SpeechService` `contextualStrings` parameter stripped — caller passed `[]` at every site and the doc-promised priming never happened. Custom-language-model attachment (D10) remains out of scope for v1.
+- `OnboardingFlow.PermissionsStep` reconciles toggle state with actual `AVAudioApplication.recordPermission` and `SFSpeechRecognizer.authorizationStatus()` on appear.
+- Two "Grant" buttons get distinct VoiceOver labels.
+- `SummaryView` meeting organizer `lineLimit(1)` bumped to `lineLimit(2)`; `Image.font(.system(size: 38))` replaced with `.largeTitle` so icons scale with Dynamic Type.
+- Voice Recognition Tuning section in Settings gated behind `#if DEBUG`.
 
 ## Session cadence
 
-Execution sequenced as five sessions, each ending in a commit with on-device verification and a context compact:
+Execution from 2026-05-15 through 2026-05-20 ran as five focused sessions, each ending in a verified-on-device commit and a context compact:
 
-1. **Phase A.** Audio architecture. Foundation; everything downstream depends on stable audio.
-2. **Phase B.** Entity matcher rework. Isolated session so the behavior change has a clean device check before C starts.
-3. **Phase C.** New read/navigate intents. Three intents plus two carry-forwards is a full session.
-4. **Phase D + E together.** Conversation mode wires (small) bundled with the accessibility and persona sweep (medium).
-5. **Phase F.** Pre-TestFlight gate ends in an App Store Connect upload; clean session.
+1. **Phase A.** Audio architecture. Foundation. (`2cf480e`)
+2. **Phase B.** Entity matcher rework. (`f4ea8d8`)
+3. **Phase C.** New read/navigate intents. (`1b312f3`)
+4. **Phase D + E together.** Conversation mode wires bundled with accessibility and persona sweep. (`9f59c2b`)
+5. **Phase F + post-review fixes.** Pre-TestFlight privacy gate plus the code review batch. (`1d648b7`, `b745d8c`)
 
-Each compact boundary preserves a verified-on-device commit. New items that surface during execution and aren't in scope for the current session go to `~/notes/BACKLOG.md` and are addressed after the current phase, not absorbed into it.
+Each compact boundary preserves a verified-on-device commit. The pattern continues: new items that surface during execution and aren't in scope for the current session go to `~/notes/BACKLOG.md` and are addressed after the current phase, not absorbed into it.
+
+Going forward, the cadence shifts from gate-driven phases to backlog-driven polish. Items in `~/notes/BACKLOG.md` are triaged for reviewer-relevance and cleanliness; the next focused phase (Phase G if one happens) picks load-bearing items and ships them as one commit. The TestFlight upload happens when we agree the binary is ready, not on a fixed schedule.
 
 ## Out of scope for v1
 
