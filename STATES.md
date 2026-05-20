@@ -2,7 +2,7 @@
 
 The state machine is hierarchical. Top-level states are `signedOut`, `onboarding`, and `active`. The `active` state contains the operational substates the user spends nearly all their time in.
 
-Each state below specifies visible UI, voice action, touch actions, and transitions out. Decision references in parentheses point back to `DESIGN.md`.
+Each state below specifies visible UI, voice action, touch actions, and transitions out.
 
 ## `signedOut`
 
@@ -15,7 +15,7 @@ The user has no MSAL token.
 
 ## `onboarding`
 
-The first-run flow per D31 is active. Substates: `welcome`, `permissions`, `mode`, `firstQuery`.
+The first-run flow is active. Substates: `welcome`, `permissions`, `mode`, `firstQuery`.
 
 **Visible UI.** The onboarding sequence; the main screen is hidden behind it.
 **Voice action.** Inactive in `welcome` and `permissions`. The system speaks one short persona greeting after `permissions` completes. The system speaks a varied invitation in `firstQuery`.
@@ -32,15 +32,15 @@ Tap-to-talk rest state.
 
 **Visible UI.** The summary plus a tappable mic button.
 **Voice action.** Inactive.
-**Touch actions.** Tap mic enters `active.listening`. Tap a summary row deep-links to Outlook or Teams per D27 (transient, returns to `active.idle`). Tap "?" enters `active.helpDisplayed`. Tap settings enters `active.settingsDisplayed`.
+**Touch actions.** Tap mic enters `active.listening`. Tap a summary row deep-links to Outlook or Teams (transient, returns to `active.idle`). Tap "?" enters `active.helpDisplayed`. Tap settings enters `active.settingsDisplayed`.
 **Dialog context.** Empty or stale.
 
 ### `active.listening`
 
 Mic is hot and VAD is active.
 
-**Visible UI.** The summary plus a listening indicator (waveform or pulsing mic) per D2 and D13.
-**Audio.** The listening earcon plays on entry per D13.
+**Visible UI.** The summary plus a listening indicator (waveform or pulsing mic).
+**Audio.** The listening earcon plays on entry.
 **Voice action.** Capture user speech until VAD detects end of utterance, or a cancel, timeout, or barge-in fires.
 **Touch actions.** Tap mic cancels listening and returns to rest. Tap a summary row deep-links (cancels listening). Tap "?" or settings enters the displayed state (cancels listening).
 **Transitions.** On end-of-utterance, advances to `active.processing`. On silence timeout, returns to rest. On cancel, returns to rest.
@@ -50,22 +50,22 @@ Mic is hot and VAD is active.
 Transcript is finalized; the system is classifying intent, matching entities, and fetching from Graph.
 
 **Visible UI.** The summary plus a thinking indicator.
-**Audio.** The thinking earcon plays on entry per D21. Substates produce additional audio at latency thresholds.
+**Audio.** The thinking earcon plays on entry. Substates produce additional audio at latency thresholds.
 **Substates.** `thinking` (under 1.5 seconds, silent except for the earcon); `speakingPlaceholder` (1.5 to 5 seconds, plays a short reassurance from the latency pool); `speakingEscalation` (over 5 seconds, plays a longer status update).
-**Transitions.** On response ready, advances to `active.speaking` with the response. On error, advances to `active.speaking` with the matching error response. On out-of-scope or in-scope-unsupported classification, advances to `active.speaking` with the appropriate D18 or D19 response.
+**Transitions.** On response ready, advances to `active.speaking` with the response. On error, advances to `active.speaking` with the matching error response. On out-of-scope or in-scope-unsupported classification, advances to `active.speaking` with the appropriate refusal or redirect response.
 
 ### `active.speaking`
 
 TTS is playing the response.
 
-**Visible UI.** The summary plus on-screen captioning of the spoken text per D22.
-**Audio.** TTS via `AVSpeechSynthesizer` with delegate callbacks tracking position for D8 barge-in.
+**Visible UI.** The summary plus on-screen captioning of the spoken text.
+**Audio.** TTS via `AVSpeechSynthesizer` with delegate callbacks tracking position for barge-in.
 **Touch actions.** Tap mic triggers barge-in (TTS stops at word boundary, advances to `active.listening`). Tap stop ends TTS silently and returns to rest. Tap a summary row deep-links.
 **Transitions.** On TTS completion in tap-to-talk, advances to `active.idle`. In conversation mode, advances to `active.listening`. Some response types (disambiguation prompts, confirmation prompts) advance to `active.disambiguating` or `active.confirming` after TTS completes.
 
 ### `active.disambiguating`
 
-The system has presented an enumerated list of candidates per D7 and is waiting for selection.
+The system has presented an enumerated list of candidates and is waiting for selection.
 
 **Visible UI.** The candidates numbered and named, a listening indicator, and the original utterance shown so the user knows what is being disambiguated.
 **Voice action.** Listen for ordinal selection ("the first", "number two"), content selection ("Tony Smith"), date or subject reference, or cancel.
@@ -75,7 +75,7 @@ The system has presented an enumerated list of candidates per D7 and is waiting 
 
 ### `active.confirming`
 
-The system is awaiting a yes or no for a destructive or modifying action per D28.
+The system is awaiting a yes or no for a destructive or modifying action.
 
 **Visible UI.** The action and its parameters spelled out, a listening indicator, and a confirmation earcon distinct from listening.
 **Voice action.** Listen for yes, no, or related variants.
@@ -85,7 +85,7 @@ The system is awaiting a yes or no for a destructive or modifying action per D28
 
 ### `active.helpDisplayed`
 
-Help sheet is overlaid on the main screen per D30.
+Help sheet is overlaid on the main screen.
 
 **Visible UI.** The help sheet with three collapsible sections, with the initially-open section shaped by recent context.
 **Voice action.** Speak the short help variant on entry. Listen for "tell me more" to expand to the long variant. Listen for dismiss intents.
@@ -96,14 +96,14 @@ Help sheet is overlaid on the main screen per D30.
 
 Settings sheet is overlaid on the main screen.
 
-**Visible UI.** Sections for Voice (D5), Listening Mode (D17), Voice Recognition Tuning (D10), and Advanced (D25).
+**Visible UI.** Sections for Voice, Listening Mode, Voice Recognition Tuning, and Advanced.
 **Voice action.** Inactive (Settings is touch-only).
 **Touch actions.** Standard settings interactions; sign-out is here.
 **Transitions.** On dismiss, returns to the prior rest state.
 
 ## Universal behaviors
 
-Help is reachable from any `active` substate via the help intent or the visible "?" button. The exit-phrase intent ("done", "thanks", "exit") in conversation mode transitions to `active.idle` regardless of substate. Sign-out from Settings transitions to `signedOut`. Backgrounding the app preserves state in memory while explicit close clears it (per D23).
+Help is reachable from any `active` substate via the help intent or the visible "?" button. The exit-phrase intent ("done", "thanks", "exit") in conversation mode transitions to `active.idle` regardless of substate. Sign-out from Settings transitions to `signedOut`. Backgrounding the app preserves state in memory while explicit close clears it.
 
 ## Audio session per state
 
