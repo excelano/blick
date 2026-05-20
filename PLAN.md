@@ -4,7 +4,7 @@ Updated 2026-05-20.
 
 ## Status
 
-All planned phases through F are committed (current `main` at `b745d8c`). The voice loop, intent routing, disambiguation, Graph fetch, deep-link routing, dialog-stack cleanup, audio architecture, entity matcher rework, new read/navigate intents, conversation mode, accessibility and persona sweep, and privacy gate are all on device and verified. A pre-TestFlight code review followed, addressing scope reduction, persona discipline, and accessibility fixes surfaced during review.
+All planned phases through F plus the post-review batch and a first backlog-driven polish slice (Phase G) are committed (current `main` at `c8869d4`). The voice loop, intent routing, disambiguation, Graph fetch, deep-link routing, dialog-stack cleanup, audio architecture, entity matcher rework, new read/navigate intents, conversation mode, accessibility and persona sweep, and privacy gate are all on device and verified.
 
 Remaining v1 work continues from `~/notes/BACKLOG.md` as software polish. TestFlight upload is held off until we decide we're ready; there's no submission deadline driving the work.
 
@@ -87,19 +87,29 @@ A code review surfaced four BLOCKERs and five cheap MAJORs; all landed in one co
 - `SummaryView` meeting organizer `lineLimit(1)` bumped to `lineLimit(2)`; `Image.font(.system(size: 38))` replaced with `.largeTitle` so icons scale with Dynamic Type.
 - Voice Recognition Tuning section in Settings gated behind `#if DEBUG`.
 
+### Phase G — Backlog polish (committed: `c8869d4`)
+
+Four load-bearing items from `~/notes/BACKLOG.md` shipped in one commit:
+
+- `GraphClient`: four `URL(string:)!` force-unwraps collapsed into a single `makeURL` helper that throws a typed `GraphError.invalidURL`.
+- Stub generators (`StubIntentClassifier`, `StubEntityMatcher`, `StubResponseGenerator`, `StubSpeechService`) wrapped in `#if DEBUG` per the CLAUDE.md diagnostic-features pattern. None were referenced from Release-reachable code; they remain available for previews and tests.
+- `HelpView` example, later, and don't-do rows wrapped in `accessibilityElement(children: .combine)` so each surfaces as a single VoiceOver element.
+- D10 surface deleted for v1: `CustomLanguageModelManager`, the Voice Recognition Tuning toggle, the disclosure sheet, and the `voiceTuningEnabled` @AppStorage key. The on-toggle path was a Phase 5 placeholder that never wired; resurrect from git history when D10 ships in v2.
+
 ## Session cadence
 
-Execution from 2026-05-15 through 2026-05-20 ran as five focused sessions, each ending in a verified-on-device commit and a context compact:
+Execution from 2026-05-15 through 2026-05-20 ran as six focused sessions, each ending in a verified-on-device commit and a context compact:
 
 1. **Phase A.** Audio architecture. Foundation. (`2cf480e`)
 2. **Phase B.** Entity matcher rework. (`f4ea8d8`)
 3. **Phase C.** New read/navigate intents. (`1b312f3`)
 4. **Phase D + E together.** Conversation mode wires bundled with accessibility and persona sweep. (`9f59c2b`)
 5. **Phase F + post-review fixes.** Pre-TestFlight privacy gate plus the code review batch. (`1d648b7`, `b745d8c`)
+6. **Phase G.** Backlog polish: force-unwraps, stub gating, a11y combine, D10 cleanup. (`c8869d4`)
 
 Each compact boundary preserves a verified-on-device commit. The pattern continues: new items that surface during execution and aren't in scope for the current session go to `~/notes/BACKLOG.md` and are addressed after the current phase, not absorbed into it.
 
-Going forward, the cadence shifts from gate-driven phases to backlog-driven polish. Items in `~/notes/BACKLOG.md` are triaged for reviewer-relevance and cleanliness; the next focused phase (Phase G if one happens) picks load-bearing items and ships them as one commit. The TestFlight upload happens when we agree the binary is ready, not on a fixed schedule.
+Going forward, the cadence stays backlog-driven. Items in `~/notes/BACKLOG.md` are triaged for reviewer-relevance and cleanliness; each focused phase picks load-bearing items and ships them as one commit. The TestFlight upload happens when we agree the binary is ready, not on a fixed schedule.
 
 ## Out of scope for v1
 
