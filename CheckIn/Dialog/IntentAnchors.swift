@@ -10,7 +10,7 @@ import Foundation
 /// classifier picks the intent whose closest anchor sits nearest the
 /// utterance vector. Adding anchors broadens recall; removing them
 /// tightens precision. Phrases are written in lowercase, contractions
-/// allowed, no punctuation. Launch set per PLAN.md and D29.
+/// allowed, no punctuation.
 enum IntentAnchors {
 
     /// The launch catalog: every intent the classifier may emit, keyed by
@@ -225,7 +225,7 @@ enum IntentAnchors {
             "the latest"
         ]),
 
-        // D19 in-scope-unsupported sub-categories. Each redirects to a
+        // In-scope-unsupported sub-categories. Each redirects to a
         // different touch path, so each gets its own anchor pool.
 
         (.inScopeUnsupported(.readContent), [
@@ -276,7 +276,7 @@ enum IntentAnchors {
             "let me see all of them"
         ]),
 
-        // D18 out-of-scope probes. The classifier mostly detects
+        // Out-of-scope probes. The classifier mostly detects
         // out-of-scope by absence of in-scope signal (low best score across
         // every category above), but a small probe pool gives the embedding
         // matcher something concrete to push against for common queries

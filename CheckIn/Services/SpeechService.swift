@@ -8,7 +8,7 @@ import Speech
 import AVFoundation
 import os
 
-/// On-device speech recognition per D9. The protocol seam exists so
+/// On-device speech recognition. The protocol seam exists so
 /// SwiftUI previews and unit tests can wire a deterministic mock without
 /// touching the microphone or `SFSpeechRecognizer`.
 ///
@@ -47,7 +47,7 @@ enum SpeechServiceError: Error {
     case localeNotSupported
 }
 
-/// Apple-backed implementation per D9. Configures `SFSpeechRecognizer` with
+/// Apple-backed implementation. Configures `SFSpeechRecognizer` with
 /// `requiresOnDeviceRecognition = true` and drives the buffer feed off the
 /// audio engine input tap. `AudioSessionController` configures the session
 /// before this service is asked to start.

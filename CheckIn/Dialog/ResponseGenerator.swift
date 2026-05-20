@@ -5,9 +5,9 @@
 
 import Foundation
 
-/// The response generation seam per D15. `PersonaResponseGenerator` is the
-/// real implementation, drawing from rotating refusal (D18) and redirect
-/// (D19) pools with the latency reassurance pool (D21) attached to
+/// The response generation seam. `PersonaResponseGenerator` is the
+/// real implementation, drawing from rotating refusal and redirect
+/// pools with the latency reassurance pool attached to
 /// `processing` substate transitions.
 protocol ResponseGenerator {
     func generate(for intent: ClassifiedIntent,

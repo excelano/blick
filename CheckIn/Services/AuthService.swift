@@ -52,7 +52,7 @@ final class AuthService {
                 isAuthenticated = true
             }
         } catch {
-            // Silent to the user per D24 (falls through to the sign-in
+            // Silent to the user (falls through to the sign-in
             // screen). Logged for diagnostic visibility.
             logger.error("checkExistingAccount failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -113,7 +113,7 @@ final class AuthService {
         do {
             try msalApp.remove(account)
         } catch {
-            // Silent to the user per D24 — local state still clears below,
+            // Silent to the user — local state still clears below,
             // so the app behaves as signed out regardless. Logged for
             // diagnostic visibility.
             logger.error("MSAL remove(account) failed during signOut: \(error.localizedDescription, privacy: .public)")

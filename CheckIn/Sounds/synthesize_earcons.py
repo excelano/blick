@@ -4,7 +4,7 @@
 # Author: David M. Anderson
 # Built with AI assistance (Claude, Anthropic)
 #
-# Generates three short earcons used by the state machine per D13 and D33:
+# Generates three short earcons used by the state machine:
 #   listening.wav     entry to active.listening      (rising glide, 200 ms)
 #   thinking.wav      entry to active.processing     (soft pulse, 120 ms)
 #   confirmation.wav  entry to active.confirming     (descending two-tone, 300 ms)

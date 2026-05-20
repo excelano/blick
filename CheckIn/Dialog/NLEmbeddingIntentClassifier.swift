@@ -7,13 +7,13 @@ import Foundation
 import NaturalLanguage
 import os.log
 
-/// Launch intent classifier per D14 and D15. Uses
+/// Launch intent classifier. Uses
 /// `NLEmbedding.sentenceEmbedding(for:)` to score the utterance against
 /// every anchor in `IntentAnchors`. The closest anchor wins; the owning
 /// intent is the classification.
 ///
-/// The classifier emits `outOfScope` (D18) and `inScopeUnsupported(...)`
-/// (D19) directly because those categories have their own anchor pools.
+/// The classifier emits `outOfScope` and `inScopeUnsupported(...)`
+/// directly because those categories have their own anchor pools.
 /// When the best in-scope anchor sits beyond the confidence floor, the
 /// dialog demotes to `outOfScope` rather than guessing. When even the
 /// closest anchor sits beyond the unknown floor, the dialog returns

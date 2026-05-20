@@ -6,9 +6,9 @@
 import SwiftUI
 import UIKit
 
-/// The single main screen per D27. Shows the at-a-glance summary plus the
+/// The single main screen. Shows the at-a-glance summary plus the
 /// voice surface. Tapping any item deep-links to Outlook or Teams. The mic
-/// button is the primary voice control for both modes (D17): in tap-to-talk
+/// button is the primary voice control for both modes: in tap-to-talk
 /// it starts a turn; in conversation mode it cancels listening to return to
 /// idle.
 struct SummaryView: View {
@@ -246,7 +246,7 @@ struct SummaryView: View {
             // coordinator so pending state clears too.
             stateMachine.onDisambiguationCancelled?()
         case .active(.speaking):
-            // Barge-in per D8.
+            // Barge-in.
             stateMachine.transition(to: .active(.listening))
         default:
             break
@@ -254,7 +254,7 @@ struct SummaryView: View {
     }
 
     private func openHelp() {
-        // Allow help from any active substate per D30 universal intent.
+        // Allow help from any active substate via the universal intent.
         guard case .active = stateMachine.currentState else { return }
         stateMachine.transition(to: .active(.helpDisplayed(returnTo: stateMachine.preferredRestState)))
     }

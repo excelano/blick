@@ -6,7 +6,7 @@
 import Foundation
 
 /// Per-session dialog state held alongside the state machine. Memory only;
-/// nothing persists to disk (D23, D24).
+/// nothing persists to disk.
 struct DialogContext {
     /// The most recent named entity in scope, used to resolve pronouns and
     /// elliptical follow-ups ("read it", "from him").
@@ -24,11 +24,11 @@ struct DialogContext {
     /// response and burns memory.
     var turnHistory: [Turn] = []
 
-    /// Action awaiting confirmation per D28. When non-nil the state machine
+    /// Action awaiting confirmation. When non-nil the state machine
     /// is in `active.confirming`.
     var pendingConfirmation: PendingAction?
 
-    /// Disambiguation in flight per D7. The coordinator stashes this when a
+    /// Disambiguation in flight. The coordinator stashes this when a
     /// `.filter` utterance resolves to multiple candidates; the speaking-
     /// finish path consumes it to land in `.disambiguating` rather than rest.
     var pendingDisambiguation: PendingDisambiguation?
@@ -42,10 +42,10 @@ struct DialogContext {
     var repromptCount: Int = 0
 
     /// Recent refusal phrasings, oldest first. Used by `ResponseGenerator`
-    /// to avoid repeating the same line within a short window per D18.
+    /// to avoid repeating the same line within a short window.
     var recentRefusals: [String] = []
 
-    /// Recent redirect phrasings for the same anti-repeat purpose per D19.
+    /// Recent redirect phrasings for the same anti-repeat purpose.
     var recentRedirects: [String] = []
 
     /// How many turns of history to keep. Anything beyond this is dropped.

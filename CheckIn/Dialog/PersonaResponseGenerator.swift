@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// Launch response generator per D15. Picks a phrasing from
+/// Launch response generator. Picks a phrasing from
 /// `ResponseTemplateRegistry` based on the classified intent and the
 /// current dialog context. Honors anti-repeat: never re-uses a refusal
 /// or redirect phrasing that sits in the recent-phrasings window in
@@ -136,7 +136,7 @@ struct PersonaResponseGenerator: ResponseGenerator {
         return SpokenResponse(text: text, category: .summary)
     }
 
-    // MARK: - Time query (Phase C, D29)
+    // MARK: - Time query
 
     private func timeQueryResponse(context: DialogContext) -> SpokenResponse {
         guard let summary = context.summary else {
@@ -151,7 +151,7 @@ struct PersonaResponseGenerator: ResponseGenerator {
         return SpokenResponse(text: text, category: .answer)
     }
 
-    // MARK: - D18 refusal (out-of-scope)
+    // MARK: - Out-of-scope refusal
 
     private func refusalResponse(context: DialogContext) -> SpokenResponse {
         let phrase = pick(from: ResponseTemplateRegistry.refusals,
@@ -159,7 +159,7 @@ struct PersonaResponseGenerator: ResponseGenerator {
         return SpokenResponse(text: phrase, category: .refusal)
     }
 
-    // MARK: - D19 redirect (in-scope-unsupported)
+    // MARK: - In-scope-unsupported redirect
 
     private func redirectResponse(for kind: UnsupportedKind,
                                   context: DialogContext) -> SpokenResponse {

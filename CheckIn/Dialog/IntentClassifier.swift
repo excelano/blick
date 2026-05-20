@@ -5,15 +5,15 @@
 
 import Foundation
 
-/// The intent classification seam per D15. `NLEmbeddingIntentClassifier`
+/// The intent classification seam. `NLEmbeddingIntentClassifier`
 /// is the real implementation: it scores semantic similarity between the
 /// utterance and a fixed catalog of intent prototypes.
 protocol IntentClassifier {
     func classify(utterance: String, context: DialogContext) -> ClassifiedIntent
 }
 
-/// The launch intent surface per PLAN.md, plus the two scope categories
-/// (D18 out-of-scope, D19 in-scope-unsupported with sub-kinds) the
+/// The launch intent surface, plus the two scope categories
+/// (out-of-scope, in-scope-unsupported with sub-kinds) the
 /// classifier emits when the utterance falls outside what voice can do.
 enum Intent: Hashable {
     case summary
@@ -36,7 +36,7 @@ enum Intent: Hashable {
     /// isn't a launch voice capability. Sub-kind selects the redirect pool.
     case inScopeUnsupported(UnsupportedKind)
 
-    /// Outside the bounded scope entirely. D18 refusal pool applies.
+    /// Outside the bounded scope entirely. Out-of-scope refusal pool applies.
     case outOfScope
 
     /// Confidence below the floor and no scope signal. Treated as a
@@ -44,7 +44,7 @@ enum Intent: Hashable {
     case unknown
 }
 
-/// The D19 sub-categories. Each maps to its own redirect pool because the
+/// In-scope-unsupported sub-categories. Each maps to its own redirect pool because the
 /// touch-path guidance differs ("tap to open in Outlook" vs "compose in
 /// Outlook" vs "browse in Outlook").
 enum UnsupportedKind: Hashable {
@@ -60,7 +60,7 @@ struct ClassifiedIntent: Equatable {
     let confidence: Double
     let entities: [String: String]
 
-    /// Ranked alternatives below the top, surfaced for D7 disambiguation
+    /// Ranked alternatives below the top, surfaced for disambiguation
     /// when the score gap between top-1 and top-2 is small.
     let alternatives: [Intent]
 

@@ -5,21 +5,21 @@
 
 import Foundation
 
-/// Entity matcher per D15. Personal-name resolution is longest-canonical
+/// Entity matcher. Personal-name resolution is longest-canonical
 /// -substring matching against the lowercased utterance, scoped to the
 /// senders and chat partners in the current `DialogContext.summary`. The
 /// earlier NLTagger-driven path over-fired on vendor tokens that lead
 /// several known sender names ("Microsoft" leading "Microsoft Outlook",
 /// "Microsoft Teams", "Microsoft 365 Message Center", ...): it surfaced
 /// every Microsoft-prefix candidate and pushed the dialog into a noisy
-/// D7 disambiguation. The current implementation prefers a full-canonical
+/// disambiguation. The current implementation prefers a full-canonical
 /// span ("tony smith"), falls back to a first-name span ("tony") only
 /// when the bare token resolves a small set of real-person candidates,
 /// and otherwise returns nothing so `SessionCoordinator.extractFromName`
 /// can route the surface to `filterUnknownSender`.
 ///
-/// `contextualStrings` priming on the speech recognizer side (per D9 and
-/// D10) handles the upstream half: the recognizer is more likely to spell
+/// `contextualStrings` priming on the speech recognizer side
+/// handles the upstream half: the recognizer is more likely to spell
 /// "Hernandez" correctly when a known contact is on the call sheet. This
 /// matcher handles the downstream half: matching the recognized tokens
 /// to concrete entities the dialog can act on.
@@ -28,8 +28,8 @@ struct NLTaggerEntityMatcher: EntityMatcher {
     /// Suppress first-name fallback when this many or more known people
     /// share a leading token. That pattern is structurally a vendor
     /// sending under multiple display names (Microsoft Outlook,
-    /// Microsoft Teams, ...), not a real-person disambiguation that D7
-    /// can handle — leave matches empty so the surface routes through
+    /// Microsoft Teams, ...), not a real-person disambiguation
+    /// the dialog can handle — leave matches empty so the surface routes through
     /// `filterUnknownSender`.
     private static let firstNameFallbackCeiling = 4
 
@@ -48,8 +48,8 @@ struct NLTaggerEntityMatcher: EntityMatcher {
         "tenth": 10, "10th": 10, "ten": 10
     ]
 
-    /// Relative date phrases the dialog accepts at launch. The next-release
-    /// quick-time queries (D29) extend this with explicit times.
+    /// Relative date phrases the dialog accepts at launch.
+    /// Quick-time queries extend this with explicit times.
     private static let dateWords: Set<String> = [
         "today", "tomorrow", "tonight",
         "this morning", "this afternoon", "this evening",

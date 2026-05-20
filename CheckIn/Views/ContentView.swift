@@ -5,7 +5,7 @@
 
 import SwiftUI
 
-/// Top-level auth and onboarding gate per D33. Routes off the
+/// Top-level auth and onboarding gate. Routes off the
 /// `StateMachine.currentState` top-level case:
 ///   `.signedOut`  -> SignInView
 ///   `.onboarding` -> OnboardingFlow
@@ -57,7 +57,7 @@ struct ContentView: View {
     }
 
     /// Land the user in onboarding (first run) or active (returning user).
-    /// Conversation mode opens directly to `.listening` per D17.
+    /// Conversation mode opens directly to `.listening`.
     private func bootstrapAfterAuth() {
         if !hasCompletedOnboarding {
             stateMachine.transition(to: .onboarding(.welcome))

@@ -117,7 +117,7 @@ final class SessionCoordinator {
         // is stopped cleanly ahead of any session category swap. The synth
         // is per-utterance now, so a swap mid-utterance only impacts that
         // single utterance, but stopping first is still the right order.
-        // D8 barge-in (auto-cut when VAD detects user speech mid-utterance)
+        // Barge-in (auto-cut when VAD detects user speech mid-utterance)
         // is deferred.
         switch (event.from, event.to) {
         case (_, .active(.speaking(let response, _))):
@@ -208,7 +208,7 @@ final class SessionCoordinator {
             break
         }
 
-        // Earcons per D13: fire on entry to a state category, not on
+        // Earcons fire on entry to a state category, not on
         // intra-category transitions (processing(.thinking) shifting to
         // processing(.speakingPlaceholder) is one processing visit, not
         // two). Routed through the audio controller so each plays under
@@ -830,7 +830,7 @@ final class SessionCoordinator {
         }
     }
 
-    // MARK: - Reply (Phase C)
+    // MARK: - Reply
 
     /// Resolve a `.reply` turn: pull the named sender from scope, find
     /// their latest unread message (or an ordinal-selected one), and
@@ -914,7 +914,7 @@ final class SessionCoordinator {
             category: .answer))
     }
 
-    // MARK: - Join meeting (Phase C)
+    // MARK: - Join meeting
 
     private func handleJoin(context: DialogContext) async -> OpenOutcome {
         guard let meeting = context.summary?.meeting else {

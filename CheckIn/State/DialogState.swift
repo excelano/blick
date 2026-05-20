@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// Top-level application state. The state machine spine per D1 and D33.
+/// Top-level application state. The state machine spine.
 /// Mirrors the hierarchy in STATES.md.
 enum DialogState: Equatable {
     case signedOut
@@ -13,7 +13,7 @@ enum DialogState: Equatable {
     case active(ActiveSubstate)
 }
 
-/// First-run flow per D31.
+/// First-run flow.
 enum OnboardingSubstate: Equatable {
     case welcome
     case permissions
@@ -36,7 +36,7 @@ enum ActiveSubstate: Equatable {
     case settingsDisplayed(returnTo: RestState)
 }
 
-/// Latency-driven substates inside `processing` per D21.
+/// Latency-driven substates inside `processing`.
 /// `thinking` is the silent default; the longer-latency phases play
 /// reassurance and status messages from the latency response pool.
 enum ProcessingPhase: Equatable {
@@ -56,7 +56,7 @@ enum RestState: Equatable {
 // MARK: - Payload types
 
 /// A user intent suspended while the system disambiguates an ambiguous
-/// reference per D7. Once the user picks a candidate, the suspended intent
+/// reference. Once the user picks a candidate, the suspended intent
 /// resumes with the chosen entity substituted in.
 struct SuspendedIntent: Equatable {
     let utterance: String
@@ -86,7 +86,7 @@ struct PendingDisambiguation: Equatable {
     let candidates: [Candidate]
 }
 
-/// A destructive or modifying action awaiting yes-or-no confirmation per D28.
+/// A destructive or modifying action awaiting yes-or-no confirmation.
 struct PendingAction: Equatable {
     let description: String
     let kind: ActionKind
@@ -113,8 +113,8 @@ struct SpokenResponse: Equatable {
 }
 
 /// Response categories shape both presentation (caption styling, voice
-/// pacing) and the anti-repeat ledger in `DialogContext`. Refusals (D18)
-/// and redirects (D19) draw from rotating pools to avoid sounding canned.
+/// pacing) and the anti-repeat ledger in `DialogContext`. Refusals
+/// and redirects draw from rotating pools to avoid sounding canned.
 enum ResponseCategory: Equatable {
     case summary
     case answer

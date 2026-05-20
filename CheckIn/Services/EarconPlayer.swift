@@ -9,7 +9,7 @@ import os
 
 /// Plays the three short earcons defined in `Sounds/`. The state machine
 /// fires these on entry to `active.listening`, `active.processing`, and
-/// `active.confirming` respectively per STATES.md and D13.
+/// `active.confirming` respectively per STATES.md.
 ///
 /// All three files are bundle resources; the real implementation in
 /// `AppleEarconPlayer` uses `AVAudioPlayer` against the audio session

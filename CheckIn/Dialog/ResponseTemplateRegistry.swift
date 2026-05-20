@@ -10,14 +10,15 @@ import Foundation
 /// brief; warm without familiarity; first person singular; light dry
 /// humor only on refusals and redirects, never on operations.
 ///
-/// Pools support D18 refusals, D19 redirects, D21 latency reassurance and
-/// errors, D28 confirmations, D30 help, and D31 onboarding invitations.
+/// Pools support out-of-scope refusals, in-scope-unsupported redirects,
+/// latency reassurance and errors, confirmations, help, and onboarding
+/// invitations.
 /// Anti-repeat is enforced by `PersonaResponseGenerator`, which threads
 /// `DialogContext.recentRefusals` / `recentRedirects` through phrasing
 /// selection so the same line never repeats inside the look-back window.
 enum ResponseTemplateRegistry {
 
-    // MARK: - D18 out-of-scope refusal pool
+    // MARK: - Out-of-scope refusal pool
     //
     // The user asked something outside calendar, email, and chats. Variants
     // range from concise to lightly conversational. A small fraction carry
@@ -38,7 +39,7 @@ enum ResponseTemplateRegistry {
         "I keep to a small lane. Calendar, email, and chats."
     ]
 
-    // MARK: - D19 in-scope, voice-unsupported redirect pools
+    // MARK: - In-scope, voice-unsupported redirect pools
     //
     // The user asked something the voice surface doesn't yet do, but the
     // subject is in scope. Each sub-kind redirects to the touch path that
@@ -81,8 +82,7 @@ enum ResponseTemplateRegistry {
     // message", and similar — utterances where the user wants to write the
     // body themselves but by voice. Reply intents proper ("reply to Tony")
     // go through the `.reply` deep-link path now; this pool is the
-    // fallback for the composition slice of voice-reply that's still out
-    // of scope by design.
+    // fallback for voice composition, which is out of scope by design.
     static let voiceReplyRedirects: [String] = [
         "Composing isn't mine. Tap to write in Outlook.",
         "I open the reply; I don't dictate the body. Tap to compose.",
@@ -105,7 +105,7 @@ enum ResponseTemplateRegistry {
         "Long lists aren't mine. Tap a row to open Outlook."
     ]
 
-    // MARK: - D21 latency and system errors
+    // MARK: - Latency and system errors
     //
     // The thinking earcon plays on every entry to processing. Spoken
     // reassurance kicks in if the fetch crosses 1.5 s, escalation if it
@@ -168,7 +168,7 @@ enum ResponseTemplateRegistry {
 
     // MARK: - Parse miss / unknown intent (recoverable)
     //
-    // Distinct from D18 refusals: the system didn't classify the utterance
+    // Distinct from out-of-scope refusals: the system didn't classify the utterance
     // confidently. Re-prompt rather than refuse. The reprompt counter in
     // DialogContext escalates to suggest the touch path after repeat misses.
 
@@ -186,7 +186,7 @@ enum ResponseTemplateRegistry {
         "I'm missing it. Try one more time, or tap the question mark for what I can do."
     ]
 
-    // MARK: - D30 help
+    // MARK: - Help
     //
     // Short voice variant runs about 15 seconds; the long variant covers
     // every launch capability. The full reference always lives on the
@@ -207,7 +207,7 @@ enum ResponseTemplateRegistry {
         "Say 'check again' to refresh, 'say that again' to repeat, or 'stop' to cut me off. " +
         "Tap the question mark for the full list."
 
-    // MARK: - D31 onboarding invitations
+    // MARK: - Onboarding invitations
     //
     // Step 4 of first-run: the system speaks a varied invitation, the
     // user runs their first query, and the help affordance lands in
@@ -222,7 +222,7 @@ enum ResponseTemplateRegistry {
         "Try: anything new since this morning?"
     ]
 
-    // MARK: - D28 confirmations and announcements
+    // MARK: - Confirmations and announcements
     //
     // Confirmation prompts are templated by ActionKind and parameters.
     // The "yes" path announces brief success; the "no" path acknowledges
@@ -259,7 +259,7 @@ enum ResponseTemplateRegistry {
 
     static let confirmationCancel: String = "OK, leaving them."
 
-    // MARK: - D7 disambiguation
+    // MARK: - Disambiguation
     //
     // Question-led: state the ambiguity, ask which one, then enumerate.
     // The retry borrows PERSONA's "I missed that." error opener so the
@@ -326,7 +326,7 @@ enum ResponseTemplateRegistry {
     static let openMeetingNone: String = "Nothing on your calendar to open."
     static let openLaunchFailed: String = "Couldn't open it. Make sure the app is installed."
 
-    // MARK: - Reply (Phase C)
+    // MARK: - Reply
 
     /// Spoken before launching Outlook's compose-reply surface. The user
     /// hears the recipient confirmed back before the app switch so a
@@ -349,7 +349,7 @@ enum ResponseTemplateRegistry {
     /// register and let them retry.
     static let replyNoSender: String = "Reply to who?"
 
-    // MARK: - Join meeting (Phase C)
+    // MARK: - Join meeting
 
     /// Silent on successful join — the app switch is the answer. This is
     /// the fallback for the rare misfire (URL malformed, Teams refused).
@@ -363,10 +363,10 @@ enum ResponseTemplateRegistry {
     /// `openMeetingNone` but worded for the join request.
     static let meetingNoneToJoin: String = "Nothing on your calendar to join."
 
-    // MARK: - Time query (Phase C, D29)
+    // MARK: - Time query
 
     /// Time-focused response built from current time vs meeting start.
-    /// The thresholds match D29's contextual phrasing: a fixed time well
+    /// The thresholds drive contextual phrasing: a fixed time well
     /// in advance, a relative duration when closer, a "starts soon" status
     /// when very close, and an "in progress" status when already underway.
     static func timeQueryAnswer(for meeting: Meeting) -> String {
@@ -451,7 +451,7 @@ enum ResponseTemplateRegistry {
 
     /// Builds the summary sentence from the current `CheckInSummary`.
     /// PERSONA.md verbosity defaults to terse: two or three short sentences.
-    /// Verbosity expansion (D5) lives outside this function and feeds into
+    /// Verbosity expansion lives outside this function and feeds into
     /// the call site instead of branching here.
     static func summarySentence(from summary: CheckInSummary) -> String {
         var parts: [String] = []

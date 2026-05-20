@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// URL builders for the only two apps CheckIn defers to per D27: Outlook
+/// URL builders for the only two apps CheckIn defers to: Outlook
 /// for mail and calendar, Teams for chat and meetings.
 ///
 /// Two patterns are at play. The first is constructed `ms-outlook://` and

@@ -7,7 +7,7 @@ import Foundation
 import Observation
 import os
 
-/// The hierarchical state machine spine per D1 and D33.
+/// The hierarchical state machine spine.
 ///
 /// Voice and touch both transition through a single source of truth.
 /// `currentState` and `context` are observable so SwiftUI views re-render
@@ -59,7 +59,7 @@ final class StateMachine {
     }
 
     /// The rest state to return to from speaking, help, or settings. Driven
-    /// by listening mode (D17). Set by the listening-mode setting at sign-in
+    /// by listening mode. Set by the listening-mode setting at sign-in
     /// and on mode changes; defaults to tap-to-talk.
     var preferredRestState: RestState = .idle
 

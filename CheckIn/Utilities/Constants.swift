@@ -27,7 +27,7 @@ enum Constants {
 
     /// Whether the Teams pending-chat surface is part of the summary. Single
     /// source of truth for sign-in scopes and the Graph fetch in
-    /// `GraphSummaryService`. D25 self-host override is a separate slice.
+    /// `GraphSummaryService`. Self-host override is configured elsewhere.
     static let teamsEnabled: Bool = true
 
     static func scopes(enableTeams: Bool) -> [String] {

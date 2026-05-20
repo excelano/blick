@@ -5,7 +5,7 @@
 
 import Foundation
 
-/// The entity matching seam per D15. `NLTaggerEntityMatcher` is the real
+/// The entity matching seam. `NLTaggerEntityMatcher` is the real
 /// implementation, primed with `contextualStrings` from the current
 /// summary's senders, subjects, and chat topics.
 protocol EntityMatcher {

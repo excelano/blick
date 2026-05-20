@@ -6,14 +6,14 @@
 import SwiftUI
 
 /// Where the help sheet should land based on what just happened. Drives
-/// which collapsible section opens by default per D30 "lightly contextual."
+/// which collapsible section opens by default ("lightly contextual").
 enum HelpFocus {
     case neutral       // first-time, empty context
-    case afterRefusal  // D18 was just emitted; emphasize what I do
-    case afterRedirect // D19 was just emitted; emphasize the deep-link path
+    case afterRefusal  // refusal was just emitted; emphasize what I do
+    case afterRedirect // redirect was just emitted; emphasize the deep-link path
 }
 
-/// The help sheet per D30. Three collapsible sections. Visible content is
+/// The help sheet. Three collapsible sections. Visible content is
 /// the full reference; the voice channel speaks the short variant on entry
 /// and the long variant on "tell me more." Both surfaces are always
 /// reachable: voice via "help" / "what can I say"; touch via the "?" button
@@ -28,7 +28,7 @@ struct HelpView: View {
 
     init(focus: HelpFocus = .neutral) {
         self.focus = focus
-        // Per D30: "I can do this now" is open by default. Post-refusal
+        // "I can do this now" is open by default. Post-refusal
         // also opens "I don't do this" so the user sees both shapes of the
         // boundary at once. Post-redirect leaves the deep-link examples
         // visible under "I can do this now" without expanding "I don't."

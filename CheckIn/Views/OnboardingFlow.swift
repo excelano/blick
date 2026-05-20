@@ -7,7 +7,7 @@ import SwiftUI
 import AVFoundation
 import Speech
 
-/// First-run onboarding per D31. Four steps: welcome, permissions, mode,
+/// First-run onboarding. Four steps: welcome, permissions, mode,
 /// firstQuery. Each step has a single substantive action and a skip with a
 /// safe default. The flow drives the state machine through
 /// `OnboardingSubstate` and completes by flipping `hasCompletedOnboarding`

@@ -7,8 +7,7 @@ import SwiftUI
 
 /// Visible state cue while `active.listening` is current. The mic icon is
 /// surrounded by a pulsing ring keyed to a slow phase so the user can see
-/// the system is hot. Reduce-motion swaps the pulse for a steady ring per
-/// D22.
+/// the system is hot. Reduce-motion swaps the pulse for a steady ring.
 struct ListeningIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
@@ -37,7 +36,7 @@ struct ListeningIndicator: View {
 
 /// Visible state cue while `active.processing` is current. Three dots that
 /// fade in sequence; reduce-motion replaces them with the static word
-/// "Thinking" per D22.
+/// "Thinking".
 struct ThinkingIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase = 0
@@ -73,7 +72,7 @@ struct ThinkingIndicator: View {
     }
 }
 
-/// On-screen captioning of the spoken response per D22. Always visible
+/// On-screen captioning of the spoken response. Always visible
 /// during `active.speaking` and stays for a beat after the speech ends so
 /// a user who looked away briefly can still read it.
 struct CaptioningView: View {

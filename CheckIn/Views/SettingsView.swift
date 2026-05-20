@@ -6,24 +6,24 @@
 import SwiftUI
 import AVFoundation
 
-/// Settings sheet over the main screen per D27. Sections per D5 (Voice),
-/// D17 (Listening Mode), D25 (Advanced). Sign-out lives here per STATES.md.
-/// D10 Voice Recognition Tuning is deferred along with D10 itself.
+/// Settings sheet over the main screen. Sections for Voice,
+/// Listening Mode, and Advanced. Sign-out lives here per STATES.md.
+/// Voice Recognition Tuning is deferred.
 struct SettingsView: View {
     var authService: AuthService
     var stateMachine: StateMachine
 
     @Environment(\.dismiss) private var dismiss
 
-    // D5 Voice
+    // Voice
     @AppStorage("voiceIdentifier") private var voiceIdentifier: String = ""
     @AppStorage("speechRate") private var speechRate: Double = Double(AVSpeechUtteranceDefaultSpeechRate)
     @AppStorage("verbosityFull") private var verbosityFull: Bool = false
 
-    // D17 Listening Mode
+    // Listening Mode
     @AppStorage("listeningMode") private var listeningMode: String = "tapToTalk"
 
-    // D25 Advanced
+    // Advanced
     @AppStorage("customClientID") private var customClientID: String = ""
     @AppStorage("customAuthority") private var customAuthority: String = ""
     @State private var showAdvancedExplainer = false
@@ -62,7 +62,7 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Voice (D5)
+    // MARK: - Voice
 
     private var voiceSection: some View {
         Section {
@@ -120,7 +120,7 @@ struct SettingsView: View {
         return "\(pct)%"
     }
 
-    // MARK: - Listening Mode (D17)
+    // MARK: - Listening Mode
 
     private var listeningModeSection: some View {
         Section {
@@ -147,7 +147,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Advanced (D25)
+    // MARK: - Advanced
 
     private var advancedSection: some View {
         Section {
@@ -202,7 +202,7 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - D25 explainer sheet
+// MARK: - Self-host explainer sheet
 
 private struct AdvancedExplainerSheet: View {
     @Environment(\.dismiss) private var dismiss
