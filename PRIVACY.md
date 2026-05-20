@@ -4,21 +4,21 @@ CheckIn is a voice-first iOS app that talks to your Microsoft 365 account on you
 
 ## What stays on your device
 
-**Audio.** Microphone audio captured for voice queries is processed only on your device. CheckIn sets `requiresOnDeviceRecognition = true` on every recognition request. Apple's `SFSpeechRecognizer` honors that flag by performing recognition entirely on-device for supported locales. If your locale does not support on-device recognition, CheckIn refuses to start the voice surface rather than falling back to server recognition. There is no in-app override and no code path for server-side recognition (D9, D11).
+**Audio.** Microphone audio captured for voice queries is processed only on your device. CheckIn sets `requiresOnDeviceRecognition = true` on every recognition request. Apple's `SFSpeechRecognizer` honors that flag by performing recognition entirely on-device for supported locales. If your locale does not support on-device recognition, CheckIn refuses to start the voice surface rather than falling back to server recognition. There is no in-app override and no code path for server-side recognition.
 
 **Transcripts.** The text produced by speech recognition is held in memory while the voice session is active, used to compute intent and entity matches, and is never written to disk. It is never sent to any server, including Apple's.
 
-**Conversation context.** The dialog state machine tracks what you most recently asked and what CheckIn most recently said in order to handle follow-ups, disambiguation, and barge-in. This conversation context lives in memory only. When you close the app from the app switcher, or when iOS reclaims the app's memory, the context is gone. There is no persistence layer and no timer; the natural in-memory lifetime is the boundary (D23).
+**Conversation context.** The dialog state machine tracks what you most recently asked and what CheckIn most recently said in order to handle follow-ups, disambiguation, and barge-in. This conversation context lives in memory only. When you close the app from the app switcher, or when iOS reclaims the app's memory, the context is gone. There is no persistence layer and no timer; the natural in-memory lifetime is the boundary.
 
 **Microsoft 365 data.** When you ask for your summary, CheckIn fetches calendar events, unread emails, and Teams chats from the Microsoft Graph API using your account's own credentials. The fetched data is held in memory long enough to render the summary on screen and speak it aloud. Nothing is persisted to disk, including caches. Closing or backgrounding the app discards the data.
 
-**Custom language model (off by default).** CheckIn implements an opt-in proper-noun recognition aid that biases the on-device speech recognizer toward your own contact list. The feature is disabled by default. If you turn it on in Settings, your contact display names are used to build a recognizer model that lives only on your device. The contact data and the resulting model are never transmitted. Turning the feature off clears the cached model immediately (D10).
+**Custom language model (off by default).** CheckIn implements an opt-in proper-noun recognition aid that biases the on-device speech recognizer toward your own contact list. The feature is disabled by default. If you turn it on in Settings, your contact display names are used to build a recognizer model that lives only on your device. The contact data and the resulting model are never transmitted. Turning the feature off clears the cached model immediately.
 
 ## What leaves your device
 
 **Microsoft Graph API calls.** When you ask for your summary, CheckIn issues HTTPS requests to your Microsoft 365 service. These calls go to `graph.microsoft.com` (and regional equivalents) and `login.microsoftonline.com`. They carry your access token, which Microsoft uses to identify you, and they return the calendar, mail, and chat data your account has access to. This is the same traffic that any Microsoft Graph client makes; CheckIn does not add headers, identifiers, or analytics to it.
 
-**Nothing else.** CheckIn makes no other network requests. No analytics, no crash reporting, no telemetry, no usage logging that leaves the device, no third-party SDKs that would. The Xcode project deliberately imports nothing of the sort, which is the point: this is enforced by the absence of code, not by a policy that depends on the developer behaving well (D24).
+**Nothing else.** CheckIn makes no other network requests. No analytics, no crash reporting, no telemetry, no usage logging that leaves the device, no third-party SDKs that would. The Xcode project deliberately imports nothing of the sort, which is the point: this is enforced by the absence of code, not by a policy that depends on the developer behaving well.
 
 ## What CheckIn does not collect
 

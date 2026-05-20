@@ -2,9 +2,9 @@
 
 CheckIn is built so you can run it independently of Excelano if you choose. There are two paths.
 
-The first is the **runtime override path** (D25): keep the published CheckIn binary, but point it at your own Azure App Registration via Settings > Advanced. No build, no fork, no Xcode. This is the right path for most users who want their own client ID and tenant authority but are happy with the published binary.
+The first is the **runtime override path**: keep the published CheckIn binary, but point it at your own Azure App Registration via Settings > Advanced. No build, no fork, no Xcode. This is the right path for most users who want their own client ID and tenant authority but are happy with the published binary.
 
-The second is the **fork-and-build path** (D26): clone the source, change the redirect URI scheme and bundle ID to your own, sign with your own Apple Developer team, and install the build you produced yourself. This is the right path if you want full custody including the URL scheme and the binary identity.
+The second is the **fork-and-build path**: clone the source, change the redirect URI scheme and bundle ID to your own, sign with your own Apple Developer team, and install the build you produced yourself. This is the right path if you want full custody including the URL scheme and the binary identity.
 
 This document walks through both. Note that as of this writing, CheckIn has not yet shipped to the App Store; the published-binary path applies once it does.
 
