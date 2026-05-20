@@ -93,9 +93,8 @@ struct PendingAction: Equatable {
     let target: String
 }
 
-/// The destructive or modifying actions CheckIn supports. Launch has none;
-/// the next release adds `markEmailRead` and `flagEmail`; soft-delete and
-/// bulk operations land later.
+/// The destructive or modifying actions CheckIn supports. Launch ships
+/// none of these — they're deferred (see `~/notes/BACKLOG.md`).
 enum ActionKind: Equatable {
     case markEmailRead
     case flagEmail

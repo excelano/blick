@@ -8,7 +8,7 @@ import AVFoundation
 
 /// Settings sheet over the main screen per D27. Sections per D5 (Voice),
 /// D17 (Listening Mode), D25 (Advanced). Sign-out lives here per STATES.md.
-/// D10 Voice Recognition Tuning is deferred to v2 with D10 itself.
+/// D10 Voice Recognition Tuning is deferred along with D10 itself.
 struct SettingsView: View {
     var authService: AuthService
     var stateMachine: StateMachine

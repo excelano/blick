@@ -118,7 +118,7 @@ final class SessionCoordinator {
         // is per-utterance now, so a swap mid-utterance only impacts that
         // single utterance, but stopping first is still the right order.
         // D8 barge-in (auto-cut when VAD detects user speech mid-utterance)
-        // is deferred past v1.
+        // is deferred.
         switch (event.from, event.to) {
         case (_, .active(.speaking(let response, _))):
             audioController.configure(for: .speaking)
