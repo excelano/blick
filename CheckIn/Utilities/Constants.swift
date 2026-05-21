@@ -15,14 +15,19 @@ enum Constants {
 
     // Note: MSAL for iOS automatically requests openid, profile, and offline_access.
     // Do not include them here or MSAL will throw an error.
+    // Mail.ReadWrite + Chat.ReadWrite drive the mutation track (mark read,
+    // flag, soft-delete; Teams analogs reserved). Every write passes
+    // through the `.confirming` state machine gate per STATES.md; the
+    // scope grant gives permission, the gate gives control.
+    // Calendars.Read stays unchanged — no calendar mutations are planned.
     static let baseScopes = [
         "User.Read",
-        "Mail.Read",
+        "Mail.ReadWrite",
         "Calendars.Read"
     ]
 
     static let teamsScopes = [
-        "Chat.Read"
+        "Chat.ReadWrite"
     ]
 
     /// Whether the Teams pending-chat surface is part of the summary. Single

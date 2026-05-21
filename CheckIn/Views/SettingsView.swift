@@ -249,7 +249,7 @@ private struct AdvancedExplainerSheet: View {
                     Text("How:")
                         .font(.headline)
                         .foregroundStyle(.white)
-                    Text("Create an Azure App Registration in your tenant. Add msauth.com.excelano.checkin://auth as a redirect URI. Enable the public client flow. Grant Mail.Read, Calendars.Read, and Chat.Read. Paste the client ID and authority above.")
+                    Text("Create an Azure App Registration in your tenant. Add msauth.com.excelano.checkin://auth as a redirect URI. Enable the public client flow. Grant Mail.ReadWrite, Calendars.Read, and Chat.ReadWrite. Paste the client ID and authority above.")
                         .font(.body)
                         .foregroundStyle(Brand.textMuted)
                     Text("See SELF-HOSTING.md in the source repository for screenshots and the full walkthrough.")

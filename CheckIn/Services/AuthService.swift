@@ -79,10 +79,33 @@ final class AuthService {
         let webviewParams = MSALWebviewParameters(authPresentationViewController: viewController)
         let params = MSALInteractiveTokenParameters(scopes: scopes, webviewParameters: webviewParams)
 
-        let result = try await msalApp.acquireToken(with: params)
-        currentAccount = result.account
-        isAuthenticated = true
-        return result.accessToken
+        do {
+            let result = try await msalApp.acquireToken(with: params)
+            currentAccount = result.account
+            isAuthenticated = true
+            return result.accessToken
+        } catch let error as NSError where Self.isAdminConsentRequired(error) {
+            // Chat.ReadWrite triggers admin consent in most tenants. MSAL
+            // surfaces this as a serverError with the AADSTS code embedded
+            // in the description. Translating to .adminConsentRequired
+            // lets SignInView render the curated message in `AuthError`
+            // instead of the raw MSAL text.
+            throw AuthError.adminConsentRequired
+        }
+    }
+
+    /// True when the MSAL NSError indicates an admin-consent gap. Matches
+    /// on AADSTS codes most strongly tied to consent-required failures and
+    /// on the literal word "admin" in the description. Conservative — a
+    /// user-cancelled consent (`MSALError.userCanceled` /
+    /// `access_denied`) is a different domain code and doesn't trip this.
+    private static func isAdminConsentRequired(_ error: NSError) -> Bool {
+        guard error.domain == MSALErrorDomain else { return false }
+        let description = error.localizedDescription.lowercased()
+        return description.contains("aadsts65001")
+            || description.contains("aadsts90094")
+            || description.contains("admin consent")
+            || description.contains("admin approval")
     }
 
     // MARK: - Silent Token Refresh

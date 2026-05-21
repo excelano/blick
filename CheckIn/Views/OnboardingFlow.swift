@@ -74,6 +74,7 @@ private struct WelcomeStep: View {
                         .foregroundStyle(.white)
                     VStack(alignment: .leading, spacing: 8) {
                         bullet("I open what you ask in Outlook or Teams.")
+                        bullet("I can mark, flag, or delete email when you confirm.")
                         bullet("I don't read email bodies.")
                         bullet("I don't track or analyze you.")
                         bullet("Content stays on your device or with your own M365 service.")

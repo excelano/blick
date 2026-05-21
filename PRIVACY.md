@@ -10,13 +10,21 @@ CheckIn is a voice-first iOS app that talks to your Microsoft 365 account on you
 
 **Conversation context.** The dialog state machine tracks what you most recently asked and what CheckIn most recently said in order to handle follow-ups, disambiguation, and barge-in. This conversation context lives in memory only. When you close the app from the app switcher, or when iOS reclaims the app's memory, the context is gone. There is no persistence layer and no timer; the natural in-memory lifetime is the boundary.
 
-**Microsoft 365 data.** When you ask for your summary, CheckIn fetches calendar events, unread emails, and Teams chats from the Microsoft Graph API using your account's own credentials. The fetched data is held in memory long enough to render the summary on screen and speak it aloud. Nothing is persisted to disk, including caches. Closing or backgrounding the app discards the data.
+**Microsoft 365 data.** When you ask for your summary, CheckIn fetches calendar events, unread emails, and Teams chats from the Microsoft Graph API using your account's own credentials. The fetched data is held in memory long enough to render the summary on screen and speak it aloud. When you confirm a mutation, CheckIn also holds the target message IDs in memory long enough to issue the write. Nothing is persisted to disk, including caches. Closing or backgrounding the app discards the data.
 
 ## What leaves your device
 
-**Microsoft Graph API calls.** When you ask for your summary, CheckIn issues HTTPS requests to your Microsoft 365 service. These calls go to `graph.microsoft.com` (and regional equivalents) and `login.microsoftonline.com`. They carry your access token, which Microsoft uses to identify you, and they return the calendar, mail, and chat data your account has access to. This is the same traffic that any Microsoft Graph client makes; CheckIn does not add headers, identifiers, or analytics to it.
+**Microsoft Graph API calls.** When you ask for your summary, CheckIn issues HTTPS requests to your Microsoft 365 service. These calls go to `graph.microsoft.com` (and regional equivalents) and `login.microsoftonline.com`. They carry your access token, which Microsoft uses to identify you, and they return the calendar, mail, and chat data your account has access to. When you confirm a mutation, CheckIn issues the corresponding write to the same destinations. This is the same traffic that any Microsoft Graph client makes; CheckIn does not add headers, identifiers, or analytics to it.
 
 **Nothing else.** CheckIn makes no other network requests. No analytics, no crash reporting, no telemetry, no usage logging that leaves the device, no third-party SDKs that would. The Xcode project deliberately imports nothing of the sort, which is the point: this is enforced by the absence of code, not by a policy that depends on the developer behaving well.
+
+## Writes and confirmation
+
+CheckIn can mark email as read, flag email, and move email to Deleted Items on your behalf. The same applies in bulk for messages from a named sender. Bulk variants always restate the count in the confirmation prompt before any write happens.
+
+Every write passes through a confirmation gate. CheckIn speaks back the action it is about to take, then waits for an explicit yes or no. No write reaches Microsoft Graph without that yes. The state machine pause is `active.confirming`, documented in [STATES.md](STATES.md). A no, a cancel, or a mic tap during the confirmation discards the pending action and returns to rest.
+
+The Microsoft 365 scopes CheckIn requests reflect this: `Mail.ReadWrite` for the email mutations, `Chat.ReadWrite` for Teams reads and future Teams writes, and `Calendars.Read` because no calendar mutations are planned. Granting these scopes does not bypass the confirmation gate. The scopes give CheckIn the permission to write; the gate gives you the control over when.
 
 ## What CheckIn does not collect
 
