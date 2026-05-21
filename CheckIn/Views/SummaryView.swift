@@ -14,6 +14,7 @@ import UIKit
 struct SummaryView: View {
     var stateMachine: StateMachine
     var authService: AuthService
+    var inboxActions: InboxActions
 
     @AppStorage(AppStorageKey.voiceEnabled) private var voiceEnabled: Bool = true
 
@@ -77,37 +78,141 @@ struct SummaryView: View {
 
     // MARK: - Summary content
 
+    @ViewBuilder
     private var summaryContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if let summary = stateMachine.context.summary {
-                    if let meeting = summary.meeting {
-                        MeetingCard(meeting: meeting,
-                                    onTap: { deepLink(DeepLinkService.outlookCalendar) })
-                    }
-                    if !summary.emails.isEmpty {
-                        SectionHeader(title: "Email", count: summary.emails.count)
-                        ForEach(summary.emails) { email in
-                            EmailRow(email: email,
-                                     onTap: { deepLink(DeepLinkService.outlookInbox) })
-                        }
-                    }
-                    if !summary.chats.isEmpty {
-                        SectionHeader(title: "Teams", count: summary.chats.count)
-                        ForEach(summary.chats) { chat in
-                            ChatRow(chat: chat,
-                                    onTap: { deepLink(DeepLinkService.teams) })
-                        }
-                    }
-                    if summary.emails.isEmpty && summary.chats.isEmpty && summary.meeting == nil {
-                        emptyDayState
-                    }
-                } else {
-                    notFetchedState
+        if let summary = stateMachine.context.summary {
+            if summary.meeting == nil && summary.emails.isEmpty && summary.chats.isEmpty {
+                emptyDayScrollable
+            } else {
+                itemsList(summary: summary)
+            }
+        } else {
+            notFetchedState
+        }
+    }
+
+    private func itemsList(summary: CheckInSummary) -> some View {
+        List {
+            if let meeting = summary.meeting {
+                Section {
+                    MeetingCard(meeting: meeting,
+                                onTap: { joinOrCalendar(meeting) })
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 16, leading: 0, bottom: 6, trailing: 0))
                 }
             }
-            .padding(.top, 16)
+            if !summary.emails.isEmpty {
+                Section {
+                    ForEach(summary.emails) { email in
+                        EmailRow(email: email, onTap: { replyTo(email) })
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button {
+                                    Task { await inboxActions.markRead(emailId: email.id) }
+                                } label: {
+                                    Label("Mark Read", systemImage: "envelope.open")
+                                }
+                                .tint(.green)
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    Task { await inboxActions.flag(emailId: email.id) }
+                                } label: {
+                                    Label("Flag", systemImage: "flag")
+                                }
+                                .tint(.orange)
+                            }
+                    }
+                } header: {
+                    sectionHeader(title: "Email", count: summary.emails.count)
+                }
+            }
+            if !summary.chats.isEmpty {
+                Section {
+                    ForEach(summary.chats) { chat in
+                        ChatRow(chat: chat, onTap: { openChat(chat) })
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    }
+                } header: {
+                    sectionHeader(title: "Teams", count: summary.chats.count)
+                }
+            }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Brand.bg)
+        .refreshable { await inboxActions.refresh() }
+    }
+
+    private var emptyDayScrollable: some View {
+        ScrollView {
+            emptyDayState
+                .padding(.top, 60)
+        }
+        .refreshable { await inboxActions.refresh() }
+    }
+
+    private func sectionHeader(title: String, count: Int) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Brand.textMuted)
+                .textCase(.uppercase)
+            Text("\(count)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Brand.accent)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 1)
+                .background(Brand.bgDarker)
+                .clipShape(Capsule())
+            Spacer()
+        }
+    }
+
+    // MARK: - Tap actions
+
+    /// Meeting tap: open the Teams join link when the event carries one,
+    /// otherwise fall back to Outlook calendar so the user lands somewhere
+    /// useful instead of getting nothing.
+    private func joinOrCalendar(_ meeting: Meeting) {
+        if let urlString = meeting.joinUrl,
+           let url = DeepLinkService.passthrough(urlString),
+           UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+            return
+        }
+        deepLink(DeepLinkService.outlookCalendar)
+    }
+
+    /// Email tap: open a compose-reply pre-filled with the sender and
+    /// `Re:` subject. Missing sender address falls back to the inbox so
+    /// a tap is never dead.
+    private func replyTo(_ email: Email) {
+        if !email.fromAddress.isEmpty,
+           let url = DeepLinkService.outlookReply(to: email.fromAddress,
+                                                  subject: email.subject),
+           UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+            return
+        }
+        deepLink(DeepLinkService.outlookInbox)
+    }
+
+    /// Chat tap: pass through Graph's webUrl when present (lands on the
+    /// specific chat), generic Teams launch otherwise.
+    private func openChat(_ chat: ChatMessage) {
+        if let urlString = chat.webUrl,
+           let url = DeepLinkService.passthrough(urlString),
+           UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+            return
+        }
+        deepLink(DeepLinkService.teams)
     }
 
     private var notFetchedState: some View {

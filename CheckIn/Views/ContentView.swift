@@ -17,6 +17,7 @@ import SwiftUI
 struct ContentView: View {
     var authService: AuthService
     var stateMachine: StateMachine
+    var inboxActions: InboxActions
 
     @AppStorage(AppStorageKey.hasCompletedOnboarding) private var hasCompletedOnboarding: Bool = false
     @AppStorage(AppStorageKey.listeningMode) private var listeningMode: String = "tapToTalk"
@@ -31,7 +32,9 @@ struct ContentView: View {
             case .onboarding:
                 OnboardingFlow(stateMachine: stateMachine)
             case .active:
-                SummaryView(stateMachine: stateMachine, authService: authService)
+                SummaryView(stateMachine: stateMachine,
+                            authService: authService,
+                            inboxActions: inboxActions)
             }
         }
         .onAppear { bootstrapOnLaunch() }
