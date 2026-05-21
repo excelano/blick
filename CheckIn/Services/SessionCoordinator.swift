@@ -135,9 +135,13 @@ final class SessionCoordinator {
 
         // Account boundary: a transition into .signedOut means the user
         // tapped Sign Out (or auth fell off). Drop per-account caches so
-        // the next signed-in account starts clean.
+        // the next signed-in account starts clean. Cancel any in-flight
+        // fetch so its result can't land in the next session's context
+        // — the Task itself bails on `Task.isCancelled` before writing.
         if case .signedOut = event.to {
             summaryService.reset()
+            pendingFetch?.cancel()
+            pendingFetch = nil
         }
 
         // Sign-in (or cold-boot from .signedOut into .active). Kick off
@@ -145,7 +149,7 @@ final class SessionCoordinator {
         // without racing the cache. Intent dispatches that arrive before
         // the fetch returns will await this same Task via the TTL gate.
         if case .signedOut = event.from, case .active = event.to {
-            startSummaryFetch()
+            startSummaryFetch(reason: "boot")
         }
 
         let effects = transitionRouter.sideEffects(
@@ -220,15 +224,20 @@ final class SessionCoordinator {
     /// Start a summary fetch if one isn't already in flight. The Task
     /// stamps `context.summaryFetchedAt` so the TTL gate can read freshness
     /// off the context rather than tracking it here. Coalesces — repeat
-    /// calls while a fetch is pending are no-ops.
-    private func startSummaryFetch() {
+    /// calls while a fetch is pending are no-ops. `reason` tags the
+    /// debug print so cold-boot / stale / refresh fetches can be told
+    /// apart in the console.
+    private func startSummaryFetch(reason: String) {
         if pendingFetch != nil { return }
-        pendingFetch = Task { @MainActor [weak self] in
+        pendingFetch = Task { [weak self] in
             guard let self else { return }
             #if DEBUG
-            print("[summary] fetching")
+            print("[summary] fetching reason=\(reason)")
             #endif
             let summary = await self.summaryService.fetchSummary()
+            // Sign-out during the fetch cancels the Task. Bail before
+            // writing context so the next session starts clean.
+            if Task.isCancelled { return }
             self.stateMachine.updateContext {
                 $0.summary = summary
                 $0.summaryFetchedAt = Date()
@@ -248,13 +257,12 @@ final class SessionCoordinator {
         await pendingFetch?.value
     }
 
-    /// Start a fresh fetch (waiting for any in-flight one to land first
-    /// so we don't clobber its writes) and block until it completes.
-    /// Used by `.refresh` and by the stale-cache branch of the TTL gate.
-    private func fetchSummaryBlocking() async {
-        await awaitPendingFetch()
-        startSummaryFetch()
-        await awaitPendingFetch()
+    /// Start a fetch (coalesced with any in-flight one) and block until
+    /// it completes. Used by `.refresh` and by the stale-cache branch
+    /// of the TTL gate.
+    private func fetchSummaryBlocking(reason: String) async {
+        startSummaryFetch(reason: reason)
+        await pendingFetch?.value
     }
 
     /// True if the cached summary is missing or older than the configured
@@ -313,11 +321,11 @@ final class SessionCoordinator {
         // while the cold-boot load is still in flight awaits the same
         // Task rather than racing or duplicating it.
         if classified.intent == .refresh {
-            await fetchSummaryBlocking()
+            await fetchSummaryBlocking(reason: "refresh")
         } else if needsSummary(classified.intent) {
             await awaitPendingFetch()
             if isSummaryStale() {
-                await fetchSummaryBlocking()
+                await fetchSummaryBlocking(reason: "stale")
             }
         }
 
