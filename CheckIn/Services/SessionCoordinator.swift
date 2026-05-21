@@ -24,6 +24,7 @@ final class SessionCoordinator {
     private let responseGenerator: any ResponseGenerator
     private let entityMatcher: any EntityMatcher
     private let utteranceLog: any UtteranceLog
+    private let disambiguationController: DisambiguationController
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "coordinator")
 
@@ -50,6 +51,12 @@ final class SessionCoordinator {
         self.responseGenerator = responseGenerator
         self.entityMatcher = entityMatcher
         self.utteranceLog = utteranceLog
+        self.disambiguationController = DisambiguationController(
+            stateMachine: stateMachine,
+            responseGenerator: responseGenerator,
+            entityMatcher: entityMatcher,
+            utteranceLog: utteranceLog
+        )
     }
 
     /// Begin consuming the state machine's transition stream, the
@@ -149,7 +156,7 @@ final class SessionCoordinator {
             // Tap-to-talk leaves the recognizer off; the user taps the mic
             // to voice-pick or taps a candidate. The disambig branch in
             // handle(_ update:) is already wired to route the next final
-            // transcript to handleDisambiguationUtterance.
+            // transcript to DisambiguationController.handleUtterance.
             if stateMachine.preferredRestState == .listening {
                 await beginListening()
             }
@@ -245,10 +252,10 @@ final class SessionCoordinator {
         // voice-picking a candidate, not starting a fresh intent turn.
         if case .active(.disambiguating(let suspended, let candidates, let surface))
             = stateMachine.currentState {
-            await handleDisambiguationUtterance(update.text,
-                                                suspended: suspended,
-                                                candidates: candidates,
-                                                surface: surface)
+            await disambiguationController.handleUtterance(update.text,
+                                                           suspended: suspended,
+                                                           candidates: candidates,
+                                                           surface: surface)
             return
         }
 
@@ -435,167 +442,19 @@ final class SessionCoordinator {
             .joined(separator: " ")
     }
 
-    // MARK: - Disambiguation resume / cancel / voice path
+    // MARK: - Disambiguation (delegated)
 
-    /// User picked a candidate (touch tap or voice match). Reconstruct
-    /// the filter intent at full confidence and run the normal speaking
-    /// flow.
+    /// View-layer entry point. The panel only sees the `StateMachine`, so
+    /// `start()` wires the panel's selection callback to this method, which
+    /// forwards to `DisambiguationController`.
     func resumeDisambiguation(with candidate: Candidate) {
-        guard case .active(.disambiguating(let suspended, _, _))
-                = stateMachine.currentState else { return }
-
-        stateMachine.updateContext {
-            $0.disambiguationFailedAttempts = 0
-        }
-        stateMachine.transition(to: .active(.processing(.thinking)))
-
-        Task { [weak self] in
-            guard let self else { return }
-            await self.completeFilterTurn(utterance: suspended.utterance,
-                                          sender: candidate.entityRef)
-        }
+        disambiguationController.resume(with: candidate)
     }
 
-    /// User cancelled disambiguation (touch Cancel button or mic-tap).
-    /// Silent return to rest — the absence of speech is the
-    /// acknowledgment, mirroring `.stop`. The miss counter is zeroed by
-    /// the rest-entry sweep in `handle(_:)`.
+    /// View-layer entry point for cancel (touch Cancel or mic-tap). Same
+    /// rationale as `resumeDisambiguation`.
     func cancelDisambiguation() {
-        let rest = dialogState(forRest: stateMachine.preferredRestState)
-        stateMachine.transition(to: rest)
-        #if DEBUG
-        print("[disambig] cancelled")
-        #endif
-    }
-
-    private func completeFilterTurn(utterance: String, sender: String) async {
-        let classified = ClassifiedIntent(intent: .filter, confidence: 1.0)
-        let baseResponse = responseGenerator.generate(
-            for: classified,
-            utterance: utterance,
-            resolvedSender: sender,
-            context: stateMachine.context
-        )
-        let returnTo = stateMachine.preferredRestState
-
-        await utteranceLog.record(
-            utterance: utterance,
-            classified: classified,
-            ranking: [],
-            response: baseResponse
-        )
-        stateMachine.recordTurn(
-            user: utterance,
-            system: baseResponse.text,
-            category: baseResponse.category
-        )
-
-        #if DEBUG
-        print("[disambig] resumed sender=\(sender)")
-        print("[response] \"\(baseResponse.text)\" category=\(baseResponse.category)")
-        #endif
-
-        if case .active(.processing) = stateMachine.currentState {
-            if baseResponse.text.isEmpty {
-                stateMachine.transition(to: dialogState(forRest: returnTo))
-            } else {
-                stateMachine.transition(to: .active(.speaking(
-                    response: baseResponse,
-                    followUp: .rest(returnTo))))
-            }
-        }
-    }
-
-    private func handleDisambiguationUtterance(_ text: String,
-                                               suspended: SuspendedIntent,
-                                               candidates: [Candidate],
-                                               surface: String) async {
-        let lower = text.lowercased()
-
-        // Cancel surfaces — silent return to rest. Wider than just .stop
-        // anchors so users have natural exit phrasings.
-        let cancelTerms = ["never mind", "cancel", "stop", "forget it", "skip it"]
-        if cancelTerms.contains(where: { lower.contains($0) }) {
-            cancelDisambiguation()
-            return
-        }
-
-        // Ordinal first ("the first one", "number two").
-        let ordinals = entityMatcher.match(text: text,
-                                           domain: .ordinal,
-                                           context: stateMachine.context)
-        if let ord = ordinals.first,
-           let index = Int(ord.canonical),
-           index >= 1, index <= candidates.count {
-            resumeDisambiguation(with: candidates[index - 1])
-            return
-        }
-
-        // Canonical / partial canonical match. Matches if the utterance
-        // contains the full label OR any word from the label longer than
-        // two characters — catches "Tony Jones" → "jones" and "Smith"
-        // alike, but doesn't trip on stopwords.
-        if let chosen = candidates.first(where: { cand in
-            let labelLower = cand.label.lowercased()
-            if lower.contains(labelLower) { return true }
-            return labelLower.split(separator: " ").contains {
-                $0.count > 2 && lower.contains($0)
-            }
-        }) {
-            resumeDisambiguation(with: chosen)
-            return
-        }
-
-        // No match — count the miss and either retry or bail.
-        stateMachine.updateContext { $0.disambiguationFailedAttempts += 1 }
-        let misses = stateMachine.context.disambiguationFailedAttempts
-
-        if misses >= 2 {
-            let response = SpokenResponse(
-                text: ResponseTemplateRegistry.disambiguationExit,
-                category: .answer)
-            stateMachine.updateContext {
-                $0.disambiguationFailedAttempts = 0
-            }
-            await utteranceLog.record(
-                utterance: text,
-                classified: ClassifiedIntent(intent: .unknown, confidence: 0.0),
-                ranking: [],
-                response: response)
-            stateMachine.recordTurn(user: text,
-                                    system: response.text,
-                                    category: response.category)
-            #if DEBUG
-            print("[disambig] bail after \(misses) misses")
-            #endif
-            stateMachine.transition(to: .active(.speaking(
-                response: response,
-                followUp: .rest(stateMachine.preferredRestState))))
-            return
-        }
-
-        // Retry — speak the retry prompt with a fresh PendingDisambiguation
-        // payload so speaking-finish lands back in .disambiguating.
-        let pending = PendingDisambiguation(suspendedIntent: suspended,
-                                            surface: surface,
-                                            candidates: candidates)
-        let prompt = ResponseTemplateRegistry.disambiguationRetry(
-            heardSurface: surface, candidates: candidates)
-        let response = SpokenResponse(text: prompt, category: .disambiguation)
-        await utteranceLog.record(
-            utterance: text,
-            classified: ClassifiedIntent(intent: .unknown, confidence: 0.0),
-            ranking: [],
-            response: response)
-        stateMachine.recordTurn(user: text,
-                                system: response.text,
-                                category: response.category)
-        #if DEBUG
-        print("[disambig] retry (miss \(misses))")
-        #endif
-        stateMachine.transition(to: .active(.speaking(
-            response: response,
-            followUp: .disambiguate(pending))))
+        disambiguationController.cancel()
     }
 
     /// Apply per-intent side effects after the response is generated.
