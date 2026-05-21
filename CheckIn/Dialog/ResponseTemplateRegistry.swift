@@ -294,6 +294,11 @@ enum ResponseTemplateRegistry {
         case .bulkMarkRead, .bulkFlag, .bulkDelete:
             // Bulk variants use `bulkMutationDescription` — the count is
             // load-bearing, so the call site needs the richer signature.
+            // SessionCoordinator/DisambiguationController already gate on
+            // `isBulkMutation`, so reaching this branch means a caller
+            // forgot to switch on the kind. Fail loud in DEBUG; in
+            // Release fall through to the empty return as a safe default.
+            assertionFailure("mutationDescription called with bulk kind \(kind) — use bulkMutationDescription")
             return ""
         }
     }
@@ -333,7 +338,11 @@ enum ResponseTemplateRegistry {
                 verbPhrase = "delete all \(countWord) \(noun)"
             }
         case .markRead, .flag, .delete:
-            // Single-target variants use `mutationDescription`.
+            // Single-target variants use `mutationDescription`. Same
+            // contract as the wrong-kind branch above: assert in DEBUG
+            // so the misuse is impossible to miss, return empty in
+            // Release so a misrouted call doesn't crash the user.
+            assertionFailure("bulkMutationDescription called with single kind \(kind) — use mutationDescription")
             return ""
         }
 
