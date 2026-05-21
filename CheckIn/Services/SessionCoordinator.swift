@@ -128,6 +128,13 @@ final class SessionCoordinator {
         print("[coordinator] \(event.from) -> \(event.to)")
         #endif
 
+        // Account boundary: a transition into .signedOut means the user
+        // tapped Sign Out (or auth fell off). Drop per-account caches so
+        // the next signed-in account starts clean.
+        if case .signedOut = event.to {
+            summaryService.reset()
+        }
+
         let effects = transitionRouter.sideEffects(
             from: event.from,
             to: event.to,
@@ -141,7 +148,19 @@ final class SessionCoordinator {
     private func apply(_ effect: TransitionRouter.SideEffect) async {
         switch effect {
         case .configureAudio(let phase):
-            audioController.configure(for: phase)
+            // Speaking / inactive configures: log a failure but let the
+            // turn continue. The synth still runs under whichever category
+            // stayed active, and the next phase change will retry.
+            // Listening configures don't reach this path — beginListening
+            // does that one directly so it can bail to idle on failure.
+            do {
+                try audioController.configure(for: phase)
+            } catch {
+                logger.error("audio configure(\(String(describing: phase), privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
+                #if DEBUG
+                print("[coordinator] audio configure failed for \(phase): \(error.localizedDescription)")
+                #endif
+            }
         case .speak(let response):
             do {
                 try ttsService.speak(response.text)
@@ -437,7 +456,16 @@ final class SessionCoordinator {
             stateMachine.transition(to: .active(.idle))
             return
         }
-        audioController.configure(for: .listening)
+        do {
+            try audioController.configure(for: .listening)
+        } catch {
+            logger.error("audio configure for listening failed: \(error.localizedDescription, privacy: .public)")
+            #if DEBUG
+            print("[coordinator] audio configure for listening failed: \(error.localizedDescription)")
+            #endif
+            stateMachine.transition(to: .active(.idle))
+            return
+        }
         do {
             try speechService.startListening()
         } catch {

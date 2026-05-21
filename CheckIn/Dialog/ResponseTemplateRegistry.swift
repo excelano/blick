@@ -263,11 +263,14 @@ enum ResponseTemplateRegistry {
     // MARK: - Filter narrowing
 
     /// Spoken when `.filter` fires with a "from <X>" surface that the
-    /// entity matcher can't tag to anyone in scope. The user named
-    /// someone, so the system names them back rather than answering
-    /// as if no name was given.
+    /// entity matcher can't tag to anyone in scope. The user named the
+    /// surface back, but neutrally — the surface is sometimes a real
+    /// person, sometimes a vendor-prefix the matcher suppressed
+    /// ("microsoft" over four Microsoft-Outlook/Teams/365 senders), and
+    /// "I don't have anyone called microsoft" reads wrong in that case.
+    /// "No matches for X" is honest for both.
     static func filterUnknownSender(_ name: String) -> String {
-        "I don't have anyone called \(name) in your inbox."
+        "No matches for \(name) in your inbox."
     }
 
     // MARK: - Routine acknowledgments

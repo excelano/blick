@@ -17,6 +17,10 @@ import os
 /// from "nothing in the next 24 hours."
 protocol SummaryService {
     func fetchSummary() async -> CheckInSummary
+    /// Drop any per-account cached state (currently the one-shot user ID
+    /// flag). Call on sign-out so an account switch doesn't carry the
+    /// previous user's identity into the pending-chat heuristic.
+    func reset()
 }
 
 /// Microsoft Graph implementation. The three calls run in parallel via
@@ -85,6 +89,10 @@ final class GraphSummaryService: SummaryService {
         }
     }
 
+    func reset() {
+        didFetchUserID = false
+    }
+
     private func fetchChats(userIDReady: Bool) async -> (chats: [ChatMessage], error: String?) {
         guard teamsEnabled else { return ([], nil) }
         // If fetchUserID failed the pending-chat heuristic can't run; the
@@ -115,4 +123,5 @@ final class StubSummaryService: SummaryService {
         self.summary = summary
     }
     func fetchSummary() async -> CheckInSummary { summary }
+    func reset() {}
 }

@@ -42,35 +42,29 @@ final class AudioSessionController {
 
     /// Move the audio session to the category appropriate for the requested
     /// phase. Idempotent — repeat calls with the same phase are no-ops.
-    /// Failures are logged and swallowed; the synth/recognizer can still run
-    /// under whichever category remains active and the user hears a
-    /// degraded but functional experience.
-    func configure(for phase: Phase) {
+    /// Throws on category-switch or activation failure so the caller can
+    /// decide whether to bail (listening: drop back to idle, no mic) or
+    /// continue (speaking: the synth still plays under whichever category
+    /// stayed active; inactive: cleanup is best-effort).
+    func configure(for phase: Phase) throws {
         guard phase != currentPhase else { return }
         let session = AVAudioSession.sharedInstance()
-        do {
-            switch phase {
-            case .listening:
-                try session.setCategory(.playAndRecord,
-                                        mode: .spokenAudio,
-                                        options: [.duckOthers, .defaultToSpeaker])
-                try session.setActive(true, options: .notifyOthersOnDeactivation)
-            case .speaking:
-                try session.setCategory(.soloAmbient)
-                try session.setActive(true, options: .notifyOthersOnDeactivation)
-            case .inactive:
-                try session.setActive(false, options: .notifyOthersOnDeactivation)
-            }
-            currentPhase = phase
-            #if DEBUG
-            print("[audio] phase=\(phase) category=\(session.category.rawValue) mode=\(session.mode.rawValue)")
-            #endif
-        } catch {
-            logger.error("audio session configure(\(String(describing: phase), privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
-            #if DEBUG
-            print("[audio] configure failed for \(phase): \(error.localizedDescription)")
-            #endif
+        switch phase {
+        case .listening:
+            try session.setCategory(.playAndRecord,
+                                    mode: .spokenAudio,
+                                    options: [.duckOthers, .defaultToSpeaker])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        case .speaking:
+            try session.setCategory(.soloAmbient)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        case .inactive:
+            try session.setActive(false, options: .notifyOthersOnDeactivation)
         }
+        currentPhase = phase
+        #if DEBUG
+        print("[audio] phase=\(phase) category=\(session.category.rawValue) mode=\(session.mode.rawValue)")
+        #endif
     }
 
     /// Play an earcon under the current phase's category. The controller
