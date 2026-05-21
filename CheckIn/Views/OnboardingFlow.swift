@@ -63,24 +63,29 @@ private struct WelcomeStep: View {
     let onContinue: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer()
-            Text("CheckIn")
-                .font(.system(.largeTitle, design: .monospaced).weight(.bold))
-                .foregroundStyle(.white)
-            Text("A voice-first daily check-in for your M365 calendar, email, and chats.")
-                .font(.title3)
-                .foregroundStyle(.white)
-            VStack(alignment: .leading, spacing: 8) {
-                bullet("I open what you ask in Outlook or Teams.")
-                bullet("I don't read email bodies.")
-                bullet("I don't track or analyze you.")
-                bullet("Content stays on your device or with your own M365 service.")
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("CheckIn")
+                        .font(.system(.largeTitle, design: .monospaced).weight(.bold))
+                        .foregroundStyle(.white)
+                    Text("A voice-first daily check-in for your M365 calendar, email, and chats.")
+                        .font(.title3)
+                        .foregroundStyle(.white)
+                    VStack(alignment: .leading, spacing: 8) {
+                        bullet("I open what you ask in Outlook or Teams.")
+                        bullet("I don't read email bodies.")
+                        bullet("I don't track or analyze you.")
+                        bullet("Content stays on your device or with your own M365 service.")
+                    }
+                    Text("Privacy details live in PRIVACY.md alongside the source code.")
+                        .font(.callout)
+                        .foregroundStyle(Brand.textMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
             }
-            Text("Privacy details live in PRIVACY.md alongside the source code.")
-                .font(.callout)
-                .foregroundStyle(Brand.textMuted)
-            Spacer()
             Button(action: onContinue) {
                 Text("Get started")
                     .frame(maxWidth: .infinity)
@@ -90,8 +95,10 @@ private struct WelcomeStep: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .font(.body.weight(.semibold))
             }
+            .padding(.horizontal, 28)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
         }
-        .padding(28)
     }
 
     private func bullet(_ text: String) -> some View {
@@ -113,46 +120,54 @@ private struct PermissionsStep: View {
     @State private var speechGranted = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer()
-            Text("Permissions")
-                .font(.title.weight(.semibold))
-                .foregroundStyle(.white)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("Permissions")
+                        .font(.title.weight(.semibold))
+                        .foregroundStyle(.white)
 
-            permissionRow(
-                granted: micGranted,
-                title: "Microphone",
-                grantLabel: "Grant microphone access",
-                explanation: "I listen when you talk to me. Listening only happens on your device."
-            ) {
-                requestMic()
+                    permissionRow(
+                        granted: micGranted,
+                        title: "Microphone",
+                        grantLabel: "Grant microphone access",
+                        explanation: "I listen when you talk to me. Listening only happens on your device."
+                    ) {
+                        requestMic()
+                    }
+
+                    permissionRow(
+                        granted: speechGranted,
+                        title: "Speech recognition",
+                        grantLabel: "Grant speech recognition access",
+                        explanation: "I figure out what you said using on-device speech recognition. Nothing leaves your phone."
+                    ) {
+                        requestSpeech()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
             }
 
-            permissionRow(
-                granted: speechGranted,
-                title: "Speech recognition",
-                grantLabel: "Grant speech recognition access",
-                explanation: "I figure out what you said using on-device speech recognition. Nothing leaves your phone."
-            ) {
-                requestSpeech()
-            }
-
-            Spacer()
-
-            Button(action: onContinue) {
-                Text("Continue")
+            VStack(spacing: 12) {
+                Button(action: onContinue) {
+                    Text("Continue")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Brand.accent)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .font(.body.weight(.semibold))
+                }
+                Button("Skip for now", action: onSkip)
+                    .foregroundStyle(Brand.textMuted)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Brand.accent)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .font(.body.weight(.semibold))
             }
-            Button("Skip for now", action: onSkip)
-                .foregroundStyle(Brand.textMuted)
-                .frame(maxWidth: .infinity)
+            .padding(.horizontal, 28)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
         }
-        .padding(28)
         .onAppear(perform: refreshGrantedState)
     }
 
@@ -211,24 +226,28 @@ private struct ModeStep: View {
     let onContinue: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer()
-            Text("How do you want to talk to me?")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.white)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("How do you want to talk to me?")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.white)
 
-            modeOption(value: "tapToTalk",
-                       title: "Tap to talk",
-                       subtitle: "I listen when you tap the mic. Best in shared or noisy spaces.")
-            modeOption(value: "conversation",
-                       title: "Conversation mode",
-                       subtitle: "The mic stays hot between turns. Best for hands-free use. Say \u{201C}done\u{201D} to leave.")
+                    modeOption(value: "tapToTalk",
+                               title: "Tap to talk",
+                               subtitle: "I listen when you tap the mic. Best in shared or noisy spaces.")
+                    modeOption(value: "conversation",
+                               title: "Conversation mode",
+                               subtitle: "The mic stays hot between turns. Best for hands-free use. Say \u{201C}done\u{201D} to leave.")
 
-            Text("You can change this later in Settings.")
-                .font(.callout)
-                .foregroundStyle(Brand.textMuted)
-
-            Spacer()
+                    Text("You can change this later in Settings.")
+                        .font(.callout)
+                        .foregroundStyle(Brand.textMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
+            }
 
             Button(action: onContinue) {
                 Text("Continue")
@@ -239,8 +258,10 @@ private struct ModeStep: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .font(.body.weight(.semibold))
             }
+            .padding(.horizontal, 28)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
         }
-        .padding(28)
     }
 
     private func modeOption(value: String, title: String, subtitle: String) -> some View {
@@ -284,35 +305,43 @@ private struct FirstQueryStep: View {
         ?? ResponseTemplateRegistry.onboardingInvitations[0]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer()
-            Text("First check-in")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.white)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("First check-in")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.white)
 
-            Text(invitation)
-                .font(.title3)
-                .foregroundStyle(.white)
+                    Text(invitation)
+                        .font(.title3)
+                        .foregroundStyle(.white)
 
-            Text("At any time, say \u{201C}what can I say\u{201D} or tap the question mark.")
-                .font(.callout)
-                .foregroundStyle(Brand.textMuted)
-
-            Spacer()
-
-            Button(action: onContinue) {
-                Text("Open my summary")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Brand.accent)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .font(.body.weight(.semibold))
+                    Text("At any time, say \u{201C}what can I say\u{201D} or tap the question mark.")
+                        .font(.callout)
+                        .foregroundStyle(Brand.textMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
             }
-            Button("Skip", action: onSkip)
-                .foregroundStyle(Brand.textMuted)
-                .frame(maxWidth: .infinity)
+
+            VStack(spacing: 12) {
+                Button(action: onContinue) {
+                    Text("Open my summary")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Brand.accent)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .font(.body.weight(.semibold))
+                }
+                Button("Skip", action: onSkip)
+                    .foregroundStyle(Brand.textMuted)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
         }
-        .padding(28)
     }
 }
