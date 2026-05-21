@@ -11,6 +11,7 @@ struct CheckInApp: App {
     @State private var authService: AuthService
     @State private var stateMachine: StateMachine
     private let coordinator: SessionCoordinator
+    private let inboxActions: InboxActions
 
     init() {
         let auth = AuthService()
@@ -74,12 +75,16 @@ struct CheckInApp: App {
             utteranceLog: utteranceLog,
             mutationDispatcher: mutationDispatcher
         )
+        self.inboxActions = InboxActions(graphClient: graph,
+                                         summaryService: summary,
+                                         stateMachine: sm)
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView(authService: authService,
-                        stateMachine: stateMachine)
+                        stateMachine: stateMachine,
+                        inboxActions: inboxActions)
                 .task { coordinator.start() }
                 .onOpenURL { url in
                     // Pass the MSAL redirect callback URL back to MSAL.
