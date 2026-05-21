@@ -65,12 +65,22 @@ enum RestState: Equatable {
 
 // MARK: - Payload types
 
+/// Which intent the user was running when disambig kicked in. Drives
+/// where the resume path lands — filter goes back through the response
+/// generator with the picked sender narrowing the summary; reply goes
+/// back through IntentExecutor so the chosen sender's address is bound
+/// into the Outlook compose URL.
+enum DisambigOrigin: Equatable {
+    case filter
+    case reply
+}
+
 /// A user intent suspended while the system disambiguates an ambiguous
 /// reference. Once the user picks a candidate, the suspended intent
 /// resumes with the chosen entity substituted in.
 struct SuspendedIntent: Equatable {
     let utterance: String
-    let intent: String
+    let origin: DisambigOrigin
 }
 
 /// A candidate offered during disambiguation. `label` is what the user

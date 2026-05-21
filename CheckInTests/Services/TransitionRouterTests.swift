@@ -23,7 +23,7 @@ struct TransitionRouterTests {
     )
 
     private static let disambigPending = PendingDisambiguation(
-        suspendedIntent: SuspendedIntent(utterance: "any from tony", intent: "filter"),
+        suspendedIntent: SuspendedIntent(utterance: "any from tony", origin: .filter),
         surface: "Tony",
         candidates: [Candidate(label: "Tony Smith", entityRef: "Tony Smith")]
     )

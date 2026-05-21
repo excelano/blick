@@ -252,34 +252,45 @@ final class IntentExecutor {
     /// is the closest the documented compose surface gets to "reply to
     /// message N." The user lands inside an unaddressed reply they can
     /// finish in Outlook.
-    private func handleReply(utterance: String, context: DialogContext) async -> OpenOutcome {
+    ///
+    /// When called from the disambig resume path `preferredSender` is the
+    /// canonical the user picked; matching is skipped and that canonical
+    /// is used directly. The first-turn dispatch leaves it nil and the
+    /// matcher runs as before. Multi-sender disambiguation is now
+    /// pre-filtered by `SessionCoordinator.resolveSender`, so this method
+    /// no longer sees that case.
+    private func handleReply(utterance: String,
+                             context: DialogContext,
+                             preferredSender: String? = nil) async -> OpenOutcome {
         let emails = context.summary?.emails ?? []
-        let matches = entityMatcher.match(text: utterance,
-                                          domain: .person,
-                                          context: context)
-        if matches.isEmpty {
-            return OpenOutcome(spoken: SpokenResponse(
-                text: ResponseTemplateRegistry.replyNoSender,
-                category: .answer))
+
+        let canonical: String
+        let surface: String
+
+        if let pref = preferredSender {
+            canonical = pref
+            surface = pref
+        } else {
+            let matches = entityMatcher.match(text: utterance,
+                                              domain: .person,
+                                              context: context)
+            if matches.isEmpty {
+                return OpenOutcome(spoken: SpokenResponse(
+                    text: ResponseTemplateRegistry.replyNoSender,
+                    category: .answer))
+            }
+            var seen = Set<String>()
+            let distinct: [String] = matches.compactMap {
+                seen.insert($0.canonical).inserted ? $0.canonical : nil
+            }
+            canonical = distinct[0]
+            surface = matches.first?.surface ?? canonical
         }
 
-        // Distinct canonicals first — fall back to ambiguity refusal when
-        // the matcher tagged two different real people.
-        var seen = Set<String>()
-        let distinct: [String] = matches.compactMap {
-            seen.insert($0.canonical).inserted ? $0.canonical : nil
-        }
-        if distinct.count > 1 {
-            return OpenOutcome(spoken: SpokenResponse(
-                text: ResponseTemplateRegistry.openAmbiguous,
-                category: .answer))
-        }
-        let canonical = distinct[0]
         let candidates = emails.filter {
             $0.from.localizedCaseInsensitiveCompare(canonical) == .orderedSame
         }
         guard !candidates.isEmpty else {
-            let surface = matches.first?.surface ?? canonical
             return OpenOutcome(spoken: SpokenResponse(
                 text: ResponseTemplateRegistry.replyUnknownSender(surface),
                 category: .answer))
@@ -297,7 +308,6 @@ final class IntentExecutor {
             chosen = candidates.first
         }
         guard let email = chosen else {
-            let surface = matches.first?.surface ?? canonical
             return OpenOutcome(spoken: SpokenResponse(
                 text: ResponseTemplateRegistry.replyUnknownSender(surface),
                 category: .answer))
@@ -316,7 +326,6 @@ final class IntentExecutor {
                 category: .error))
         }
 
-        let surface = matches.first?.surface ?? email.from
         let opened = await openURL(url)
         if opened.spoken != nil {
             // openURL only sets a spoken response on failure; pass it through.
@@ -325,6 +334,19 @@ final class IntentExecutor {
         return OpenOutcome(spoken: SpokenResponse(
             text: ResponseTemplateRegistry.replyOpening(to: surface),
             category: .answer))
+    }
+
+    /// Disambig resume entry point. Skips the matcher and binds the
+    /// caller-supplied canonical sender into the reply URL.
+    func resolveReply(utterance: String,
+                      preferredSender: String,
+                      context: DialogContext,
+                      defaultRest: RestState) async -> (SpokenResponse, RestState) {
+        let outcome = await handleReply(utterance: utterance,
+                                        context: context,
+                                        preferredSender: preferredSender)
+        let base = SpokenResponse(text: "", category: .answer)
+        return (outcome.spoken ?? base, defaultRest)
     }
 
     // MARK: - Join meeting

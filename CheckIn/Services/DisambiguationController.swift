@@ -21,6 +21,7 @@ final class DisambiguationController {
     private let stateMachine: StateMachine
     private let responseGenerator: any ResponseGenerator
     private let entityMatcher: any EntityMatcher
+    private let intentExecutor: IntentExecutor
     private let utteranceLog: any UtteranceLog
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "disambig")
@@ -28,16 +29,18 @@ final class DisambiguationController {
     init(stateMachine: StateMachine,
          responseGenerator: any ResponseGenerator,
          entityMatcher: any EntityMatcher,
+         intentExecutor: IntentExecutor,
          utteranceLog: any UtteranceLog) {
         self.stateMachine = stateMachine
         self.responseGenerator = responseGenerator
         self.entityMatcher = entityMatcher
+        self.intentExecutor = intentExecutor
         self.utteranceLog = utteranceLog
     }
 
-    /// User picked a candidate (touch tap or voice match). Reconstruct
-    /// the filter intent at full confidence and run the normal speaking
-    /// flow.
+    /// User picked a candidate (touch tap or voice match). Branch on the
+    /// suspended intent's origin: filter narrows the summary response;
+    /// reply binds the chosen sender's address into an Outlook compose URL.
     func resume(with candidate: Candidate) {
         guard case .active(.disambiguating(let suspended, _, _))
                 = stateMachine.currentState else { return }
@@ -49,8 +52,14 @@ final class DisambiguationController {
 
         Task { [weak self] in
             guard let self else { return }
-            await self.completeFilterTurn(utterance: suspended.utterance,
-                                          sender: candidate.entityRef)
+            switch suspended.origin {
+            case .filter:
+                await self.completeFilterTurn(utterance: suspended.utterance,
+                                              sender: candidate.entityRef)
+            case .reply:
+                await self.completeReplyTurn(utterance: suspended.utterance,
+                                             sender: candidate.entityRef)
+            }
         }
     }
 
@@ -183,7 +192,7 @@ final class DisambiguationController {
         )
 
         #if DEBUG
-        print("[disambig] resumed sender=\(sender)")
+        print("[disambig] resumed filter sender=\(sender)")
         print("[response] \"\(baseResponse.text)\" category=\(baseResponse.category)")
         #endif
 
@@ -193,6 +202,43 @@ final class DisambiguationController {
             } else {
                 stateMachine.transition(to: .active(.speaking(
                     response: baseResponse,
+                    followUp: .rest(returnTo))))
+            }
+        }
+    }
+
+    private func completeReplyTurn(utterance: String, sender: String) async {
+        let classified = ClassifiedIntent(intent: .reply, confidence: 1.0)
+        let (response, returnTo) = await intentExecutor.resolveReply(
+            utterance: utterance,
+            preferredSender: sender,
+            context: stateMachine.context,
+            defaultRest: stateMachine.preferredRestState
+        )
+
+        await utteranceLog.record(
+            utterance: utterance,
+            classified: classified,
+            ranking: [],
+            response: response
+        )
+        stateMachine.recordTurn(
+            user: utterance,
+            system: response.text,
+            category: response.category
+        )
+
+        #if DEBUG
+        print("[disambig] resumed reply sender=\(sender)")
+        print("[response] \"\(response.text)\" category=\(response.category)")
+        #endif
+
+        if case .active(.processing) = stateMachine.currentState {
+            if response.text.isEmpty {
+                stateMachine.transition(to: dialogState(forRest: returnTo))
+            } else {
+                stateMachine.transition(to: .active(.speaking(
+                    response: response,
                     followUp: .rest(returnTo))))
             }
         }

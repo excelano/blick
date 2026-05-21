@@ -29,7 +29,7 @@ struct DialogStateTests {
             Candidate(label: "Tony Jones", entityRef: "b")
         ]
         let pending = PendingDisambiguation(
-            suspendedIntent: SuspendedIntent(utterance: "any from tony", intent: "filter"),
+            suspendedIntent: SuspendedIntent(utterance: "any from tony", origin: .filter),
             surface: "Tony",
             candidates: candidates
         )
@@ -51,7 +51,7 @@ struct DialogStateTests {
             Candidate(label: "Tony Jones", entityRef: "b")
         ]
         let state: ActiveSubstate = .disambiguating(
-            suspendedIntent: SuspendedIntent(utterance: "any from tony", intent: "filter"),
+            suspendedIntent: SuspendedIntent(utterance: "any from tony", origin: .filter),
             candidates: candidates,
             surface: "Tony"
         )
@@ -66,7 +66,7 @@ struct DialogStateTests {
 
     @Test func followUpEquatableDiscriminatesRestVsDisambiguate() {
         let pending = PendingDisambiguation(
-            suspendedIntent: SuspendedIntent(utterance: "u", intent: "filter"),
+            suspendedIntent: SuspendedIntent(utterance: "u", origin: .filter),
             surface: "s",
             candidates: []
         )

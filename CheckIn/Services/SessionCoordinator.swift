@@ -58,17 +58,18 @@ final class SessionCoordinator {
         self.responseGenerator = responseGenerator
         self.entityMatcher = entityMatcher
         self.utteranceLog = utteranceLog
-        self.disambiguationController = DisambiguationController(
-            stateMachine: stateMachine,
-            responseGenerator: responseGenerator,
-            entityMatcher: entityMatcher,
-            utteranceLog: utteranceLog
-        )
         self.intentExecutor = IntentExecutor(
             entityMatcher: entityMatcher,
             urlOpener: { url in
                 await UIApplication.shared.open(url)
             }
+        )
+        self.disambiguationController = DisambiguationController(
+            stateMachine: stateMachine,
+            responseGenerator: responseGenerator,
+            entityMatcher: entityMatcher,
+            intentExecutor: intentExecutor,
+            utteranceLog: utteranceLog
         )
     }
 
@@ -337,8 +338,9 @@ final class SessionCoordinator {
 
         switch resolution {
         case .needsDisambiguation(let surface, let candidates):
+            let origin: DisambigOrigin = (classified.intent == .reply) ? .reply : .filter
             let suspended = SuspendedIntent(utterance: update.text,
-                                            intent: "filter")
+                                            origin: origin)
             let pending = PendingDisambiguation(suspendedIntent: suspended,
                                                 surface: surface,
                                                 candidates: candidates)
@@ -347,15 +349,17 @@ final class SessionCoordinator {
             response = SpokenResponse(text: text, category: .disambiguation)
             followUp = .disambiguate(pending)
             #if DEBUG
-            print("[disambig] prompt surface=\(surface) candidates=\(candidates.map { $0.label })")
+            print("[disambig] prompt origin=\(origin) surface=\(surface) candidates=\(candidates.map { $0.label })")
             #endif
 
         case .unknown(let name):
-            let text = ResponseTemplateRegistry.filterUnknownSender(name)
+            let text = (classified.intent == .reply)
+                ? ResponseTemplateRegistry.replyUnknownSender(name)
+                : ResponseTemplateRegistry.filterUnknownSender(name)
             response = SpokenResponse(text: text, category: .answer)
             followUp = .rest(stateMachine.preferredRestState)
             #if DEBUG
-            print("[filter] unknown sender name=\(name)")
+            print("[\(classified.intent)] unknown sender name=\(name)")
             #endif
 
         case .resolved(let sender):
@@ -430,7 +434,12 @@ final class SessionCoordinator {
     }
 
     private func resolveSender(intent: Intent, text: String) -> SenderResolution {
-        guard case .filter = intent else { return .resolved(nil) }
+        switch intent {
+        case .filter, .reply:
+            break
+        default:
+            return .resolved(nil)
+        }
         let matches = entityMatcher.match(text: text,
                                           domain: .person,
                                           context: stateMachine.context)

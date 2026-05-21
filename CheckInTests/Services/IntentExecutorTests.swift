@@ -239,6 +239,60 @@ struct IntentExecutorTests {
         #expect(response.text == ResponseTemplateRegistry.replyOpening(to: "tony"))
     }
 
+    // MARK: - .reply (disambig resume path, preferredSender)
+
+    @Test func resolveReplyWithPreferredSenderFiresReplyDeepLink() async {
+        let (executor, opener) = Self.makeExecutor()
+        let summary = Self.summary(emails: [
+            Self.email(from: "Tony Smith",
+                       subject: "Lunch?",
+                       fromAddress: "tony@example.com")
+        ])
+        let (response, rest) = await executor.resolveReply(
+            utterance: "reply to tony",
+            preferredSender: "Tony Smith",
+            context: Self.context(with: summary),
+            defaultRest: .idle
+        )
+        let expectedURL = DeepLinkService.outlookReply(to: "tony@example.com",
+                                                       subject: "Lunch?")
+        #expect(opener.openedURLs.first == expectedURL)
+        #expect(response.text == ResponseTemplateRegistry.replyOpening(to: "Tony Smith"))
+        #expect(rest == .idle)
+    }
+
+    @Test func resolveReplyWithPreferredSenderSkipsMatcher() async {
+        // Matcher returns nothing for the utterance — proves resolveReply
+        // does NOT re-match and uses the preferredSender directly.
+        let matcher = ScriptedEntityMatcher()
+        let (executor, opener) = Self.makeExecutor(matcher: matcher)
+        let summary = Self.summary(emails: [
+            Self.email(from: "Tony Smith",
+                       fromAddress: "tony@example.com")
+        ])
+        let (response, _) = await executor.resolveReply(
+            utterance: "reply to tony",
+            preferredSender: "Tony Smith",
+            context: Self.context(with: summary),
+            defaultRest: .idle
+        )
+        #expect(opener.openedURLs.count == 1)
+        #expect(response.text == ResponseTemplateRegistry.replyOpening(to: "Tony Smith"))
+    }
+
+    @Test func resolveReplyWithPreferredSenderAndNoMatchingEmailSpeaksUnknownSender() async {
+        let (executor, opener) = Self.makeExecutor()
+        let summary = Self.summary(emails: [Self.email(from: "Alice Smith")])
+        let (response, _) = await executor.resolveReply(
+            utterance: "reply to tony",
+            preferredSender: "Tony Smith",
+            context: Self.context(with: summary),
+            defaultRest: .idle
+        )
+        #expect(opener.openedURLs.isEmpty)
+        #expect(response.text == ResponseTemplateRegistry.replyUnknownSender("Tony Smith"))
+    }
+
     @Test func replyToSenderWithNoEmailSpeaksUnknownSender() async {
         var matcher = ScriptedEntityMatcher()
         matcher.personForText["reply to tony"] = [
