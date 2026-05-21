@@ -26,6 +26,7 @@ final class SessionCoordinator {
     private let utteranceLog: any UtteranceLog
     private let disambiguationController: DisambiguationController
     private let intentExecutor: IntentExecutor
+    private let transitionRouter = TransitionRouter()
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "coordinator")
 
@@ -127,15 +128,21 @@ final class SessionCoordinator {
         print("[coordinator] \(event.from) -> \(event.to)")
         #endif
 
-        // Speaking-state side effects run before listening's so the synth
-        // is stopped cleanly ahead of any session category swap. The synth
-        // is per-utterance now, so a swap mid-utterance only impacts that
-        // single utterance, but stopping first is still the right order.
-        // Barge-in (auto-cut when VAD detects user speech mid-utterance)
-        // is deferred.
-        switch (event.from, event.to) {
-        case (_, .active(.speaking(let response, _))):
-            audioController.configure(for: .speaking)
+        let effects = transitionRouter.sideEffects(
+            from: event.from,
+            to: event.to,
+            preferredRestState: stateMachine.preferredRestState
+        )
+        for effect in effects {
+            await apply(effect)
+        }
+    }
+
+    private func apply(_ effect: TransitionRouter.SideEffect) async {
+        switch effect {
+        case .configureAudio(let phase):
+            audioController.configure(for: phase)
+        case .speak(let response):
             do {
                 try ttsService.speak(response.text)
             } catch {
@@ -145,87 +152,28 @@ final class SessionCoordinator {
                 #endif
                 stateMachine.transition(to: .active(.idle))
             }
-        case (.active(.speaking), _):
+        case .stopTTSIfSpeaking:
             if ttsService.isSpeaking {
                 ttsService.stop()
             }
-        default:
-            break
-        }
-
-        switch (event.from, event.to) {
-        case (.active(.idle), .active(.listening)),
-             (.active(.speaking), .active(.listening)),
-             (.active(.disambiguating), .active(.listening)):
+        case .beginListening:
             await beginListening()
-        case (.active(.speaking), .active(.disambiguating)):
-            // Auto-listen for the disambig answer in conversation mode.
-            // Tap-to-talk leaves the recognizer off; the user taps the mic
-            // to voice-pick or taps a candidate. The disambig branch in
-            // handle(_ update:) is already wired to route the next final
-            // transcript to DisambiguationController.handleUtterance.
-            if stateMachine.preferredRestState == .listening {
-                await beginListening()
-            }
-        case (.active(.disambiguating), _):
-            // Conversation mode left the recognizer running in
-            // .disambiguating. Exits to .listening fall through the case
-            // above and reuse the implicit teardown inside startListening.
-            // Every other exit (resumeDisambiguation → .processing,
-            // cancelDisambiguation → .idle for tap-to-talk) needs an
-            // explicit cancel here. No-op when the recognizer isn't live.
+        case .stopListening:
+            speechService.stopListening()
+        case .cancelListening:
+            speechService.cancel()
+        case .cancelListeningIfActive:
             if speechService.isListening {
                 speechService.cancel()
             }
-        case (.active(.listening), .active(.processing)):
-            // User signaled "I'm done speaking." Finalize the recognizer;
-            // the final transcript will arrive shortly via the transcripts
-            // stream and update DialogContext.lastUtterance.
-            speechService.stopListening()
-        case (.active(.listening), _):
-            // Any other exit from listening (back to idle, app backgrounded,
-            // error path) is a cancel — discard the partial transcript.
-            speechService.cancel()
-        default:
-            break
-        }
-
-        // Audio session deactivates on entry to rest-without-mic states.
-        // Speaking, listening, disambiguating, and processing all hold an
-        // active session; idle/help/settings release it.
-        switch event.to {
-        case .active(.idle), .active(.helpDisplayed), .active(.settingsDisplayed):
-            audioController.configure(for: .inactive)
-        default:
-            break
-        }
-
-        // Rest entry zeroes the disambig miss counter so it can't leak into
-        // the next turn. The pendingDisambiguation side-channel that used to
-        // need clearing here is gone — followUp on `.speaking` carries the
-        // routing decision now.
-        switch event.to {
-        case .active(.idle), .active(.listening):
+        case .playEarcon(let earcon):
+            audioController.play(earcon)
+        case .resetDisambigFailedAttempts:
             if stateMachine.context.disambiguationFailedAttempts != 0 {
                 stateMachine.updateContext {
                     $0.disambiguationFailedAttempts = 0
                 }
             }
-        default:
-            break
-        }
-
-        // Earcons fire on entry to a state category, not on
-        // intra-category transitions (processing(.thinking) shifting to
-        // processing(.speakingPlaceholder) is one processing visit, not
-        // two). Routed through the audio controller so each plays under
-        // the phase's category — silent during speaking, bypassed during
-        // listening/disambiguating. Fire-and-forget.
-        if isListening(event.to) && !isListening(event.from) {
-            audioController.play(.listening)
-        }
-        if isProcessing(event.to) && !isProcessing(event.from) {
-            audioController.play(.thinking)
         }
     }
 
@@ -235,16 +183,6 @@ final class SessionCoordinator {
         case .reply, .join, .timeQuery: return true
         default: return false
         }
-    }
-
-    private func isListening(_ state: DialogState) -> Bool {
-        if case .active(.listening) = state { return true }
-        return false
-    }
-
-    private func isProcessing(_ state: DialogState) -> Bool {
-        if case .active(.processing) = state { return true }
-        return false
     }
 
     private func handle(_ update: TranscriptUpdate) async {
@@ -376,7 +314,10 @@ final class SessionCoordinator {
                 // strand the state machine there. Silent paths only occur
                 // when followUp is .rest — disambig prompts always speak.
                 if case .rest(let restState) = followUp {
-                    stateMachine.transition(to: dialogState(forRest: restState))
+                    switch restState {
+                    case .idle: stateMachine.transition(to: .active(.idle))
+                    case .listening: stateMachine.transition(to: .active(.listening))
+                    }
                 }
             } else {
                 stateMachine.transition(
@@ -478,27 +419,11 @@ final class SessionCoordinator {
 
         switch event {
         case .finished, .cancelled:
-            if case .active(.speaking(_, let followUp)) = stateMachine.currentState {
-                switch followUp {
-                case .rest(let restState):
-                    stateMachine.transition(to: dialogState(forRest: restState))
-                case .disambiguate(let pending):
-                    stateMachine.transition(to: .active(.disambiguating(
-                        suspendedIntent: pending.suspendedIntent,
-                        candidates: pending.candidates,
-                        surface: pending.surface
-                    )))
-                }
+            if let next = transitionRouter.nextStateAfterSpeaking(stateMachine.currentState) {
+                stateMachine.transition(to: next)
             }
         default:
             break
-        }
-    }
-
-    private func dialogState(forRest rest: RestState) -> DialogState {
-        switch rest {
-        case .idle: return .active(.idle)
-        case .listening: return .active(.listening)
         }
     }
 
