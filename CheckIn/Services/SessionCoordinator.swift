@@ -92,6 +92,12 @@ final class SessionCoordinator {
         stateMachine.onDisambiguationCancelled = { [weak self] in
             self?.cancelDisambiguation()
         }
+        stateMachine.onConfirmationAccepted = { [weak self] in
+            self?.acceptConfirmation()
+        }
+        stateMachine.onConfirmationCancelled = { [weak self] in
+            self?.cancelConfirmation()
+        }
 
         transitionTask = Task { [weak self] in
             for await event in transitions {
@@ -118,6 +124,8 @@ final class SessionCoordinator {
     func stop() {
         stateMachine.onCandidateSelected = nil
         stateMachine.onDisambiguationCancelled = nil
+        stateMachine.onConfirmationAccepted = nil
+        stateMachine.onConfirmationCancelled = nil
         transitionTask?.cancel()
         transcriptTask?.cancel()
         ttsEventTask?.cancel()
@@ -292,6 +300,16 @@ final class SessionCoordinator {
                                                            suspended: suspended,
                                                            candidates: candidates,
                                                            surface: surface)
+            return
+        }
+
+        // A transcript arriving while confirming means the user is voice-
+        // answering the yes/no, not starting a fresh intent turn. Cheap
+        // lexical match — the classifier's `.yes`/`.no` anchors live on
+        // the same vocabulary but routing them through it here would
+        // require carrying intent state across an extra hop for no gain.
+        if case .active(.confirming) = stateMachine.currentState {
+            handleConfirmationUtterance(update.text)
             return
         }
 
@@ -503,6 +521,60 @@ final class SessionCoordinator {
     /// rationale as `resumeDisambiguation`.
     func cancelDisambiguation() {
         disambiguationController.cancel()
+    }
+
+    // MARK: - Confirmation
+
+    /// User said yes to the pending mutation (touch Yes, voice .yes, or
+    /// equivalent). Phase 4 lays the plumbing: speak the success ack and
+    /// land in rest. Phase 6 wires Graph PATCH execution between the
+    /// accept and the success announcement so the ack reflects actual
+    /// mutation outcome rather than a placeholder.
+    func acceptConfirmation() {
+        guard case .active(.confirming(let mutation))
+                = stateMachine.currentState else { return }
+        let response = SpokenResponse(
+            text: ResponseTemplateRegistry.successAnnouncement(mutation.description),
+            category: .confirmation)
+        stateMachine.recordTurn(user: "yes",
+                                system: response.text,
+                                category: response.category)
+        stateMachine.transition(to: .active(.speaking(
+            response: response,
+            followUp: .rest(stateMachine.preferredRestState))))
+    }
+
+    /// User said no / cancel. No Graph call regardless of phase; just a
+    /// short ack and rest.
+    func cancelConfirmation() {
+        guard case .active(.confirming) = stateMachine.currentState else { return }
+        let response = SpokenResponse(
+            text: ResponseTemplateRegistry.confirmationCancelled,
+            category: .confirmation)
+        stateMachine.recordTurn(user: "no",
+                                system: response.text,
+                                category: response.category)
+        stateMachine.transition(to: .active(.speaking(
+            response: response,
+            followUp: .rest(stateMachine.preferredRestState))))
+    }
+
+    /// Voice answer path while in `.confirming`. Conversation mode keeps
+    /// the recognizer hot through the prompt, so this fires when the user
+    /// speaks "yes" or "no" instead of tapping. Anything else is ignored —
+    /// the user can re-speak. (Two-miss bail like disambig is overkill
+    /// here: the touch affordances are always present.)
+    private func handleConfirmationUtterance(_ text: String) {
+        let lower = text.lowercased()
+        let yesTerms = ["yes", "yeah", "yep", "confirm", "do it", "go ahead", "sure"]
+        let noTerms = ["no", "nope", "cancel", "stop", "nevermind", "never mind", "forget it"]
+        if yesTerms.contains(where: { lower.contains($0) }) {
+            acceptConfirmation()
+        } else if noTerms.contains(where: { lower.contains($0) }) {
+            cancelConfirmation()
+        }
+        // Ambiguous utterance — leave the machine where it is. The panel
+        // stays up and the recognizer cycles for another try.
     }
 
     /// Drive the state machine out of `.speaking` when the synthesizer

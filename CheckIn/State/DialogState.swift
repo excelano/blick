@@ -33,6 +33,7 @@ enum ActiveSubstate: Equatable {
     case disambiguating(suspendedIntent: SuspendedIntent,
                         candidates: [Candidate],
                         surface: String)
+    case confirming(PendingMutation)
     case helpDisplayed(returnTo: RestState)
     case settingsDisplayed(returnTo: RestState)
 }
@@ -40,10 +41,13 @@ enum ActiveSubstate: Equatable {
 /// Where the speaking state goes when TTS finishes. Replaces the previous
 /// `pendingDisambiguation` side-channel on `DialogContext`: the routing
 /// decision is now part of the state that's being exited, not a flag the
-/// exit handler peeks at.
+/// exit handler peeks at. Same shape for `.confirm` — the pending mutation
+/// rides with the speaking state and gets handed to `.confirming` on
+/// speech finish.
 enum SpeakingFollowUp: Equatable {
     case rest(RestState)
     case disambiguate(PendingDisambiguation)
+    case confirm(PendingMutation)
 }
 
 /// Latency-driven substates inside `processing`.
@@ -123,6 +127,7 @@ enum ResponseCategory: Equatable {
     case refusal
     case redirect
     case disambiguation
+    case confirmation
     case error
     case help
     case latencyReassurance

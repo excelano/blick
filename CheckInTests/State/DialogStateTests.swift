@@ -79,4 +79,44 @@ struct DialogStateTests {
         #expect(restListening == .rest(.listening))
         #expect(disambig == .disambiguate(pending))
     }
+
+    @Test func confirmingCarriesPendingMutation() {
+        let mutation = PendingMutation(
+            kind: .markRead,
+            targets: ["abc123"],
+            description: "mark Tony's email as read"
+        )
+        let state: ActiveSubstate = .confirming(mutation)
+        if case .confirming(let carried) = state {
+            #expect(carried.kind == .markRead)
+            #expect(carried.targets == ["abc123"])
+            #expect(carried.description == "mark Tony's email as read")
+        } else {
+            Issue.record("expected .confirming")
+        }
+    }
+
+    @Test func followUpConfirmCarriesPendingMutation() {
+        let mutation = PendingMutation(
+            kind: .delete,
+            targets: ["m1", "m2"],
+            description: "delete two emails from Microsoft"
+        )
+        let response = SpokenResponse(text: "Confirm?", category: .confirmation)
+        let state: ActiveSubstate = .speaking(response: response,
+                                              followUp: .confirm(mutation))
+        if case .speaking(_, .confirm(let carried)) = state {
+            #expect(carried == mutation)
+        } else {
+            Issue.record("expected .speaking(_, .confirm)")
+        }
+    }
+
+    @Test func followUpEquatableDiscriminatesConfirm() {
+        let m1 = PendingMutation(kind: .markRead, targets: ["a"], description: "a")
+        let m2 = PendingMutation(kind: .markRead, targets: ["b"], description: "b")
+        #expect(SpeakingFollowUp.confirm(m1) != .confirm(m2))
+        #expect(SpeakingFollowUp.confirm(m1) == .confirm(m1))
+        #expect(SpeakingFollowUp.confirm(m1) != .rest(.idle))
+    }
 }

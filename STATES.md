@@ -73,6 +73,16 @@ The system has presented an enumerated list of candidates and is waiting for sel
 **Dialog context.** Carries the candidate list and the suspended intent.
 **Transitions.** On selection, advances to `active.processing` with the chosen candidate substituted for the ambiguous reference. On cancel or timeout, returns to rest with the suspended intent discarded.
 
+### `active.confirming`
+
+The system has restated a mutation as a verb phrase and is waiting for a yes or no before any write hits Microsoft Graph.
+
+**Visible UI.** The mutation description shown verbatim, with a Yes button and a No button below.
+**Voice action.** In conversation mode the recognizer runs through the prompt so the user can answer by voice ("yes", "no", "confirm", "cancel"). In tap-to-talk the prompt is spoken and the panel waits for a button tap.
+**Touch actions.** Tap Yes confirms the mutation. Tap No cancels. Tap mic also cancels (mirroring the disambig cancel shape).
+**Dialog context.** Carries the pending mutation: kind, target IDs, and the speakable description used in the prompt and the success acknowledgment.
+**Transitions.** On Yes, executes the mutation via Graph and advances to `active.speaking` with a success announcement, then rest. On No or cancel, advances to `active.speaking` with a short cancellation acknowledgment, then rest. On Graph failure during the Yes path, advances to `active.speaking` with the matching error response.
+
 ### `active.helpDisplayed`
 
 Help sheet is overlaid on the main screen.
@@ -99,7 +109,7 @@ Help is reachable from any `active` substate via the help intent or the visible 
 
 Silent-respect is the policy: when the user has the hardware silent switch on, the app stays silent (like Mail or Calendar, not Music). Recording-capable categories bypass silent by iOS design, so the session toggles per phase.
 
-- `.playAndRecord` with `.spokenAudio` mode in `listening` and `disambiguating` (mic is hot for recognition or selection).
+- `.playAndRecord` with `.spokenAudio` mode in `listening`, `disambiguating`, and `confirming` (mic is hot for recognition or selection in conversation mode; tap-to-talk holds the panel without the recognizer).
 - `.soloAmbient` in `speaking` so TTS honors silent.
 - `.processing` is a brief transition and inherits whichever category preceded it.
 - Session is deactivated in `idle`, `helpDisplayed`, and `settingsDisplayed`.
@@ -108,4 +118,4 @@ The `AVSpeechSynthesizer` instance is recreated per utterance so a category tran
 
 ## Earcons
 
-Earcons are tied to entry transitions. A listening earcon plays on `active.listening` entry, and a thinking earcon plays on `active.processing` entry.
+Earcons are tied to entry transitions. A listening earcon plays on `active.listening` entry, and a thinking earcon plays on `active.processing` entry. A confirmation earcon plays after a successful mutation, ahead of the success announcement.

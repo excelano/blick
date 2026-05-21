@@ -7,6 +7,7 @@
 # Generates the short earcons used by the state machine:
 #   listening.wav     entry to active.listening      (rising glide, 200 ms)
 #   thinking.wav      entry to active.processing     (soft pulse, 120 ms)
+#   confirmation.wav  success on a confirmed write   (two-note chime, 240 ms)
 #
 # All are 44.1 kHz mono 16-bit PCM. They use a cosine-window envelope
 # so attack and release are click-free, and they sit at modest amplitude so
@@ -67,10 +68,30 @@ def thinking() -> list[float]:
     return samples
 
 
+def confirmation() -> list[float]:
+    """Two-note ascending chime: 660 Hz then 990 Hz, each ~100 ms with a
+    20 ms gap. Reads as a small affirmative event without competing with
+    the success TTS that follows."""
+    note_duration = 0.100
+    gap_duration = 0.020
+    n_note = int(SAMPLE_RATE * note_duration)
+    n_gap = int(SAMPLE_RATE * gap_duration)
+    env = envelope(n_note)
+    samples: list[float] = []
+    for freq in (660.0, 990.0):
+        for i in range(n_note):
+            t = i / SAMPLE_RATE
+            samples.append(0.35 * env[i] * math.sin(2 * math.pi * freq * t))
+        if freq == 660.0:
+            samples.extend([0.0] * n_gap)
+    return samples
+
+
 def main() -> None:
     write_wav(HERE / "listening.wav", listening())
     write_wav(HERE / "thinking.wav", thinking())
-    for name in ("listening.wav", "thinking.wav"):
+    write_wav(HERE / "confirmation.wav", confirmation())
+    for name in ("listening.wav", "thinking.wav", "confirmation.wav"):
         path = HERE / name
         with wave.open(str(path), "rb") as w:
             frames = w.getnframes()

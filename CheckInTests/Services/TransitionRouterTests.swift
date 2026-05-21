@@ -266,4 +266,68 @@ struct TransitionRouterTests {
         let next = Self.router.nextStateAfterSpeaking(.active(.idle))
         #expect(next == nil)
     }
+
+    // MARK: - Confirming lifecycle
+
+    private static let pendingMutation = PendingMutation(
+        kind: .markRead,
+        targets: ["m1"],
+        description: "mark Tony's email as read"
+    )
+
+    private static let confirming: DialogState = .active(.confirming(pendingMutation))
+
+    private static let speakingToConfirm: DialogState = .active(.speaking(
+        response: SpokenResponse(text: "Confirm?", category: .confirmation),
+        followUp: .confirm(pendingMutation)
+    ))
+
+    @Test func speakingToConfirmingAutolistensInConversationMode() {
+        let effects = Self.router.sideEffects(
+            from: Self.speakingToConfirm,
+            to: Self.confirming,
+            preferredRestState: .listening
+        )
+        #expect(effects == [.stopTTSIfSpeaking, .beginListening])
+    }
+
+    @Test func speakingToConfirmingStaysSilentInTapToTalk() {
+        let effects = Self.router.sideEffects(
+            from: Self.speakingToConfirm,
+            to: Self.confirming,
+            preferredRestState: .idle
+        )
+        #expect(effects == [.stopTTSIfSpeaking])
+    }
+
+    @Test func confirmingToListeningRebuildsRecognizer() {
+        let effects = Self.router.sideEffects(
+            from: Self.confirming,
+            to: .active(.listening),
+            preferredRestState: .listening
+        )
+        #expect(effects == [.beginListening,
+                            .resetDisambigFailedAttempts,
+                            .playEarcon(.listening)])
+    }
+
+    @Test func confirmingToIdleGuardedCancel() {
+        let effects = Self.router.sideEffects(
+            from: Self.confirming,
+            to: .active(.idle),
+            preferredRestState: .idle
+        )
+        #expect(effects == [.cancelListeningIfActive,
+                            .configureAudio(.inactive),
+                            .resetDisambigFailedAttempts])
+    }
+
+    @Test func speakingExitWithConfirmFollowUpReconstructsState() {
+        let next = Self.router.nextStateAfterSpeaking(Self.speakingToConfirm)
+        guard case .active(.confirming(let m)) = next else {
+            Issue.record("expected .confirming, got \(String(describing: next))")
+            return
+        }
+        #expect(m == Self.pendingMutation)
+    }
 }

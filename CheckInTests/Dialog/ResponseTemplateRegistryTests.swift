@@ -104,6 +104,25 @@ struct ResponseTemplateRegistryTests {
         #expect(text.contains("Microsoft"))
     }
 
+    // MARK: - Confirmation
+
+    @Test func confirmationPromptRestatesDescription() {
+        let text = ResponseTemplateRegistry.confirmationPrompt("mark Tony's email as read")
+        #expect(text.contains("mark Tony's email as read"))
+        // Ends with a question shape so the user knows a yes/no is expected.
+        #expect(text.contains("?"))
+    }
+
+    @Test func successAnnouncementRestatesDescription() {
+        let text = ResponseTemplateRegistry.successAnnouncement("flagged Tony's email")
+        #expect(text.contains("flagged Tony's email"))
+    }
+
+    @Test func confirmationCancelledIsShort() {
+        // Short, terminal — outcome is the answer; the speech is just ack.
+        #expect(ResponseTemplateRegistry.confirmationCancelled.count < 30)
+    }
+
     // MARK: - Domain detection
 
     @Test func detectDomainEmailWord() {

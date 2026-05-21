@@ -58,19 +58,23 @@ struct TransitionRouter {
         switch (from, to) {
         case (.active(.idle), .active(.listening)),
              (.active(.speaking), .active(.listening)),
-             (.active(.disambiguating), .active(.listening)):
+             (.active(.disambiguating), .active(.listening)),
+             (.active(.confirming), .active(.listening)):
             // Speech service's startListening tears down any in-flight
             // recognizer internally, so the conversation-mode case of
-            // .disambiguating → .listening doesn't need an explicit cancel.
+            // .disambiguating / .confirming → .listening doesn't need an
+            // explicit cancel.
             effects.append(.beginListening)
-        case (.active(.speaking), .active(.disambiguating)):
-            // Auto-listen for the disambig answer in conversation mode
-            // only. Tap-to-talk leaves the recognizer off; the panel
-            // re-arms it on candidate tap or mic-press.
+        case (.active(.speaking), .active(.disambiguating)),
+             (.active(.speaking), .active(.confirming)):
+            // Auto-listen for the disambig / yes-no answer in conversation
+            // mode only. Tap-to-talk leaves the recognizer off; the panel
+            // re-arms it on touch.
             if preferredRestState == .listening {
                 effects.append(.beginListening)
             }
-        case (.active(.disambiguating), _):
+        case (.active(.disambiguating), _),
+             (.active(.confirming), _):
             // Conversation mode left the recognizer running; tap-to-talk
             // didn't. Guard so the cancel is a no-op when nothing's live.
             effects.append(.cancelListeningIfActive)
@@ -134,6 +138,8 @@ struct TransitionRouter {
                 candidates: pending.candidates,
                 surface: pending.surface
             ))
+        case .confirm(let mutation):
+            return .active(.confirming(mutation))
         }
     }
 

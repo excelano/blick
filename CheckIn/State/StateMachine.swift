@@ -64,12 +64,15 @@ final class StateMachine {
     var preferredRestState: RestState = .idle
 
     /// Coordinator hooks the view layer calls when the user resolves or
-    /// cancels a disambiguation. The SwiftUI panel only has a reference to
-    /// the state machine, not the coordinator, so the coordinator wires
-    /// these on `start()` to route panel events back to its own logic
-    /// without a singleton or a back-pointer through the view tree.
+    /// cancels a disambiguation, or accepts/cancels a confirmation. The
+    /// SwiftUI panels only have a reference to the state machine, not the
+    /// coordinator, so the coordinator wires these on `start()` to route
+    /// panel events back to its own logic without a singleton or a
+    /// back-pointer through the view tree.
     @ObservationIgnored var onCandidateSelected: ((Candidate) -> Void)?
     @ObservationIgnored var onDisambiguationCancelled: (() -> Void)?
+    @ObservationIgnored var onConfirmationAccepted: (() -> Void)?
+    @ObservationIgnored var onConfirmationCancelled: (() -> Void)?
 
     private func log(from: DialogState, to: DialogState) {
         #if DEBUG

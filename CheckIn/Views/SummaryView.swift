@@ -152,12 +152,17 @@ struct SummaryView: View {
             // `.speaking(_, .disambiguate(pending))`; on TTS finish it
             // transitions to `.disambiguating`. Rendering off both shapes
             // lets the candidate panel appear immediately so the user can
-            // tap-pick without waiting through the prompt.
+            // tap-pick without waiting through the prompt. Same dual-shape
+            // rule for `.confirming`.
             if let panel = disambigPanelData {
                 DisambiguatingPanel(utterance: panel.utterance,
                                     candidates: panel.candidates,
                                     onSelect: { stateMachine.onCandidateSelected?($0) },
                                     onCancel: { stateMachine.onDisambiguationCancelled?() })
+            } else if let mutation = confirmingPanelData {
+                ConfirmingPanel(mutation: mutation,
+                                onConfirm: { stateMachine.onConfirmationAccepted?() },
+                                onCancel: { stateMachine.onConfirmationCancelled?() })
             } else {
                 switch stateMachine.currentState {
                 case .active(.listening):
@@ -186,6 +191,17 @@ struct SummaryView: View {
         }
     }
 
+    private var confirmingPanelData: PendingMutation? {
+        switch stateMachine.currentState {
+        case .active(.speaking(_, .confirm(let mutation))):
+            return mutation
+        case .active(.confirming(let mutation)):
+            return mutation
+        default:
+            return nil
+        }
+    }
+
     private var micButton: some View {
         Button {
             micTapped()
@@ -204,7 +220,7 @@ struct SummaryView: View {
 
     private var micSymbol: String {
         switch stateMachine.currentState {
-        case .active(.listening), .active(.disambiguating):
+        case .active(.listening), .active(.disambiguating), .active(.confirming):
             return "stop.fill"
         case .active(.speaking):
             return "stop.fill"
@@ -224,6 +240,7 @@ struct SummaryView: View {
     private var micAccessibilityLabel: String {
         switch stateMachine.currentState {
         case .active(.listening), .active(.disambiguating): return "Stop listening"
+        case .active(.confirming): return "Cancel"
         case .active(.speaking): return "Stop speaking"
         default: return "Microphone"
         }
@@ -233,6 +250,7 @@ struct SummaryView: View {
         switch stateMachine.currentState {
         case .active(.idle): return "Tap to start a voice turn"
         case .active(.listening): return "Tap to finish speaking"
+        case .active(.confirming): return "Tap to cancel the confirmation"
         case .active(.speaking): return "Tap to interrupt and speak"
         default: return ""
         }
@@ -253,6 +271,11 @@ struct SummaryView: View {
             // Mic-tap during disambiguation = cancel. Routes through the
             // coordinator so pending state clears too.
             stateMachine.onDisambiguationCancelled?()
+        case .active(.confirming):
+            // Mic-tap during confirmation = cancel. Same shape as
+            // disambig cancel — coordinator clears the pending mutation
+            // and lands the machine in rest.
+            stateMachine.onConfirmationCancelled?()
         case .active(.speaking):
             // Barge-in.
             stateMachine.transition(to: .active(.listening))
@@ -464,6 +487,53 @@ private struct ChatRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Teams chat from \(chat.from)")
         .accessibilityHint("Open in Teams")
+    }
+}
+
+private struct ConfirmingPanel: View {
+    let mutation: PendingMutation
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Confirm:")
+                .font(.callout)
+                .foregroundStyle(Brand.textMuted)
+            Text(mutation.description)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 12) {
+                Button(action: onConfirm) {
+                    Text("Yes")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Brand.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Yes, confirm \(mutation.description)")
+
+                Button(action: onCancel) {
+                    Text("No")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Brand.bg)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("No, cancel")
+            }
+            .padding(.top, 4)
+        }
+        .padding(14)
+        .background(Brand.bgDarker)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

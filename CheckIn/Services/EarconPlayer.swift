@@ -21,6 +21,7 @@ protocol EarconPlayer: AnyObject {
 enum Earcon: String, CaseIterable {
     case listening
     case thinking
+    case confirmation
 
     /// Bundle resource name without extension. Mirrors the filenames in
     /// `CheckIn/Sounds/`.

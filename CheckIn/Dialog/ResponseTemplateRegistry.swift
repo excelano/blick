@@ -260,6 +260,24 @@ enum ResponseTemplateRegistry {
     /// attempts — short, terminal, no humor.
     static let disambiguationExit: String = "OK, never mind."
 
+    // MARK: - Confirmation
+    //
+    // Mutations always pass through `.confirming` with a spoken prompt and
+    // a yes/no answer. The prompt restates the verb phrase from
+    // `PendingMutation.description` so a mis-resolved target is obvious
+    // before any write happens. Success and cancel acks are short — the
+    // outcome is the answer; the speech is just acknowledgment.
+
+    static func confirmationPrompt(_ description: String) -> String {
+        "\(description). Confirm?"
+    }
+
+    static func successAnnouncement(_ description: String) -> String {
+        "Done. \(description)."
+    }
+
+    static let confirmationCancelled: String = "Cancelled."
+
     // MARK: - Filter narrowing
 
     /// Spoken when `.filter` fires with a "from <X>" surface that the
