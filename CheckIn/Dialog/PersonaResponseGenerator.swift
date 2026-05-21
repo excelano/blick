@@ -62,7 +62,8 @@ struct PersonaResponseGenerator: ResponseGenerator {
             // no join URL, launch failure) or fires the deep-link silently.
             return SpokenResponse(text: "", category: .answer)
 
-        case .markRead, .flag, .delete:
+        case .markRead, .flag, .delete,
+             .bulkMarkRead, .bulkFlag, .bulkDelete:
             // Mutations branch out before reaching the generator — the
             // coordinator builds the confirmation prompt directly from
             // the PendingMutation. This case exists for exhaustiveness.
@@ -128,6 +129,18 @@ struct PersonaResponseGenerator: ResponseGenerator {
             let text = ResponseTemplateRegistry.summaryFilteredBySender(from: summary,
                                                                         matching: sender,
                                                                         utterance: utterance)
+            return SpokenResponse(text: text, category: .summary)
+        }
+        // Advanced count predicates ("how many today", "how many in the
+        // last hour") come in as no-sender `.filter` turns. The detector
+        // wins over the standard domain split when a time window matches —
+        // otherwise fall through to the existing email/chat/meeting/all
+        // phrasing for plain "how many emails" etc.
+        if let predicate = ResponseTemplateRegistry.detectAdvancedCount(utterance) {
+            let count = ResponseTemplateRegistry.countEmails(summary.emails,
+                                                             matching: predicate)
+            let text = ResponseTemplateRegistry.advancedCountResponse(count: count,
+                                                                      predicate: predicate)
             return SpokenResponse(text: text, category: .summary)
         }
         let text: String

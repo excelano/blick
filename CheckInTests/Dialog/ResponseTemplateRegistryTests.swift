@@ -4,6 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import Testing
+import Foundation
 @testable import CheckIn
 
 /// Pins the registry's pure-function surface. The pools themselves are
@@ -215,5 +216,113 @@ struct ResponseTemplateRegistryTests {
         )
         #expect(text.contains("Tony Smith"))
         #expect(text.contains("Project update"))
+    }
+
+    // MARK: - Bulk mutation phrasing
+
+    @Test func bulkMutationDescriptionNoSenderUsesAll() {
+        let text = ResponseTemplateRegistry.bulkMutationDescription(
+            kind: .bulkMarkRead, count: 12, sender: nil, exceptLatest: false)
+        #expect(text.contains("12"))
+        #expect(text.lowercased().contains("all"))
+        #expect(text.contains("emails"))
+        #expect(text.contains("as read"))
+    }
+
+    @Test func bulkMutationDescriptionWithSenderNamesSender() {
+        let text = ResponseTemplateRegistry.bulkMutationDescription(
+            kind: .bulkDelete, count: 8, sender: "Microsoft", exceptLatest: false)
+        #expect(text.contains("Microsoft"))
+        #expect(text.lowercased().contains("eight"))
+        #expect(text.lowercased().contains("delete"))
+    }
+
+    @Test func bulkMutationDescriptionExceptLatestAppendsCarveOut() {
+        let text = ResponseTemplateRegistry.bulkMutationDescription(
+            kind: .bulkDelete, count: 7, sender: "Microsoft", exceptLatest: true)
+        #expect(text.contains("Microsoft"))
+        #expect(text.lowercased().contains("seven"))
+        #expect(text.contains("keep the latest one"))
+    }
+
+    @Test func bulkMutationDescriptionSingularNoun() {
+        // One target reads "one email" not "one emails". Hits the count==1
+        // singular branch.
+        let text = ResponseTemplateRegistry.bulkMutationDescription(
+            kind: .bulkFlag, count: 1, sender: "Microsoft", exceptLatest: false)
+        #expect(text.contains("email"))
+        #expect(!text.contains("emails"))
+    }
+
+    // MARK: - Advanced count predicates
+
+    @Test func detectAdvancedCountRecognizesToday() {
+        #expect(ResponseTemplateRegistry.detectAdvancedCount("how many today") == .today)
+        #expect(ResponseTemplateRegistry.detectAdvancedCount("any from today") == .today)
+    }
+
+    @Test func detectAdvancedCountRecognizesThisMorning() {
+        // "this morning" is a sub-window of "today" — verify it wins.
+        #expect(ResponseTemplateRegistry.detectAdvancedCount("how many this morning") == .thisMorning)
+    }
+
+    @Test func detectAdvancedCountRecognizesLastHour() {
+        #expect(ResponseTemplateRegistry.detectAdvancedCount("how many in the last hour") == .lastHour)
+        #expect(ResponseTemplateRegistry.detectAdvancedCount("anything in the past hour") == .lastHour)
+    }
+
+    @Test func detectAdvancedCountReturnsNilForUnrelated() {
+        #expect(ResponseTemplateRegistry.detectAdvancedCount("how many emails") == nil)
+        #expect(ResponseTemplateRegistry.detectAdvancedCount("anything from tony") == nil)
+    }
+
+    @Test func countEmailsTodayFiltersByDay() {
+        let now = Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now).addingTimeInterval(8 * 3600)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let emails: [Email] = [
+            Email(id: "1", subject: "", from: "A", fromAddress: "a@x",
+                  preview: "", received: today),
+            Email(id: "2", subject: "", from: "B", fromAddress: "b@x",
+                  preview: "", received: yesterday)
+        ]
+        let count = ResponseTemplateRegistry.countEmails(emails, matching: .today)
+        #expect(count == 1)
+    }
+
+    @Test func countEmailsLastHourFiltersByCutoff() {
+        let now = Date()
+        let recent = now.addingTimeInterval(-10 * 60)        // 10 min ago
+        let stale = now.addingTimeInterval(-2 * 3600)        // 2 hr ago
+        let emails: [Email] = [
+            Email(id: "1", subject: "", from: "A", fromAddress: "a@x",
+                  preview: "", received: recent),
+            Email(id: "2", subject: "", from: "B", fromAddress: "b@x",
+                  preview: "", received: stale)
+        ]
+        let count = ResponseTemplateRegistry.countEmails(emails, matching: .lastHour)
+        #expect(count == 1)
+    }
+
+    @Test func advancedCountResponseZeroToday() {
+        let text = ResponseTemplateRegistry.advancedCountResponse(
+            count: 0, predicate: .today)
+        #expect(text.lowercased().contains("nothing"))
+        #expect(text.lowercased().contains("today"))
+    }
+
+    @Test func advancedCountResponseOneLastHour() {
+        let text = ResponseTemplateRegistry.advancedCountResponse(
+            count: 1, predicate: .lastHour)
+        #expect(text.contains("One"))
+        #expect(text.contains("last hour"))
+    }
+
+    @Test func advancedCountResponseManyThisMorning() {
+        let text = ResponseTemplateRegistry.advancedCountResponse(
+            count: 4, predicate: .thisMorning)
+        #expect(text.contains("Four"))
+        #expect(text.contains("this morning"))
     }
 }

@@ -267,6 +267,58 @@ enum IntentAnchors {
             "move this to trash"
         ]),
 
+        // Bulk mutations. "All" / "every" / "everything" plus the verb
+        // signals bulk; sender-scoping ("from microsoft") narrows the set
+        // and is resolved by the executor, not the classifier. The "except
+        // the latest" modifier is also lexical-only — the classifier just
+        // needs to land in the right bulk intent.
+
+        (.bulkMarkRead, [
+            "mark everything as read",
+            "mark them all as read",
+            "mark all as read",
+            "mark all of them as read",
+            "mark all my emails as read",
+            "mark all unread as read",
+            "mark all unread emails as read",
+            "mark all the emails as read",
+            "mark all emails from microsoft as read",
+            "mark all emails from tony as read",
+            "mark everything from microsoft as read",
+            "mark all his emails as read",
+            "mark all her emails as read",
+            "clear my unread"
+        ]),
+
+        (.bulkFlag, [
+            "flag all of them",
+            "flag everything",
+            "flag them all",
+            "flag all my emails",
+            "flag all unread",
+            "flag all emails from tony",
+            "flag all emails from microsoft",
+            "flag everything from microsoft",
+            "flag all his emails",
+            "flag them all for follow-up"
+        ]),
+
+        (.bulkDelete, [
+            "delete them all",
+            "delete everything",
+            "delete all of them",
+            "delete all my emails",
+            "delete all unread",
+            "delete all emails from microsoft",
+            "delete all emails from tony",
+            "delete everything from microsoft",
+            "delete everything from tony except the latest",
+            "delete all emails from microsoft except the latest",
+            "trash them all",
+            "trash everything from microsoft",
+            "move all of them to deleted items"
+        ]),
+
         // In-scope-unsupported sub-categories. Each redirects to a
         // different touch path, so each gets its own anchor pool.
 

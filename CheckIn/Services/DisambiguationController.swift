@@ -253,23 +253,39 @@ final class DisambiguationController {
     /// Resume path for mutation disambig. Builds a `PendingMutation`
     /// against the user's picked sender and stages the confirmation
     /// prompt. No Graph write fires here — that happens later when the
-    /// user accepts via the `.confirming` panel.
+    /// user accepts via the `.confirming` panel. Bulk kinds branch to
+    /// `handleBulkMutation` since the target set and prompt phrasing
+    /// differ (count-aware, "except the latest" honored).
     private func completeMutationTurn(utterance: String,
                                       sender: String,
                                       kind: MutationKind) {
         let intentForLog: Intent
         switch kind {
-        case .markRead, .bulkMarkRead: intentForLog = .markRead
-        case .flag, .bulkFlag:         intentForLog = .flag
-        case .delete, .bulkDelete:     intentForLog = .delete
+        case .markRead: intentForLog = .markRead
+        case .flag:     intentForLog = .flag
+        case .delete:   intentForLog = .delete
+        case .bulkMarkRead: intentForLog = .bulkMarkRead
+        case .bulkFlag:     intentForLog = .bulkFlag
+        case .bulkDelete:   intentForLog = .bulkDelete
         }
         let classified = ClassifiedIntent(intent: intentForLog, confidence: 1.0)
-        let outcome = intentExecutor.handleMutation(
-            kind: kind,
-            utterance: utterance,
-            context: stateMachine.context,
-            preferredSender: sender
-        )
+        let outcome: IntentExecutor.MutationOutcome
+        switch kind {
+        case .markRead, .flag, .delete:
+            outcome = intentExecutor.handleMutation(
+                kind: kind,
+                utterance: utterance,
+                context: stateMachine.context,
+                preferredSender: sender
+            )
+        case .bulkMarkRead, .bulkFlag, .bulkDelete:
+            outcome = intentExecutor.handleBulkMutation(
+                kind: kind,
+                utterance: utterance,
+                context: stateMachine.context,
+                preferredSender: sender
+            )
+        }
 
         let response: SpokenResponse
         let followUp: SpeakingFollowUp

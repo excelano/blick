@@ -529,4 +529,117 @@ struct IntentExecutorTests {
         _ = await executor.executeMutation(pending)
         #expect(recorder.calls.first?.ids == ["a", "b", "c"])
     }
+
+    // MARK: - Bulk mutations
+
+    @Test func handleBulkMutationNoSenderTargetsAllUnread() async {
+        let (executor, _) = Self.makeMutationExecutor()
+        let a = Self.email(from: "Tony Smith")
+        let b = Self.email(from: "Sarah Lee")
+        let c = Self.email(from: "Microsoft")
+        let summary = Self.summary(emails: [a, b, c])
+        let outcome = executor.handleBulkMutation(
+            kind: .bulkMarkRead,
+            utterance: "mark all as read",
+            context: Self.context(with: summary)
+        )
+        #expect(outcome.pending != nil)
+        #expect(outcome.refusal == nil)
+        #expect(outcome.pending?.targets.count == 3)
+        #expect(outcome.pending?.description.contains("three") == true)
+        #expect(outcome.pending?.description.contains("as read") == true)
+    }
+
+    @Test func handleBulkMutationWithSenderNarrowsTargets() async {
+        let (executor, _) = Self.makeMutationExecutor()
+        let m1 = Self.email(from: "Microsoft")
+        let m2 = Self.email(from: "Microsoft")
+        let other = Self.email(from: "Tony Smith")
+        let summary = Self.summary(emails: [m1, m2, other])
+        let outcome = executor.handleBulkMutation(
+            kind: .bulkDelete,
+            utterance: "delete all emails from microsoft",
+            context: Self.context(with: summary),
+            preferredSender: "Microsoft"
+        )
+        #expect(outcome.pending?.targets == [m1.id, m2.id])
+        #expect(outcome.pending?.description.contains("two") == true)
+        #expect(outcome.pending?.description.contains("Microsoft") == true)
+    }
+
+    @Test func handleBulkMutationExceptLatestDropsFirst() async {
+        // "Except the latest" trims the first message (Graph desc order)
+        // and the prompt phrasing keeps "and keep the latest one" so the
+        // user hears the carve-out before confirming.
+        let (executor, _) = Self.makeMutationExecutor()
+        let latest = Self.email(from: "Microsoft")
+        let older1 = Self.email(from: "Microsoft")
+        let older2 = Self.email(from: "Microsoft")
+        let summary = Self.summary(emails: [latest, older1, older2])
+        let outcome = executor.handleBulkMutation(
+            kind: .bulkDelete,
+            utterance: "delete all emails from microsoft except the latest",
+            context: Self.context(with: summary),
+            preferredSender: "Microsoft"
+        )
+        #expect(outcome.pending?.targets == [older1.id, older2.id])
+        #expect(outcome.pending?.description.contains("two") == true)
+        #expect(outcome.pending?.description.contains("keep the latest one") == true)
+    }
+
+    @Test func handleBulkMutationRefusesWhenSenderHasNoMatches() async {
+        // Named sender with zero matches refuses by echoing the surface,
+        // mirroring the single-mutation refusal shape.
+        var matcher = ScriptedEntityMatcher()
+        matcher.personForText["flag all from bob"] = [
+            EntityMatch(surface: "bob", canonical: "Bob Jones", confidence: 0.9)
+        ]
+        let (executor, _) = Self.makeMutationExecutor(matcher: matcher)
+        let summary = Self.summary(emails: [Self.email(from: "Tony Smith")])
+        let outcome = executor.handleBulkMutation(
+            kind: .bulkFlag,
+            utterance: "flag all from bob",
+            context: Self.context(with: summary)
+        )
+        #expect(outcome.pending == nil)
+        #expect(outcome.refusal?.text.contains("bob") == true)
+    }
+
+    @Test func handleBulkMutationRefusesWhenInboxEmpty() async {
+        let (executor, _) = Self.makeMutationExecutor()
+        let summary = Self.summary(emails: [])
+        let outcome = executor.handleBulkMutation(
+            kind: .bulkMarkRead,
+            utterance: "mark all as read",
+            context: Self.context(with: summary)
+        )
+        #expect(outcome.pending == nil)
+        #expect(outcome.refusal?.text == ResponseTemplateRegistry.bulkNothingToMutate)
+    }
+
+    @Test func handleBulkMutationExceptLatestRefusesWhenOnlyOne() async {
+        // "Delete all from Microsoft except the latest" with one message
+        // leaves nothing to do. Refuse rather than silently no-op.
+        let (executor, _) = Self.makeMutationExecutor()
+        let only = Self.email(from: "Microsoft")
+        let summary = Self.summary(emails: [only])
+        let outcome = executor.handleBulkMutation(
+            kind: .bulkDelete,
+            utterance: "delete all from microsoft except the latest",
+            context: Self.context(with: summary),
+            preferredSender: "Microsoft"
+        )
+        #expect(outcome.pending == nil)
+        #expect(outcome.refusal != nil)
+    }
+
+    @Test func detectExceptLatestRecognizesCommonPhrasings() {
+        #expect(IntentExecutor.detectExceptLatest("delete all from microsoft except the latest"))
+        #expect(IntentExecutor.detectExceptLatest("delete all from microsoft except the last"))
+        #expect(IntentExecutor.detectExceptLatest("flag everything but keep the latest"))
+        #expect(IntentExecutor.detectExceptLatest("clear them but not the latest"))
+        #expect(IntentExecutor.detectExceptLatest("flag all and keep the most recent one"))
+        #expect(!IntentExecutor.detectExceptLatest("delete all emails from microsoft"))
+        #expect(!IntentExecutor.detectExceptLatest("mark them all as read"))
+    }
 }

@@ -230,15 +230,28 @@ final class SessionCoordinator {
         case .summary, .filter, .refresh: return true
         case .reply, .join, .timeQuery: return true
         case .markRead, .flag, .delete: return true
+        case .bulkMarkRead, .bulkFlag, .bulkDelete: return true
         default: return false
         }
     }
 
-    /// True when the intent is a single-email mutation. Bulk variants
-    /// will join this set in Phase 7.
+    /// True when the intent is any mutation, single or bulk. The two
+    /// branch shapes share the disambiguation flow, the confirmation gate,
+    /// and the summary-needed check.
     private func isMutation(_ intent: Intent) -> Bool {
         switch intent {
         case .markRead, .flag, .delete: return true
+        case .bulkMarkRead, .bulkFlag, .bulkDelete: return true
+        default: return false
+        }
+    }
+
+    /// True when the intent acts on a count rather than a single target.
+    /// Bulk routing uses a different executor entry point and a different
+    /// description template, but otherwise shares the confirmation gate.
+    private func isBulkMutation(_ intent: Intent) -> Bool {
+        switch intent {
+        case .bulkMarkRead, .bulkFlag, .bulkDelete: return true
         default: return false
         }
     }
@@ -248,6 +261,9 @@ final class SessionCoordinator {
         case .markRead: return .markRead
         case .flag:     return .flag
         case .delete:   return .delete
+        case .bulkMarkRead: return .bulkMarkRead
+        case .bulkFlag:     return .bulkFlag
+        case .bulkDelete:   return .bulkDelete
         default:        return nil
         }
     }
@@ -416,12 +432,22 @@ final class SessionCoordinator {
 
         case .resolved(let sender):
             if let kind = mutationKind(classified.intent) {
-                let outcome = intentExecutor.handleMutation(
-                    kind: kind,
-                    utterance: update.text,
-                    context: stateMachine.context,
-                    preferredSender: sender
-                )
+                let outcome: IntentExecutor.MutationOutcome
+                if isBulkMutation(classified.intent) {
+                    outcome = intentExecutor.handleBulkMutation(
+                        kind: kind,
+                        utterance: update.text,
+                        context: stateMachine.context,
+                        preferredSender: sender
+                    )
+                } else {
+                    outcome = intentExecutor.handleMutation(
+                        kind: kind,
+                        utterance: update.text,
+                        context: stateMachine.context,
+                        preferredSender: sender
+                    )
+                }
                 if let pending = outcome.pending {
                     let promptText = ResponseTemplateRegistry.confirmationPrompt(
                         pending.description)
@@ -514,7 +540,9 @@ final class SessionCoordinator {
 
     private func resolveSender(intent: Intent, text: String) -> SenderResolution {
         switch intent {
-        case .filter, .reply, .markRead, .flag, .delete:
+        case .filter, .reply,
+             .markRead, .flag, .delete,
+             .bulkMarkRead, .bulkFlag, .bulkDelete:
             break
         default:
             return .resolved(nil)
@@ -559,6 +587,16 @@ final class SessionCoordinator {
         let captured = ns.substring(with: match.range(at: 1))
             .trimmingCharacters(in: .whitespaces)
         if captured.isEmpty { return nil }
+        // Time terms slip through the "from X" regex when the user means
+        // "from today" / "from this morning" as a time filter. Treating
+        // those as a missing-person surface produces a nonsense refusal,
+        // so drop them here and let `.resolved(nil)` fall through to the
+        // advanced-count detection in `PersonaResponseGenerator`.
+        let lowered = captured.lowercased()
+        let timeStoplist = ["today", "yesterday", "tomorrow",
+                            "this morning", "this afternoon", "this evening",
+                            "tonight", "the morning"]
+        if timeStoplist.contains(lowered) { return nil }
         return captured
             .split(separator: " ")
             .map { word -> String in

@@ -4,6 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import Testing
+import Foundation
 @testable import CheckIn
 
 /// Pins the anti-repeat behavior of `PersonaResponseGenerator` and the
@@ -127,5 +128,34 @@ struct PersonaResponseGeneratorTests {
         #expect(!r.text.isEmpty)
         // Must not be the most recent — that's the anti-repeat floor.
         #expect(r.text != ResponseTemplateRegistry.refusals.last)
+    }
+
+    // MARK: - Advanced count predicates in filter
+
+    @Test func filterDetectsAdvancedCountTodayInsteadOfSummaryDump() {
+        // A `.filter` turn with "today" should land in the advanced-count
+        // path, not the bare "summary" dump. Bare "how many emails" still
+        // uses the email-only summary path (covered separately).
+        var ctx = DialogContext()
+        let now = Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now).addingTimeInterval(8 * 3600)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        ctx.summary = CheckInSummary(
+            meeting: nil,
+            emails: [
+                Email(id: "1", subject: "", from: "A", fromAddress: "a@x",
+                      preview: "", received: today),
+                Email(id: "2", subject: "", from: "B", fromAddress: "b@x",
+                      preview: "", received: yesterday)
+            ],
+            chats: [],
+            emailError: nil, chatError: nil, teamsEnabled: true)
+        let r = generator.generate(for: classified(.filter),
+                                   utterance: "how many today",
+                                   resolvedSender: nil,
+                                   context: ctx)
+        #expect(r.text.lowercased().contains("today"))
+        #expect(r.text.contains("One"))
     }
 }

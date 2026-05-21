@@ -33,10 +33,15 @@ enum Intent: Hashable {
     case ordinalSelection  // "the first", "number two"
 
     // Mutations — every one goes through the `.confirming` gate before
-    // any write reaches Graph.
+    // any write reaches Graph. Bulk variants act on a count rather than a
+    // single target; the confirmation prompt restates the count so the
+    // user sees the scope before any write happens.
     case markRead
     case flag
     case delete
+    case bulkMarkRead
+    case bulkFlag
+    case bulkDelete
 
     /// In-scope subject (calendar, email, chats) but the requested action
     /// isn't a launch voice capability. Sub-kind selects the redirect pool.

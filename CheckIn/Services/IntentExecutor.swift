@@ -433,6 +433,114 @@ final class IntentExecutor {
         return MutationOutcome(pending: pending, refusal: nil)
     }
 
+    /// Build a `PendingMutation` for a bulk turn. The target set is the
+    /// summary's unread emails, optionally narrowed to one sender and
+    /// optionally trimmed by the "except the latest" modifier. The
+    /// confirmation prompt restates the count so the user sees scope
+    /// before any write happens.
+    ///
+    /// Returns a refusal when:
+    /// - the user named a sender that doesn't match anyone in the unread
+    ///   set (echoes the surface so the user hears what was heard),
+    /// - the target set is empty after sender narrowing and the optional
+    ///   "except the latest" trim (nothing left to act on).
+    func handleBulkMutation(kind: MutationKind,
+                            utterance: String,
+                            context: DialogContext,
+                            preferredSender: String? = nil) -> MutationOutcome {
+        let emails = context.summary?.emails ?? []
+
+        let canonical: String?
+        let surface: String?
+        let hadSenderToken: Bool
+
+        if let pref = preferredSender {
+            canonical = pref
+            surface = pref
+            hadSenderToken = true
+        } else {
+            let matches = entityMatcher.match(text: utterance,
+                                              domain: .person,
+                                              context: context)
+            if matches.isEmpty {
+                // No sender — the user is acting on the full unread set
+                // ("mark all as read"). Bulk allows this; single does not.
+                canonical = nil
+                surface = nil
+                hadSenderToken = false
+            } else {
+                var seen = Set<String>()
+                let distinct: [String] = matches.compactMap {
+                    seen.insert($0.canonical).inserted ? $0.canonical : nil
+                }
+                canonical = distinct.first
+                surface = matches.first?.surface
+                hadSenderToken = true
+            }
+        }
+
+        var targets: [Email]
+        if let sender = canonical {
+            targets = emails.filter {
+                $0.from.localizedCaseInsensitiveCompare(sender) == .orderedSame
+            }
+        } else {
+            targets = emails
+        }
+
+        let exceptLatest = Self.detectExceptLatest(utterance)
+        if exceptLatest && !targets.isEmpty {
+            // Summary is sorted desc by received date — index 0 is the
+            // latest. "Except the latest" drops that one.
+            targets = Array(targets.dropFirst())
+        }
+
+        if targets.isEmpty {
+            if hadSenderToken, let s = surface {
+                return MutationOutcome(
+                    pending: nil,
+                    refusal: SpokenResponse(
+                        text: ResponseTemplateRegistry.openNotFound(s),
+                        category: .answer))
+            }
+            return MutationOutcome(
+                pending: nil,
+                refusal: SpokenResponse(
+                    text: ResponseTemplateRegistry.bulkNothingToMutate,
+                    category: .answer))
+        }
+
+        let description = ResponseTemplateRegistry.bulkMutationDescription(
+            kind: kind,
+            count: targets.count,
+            sender: canonical,
+            exceptLatest: exceptLatest)
+        let pending = PendingMutation(kind: kind,
+                                      targets: targets.map { $0.id },
+                                      description: description)
+        return MutationOutcome(pending: pending, refusal: nil)
+    }
+
+    /// Lexical detector for the "except the latest" modifier. Conservative
+    /// — only catches phrasings that clearly signal "keep the most recent
+    /// one." Any unrecognized variant falls through to bulk-without-trim
+    /// rather than silently keeping a message.
+    static func detectExceptLatest(_ utterance: String) -> Bool {
+        let lower = utterance.lowercased()
+        let markers = [
+            "except the latest",
+            "except the last",
+            "except the most recent",
+            "except the newest",
+            "but keep the latest",
+            "but keep the most recent",
+            "but not the latest",
+            "keep the latest one",
+            "keep the most recent one"
+        ]
+        return markers.contains { lower.contains($0) }
+    }
+
     /// Execute the confirmed mutation against Graph via the injected
     /// dispatcher. Success returns a `.confirmation`-category response
     /// with the success template; failure returns a generic `.error`

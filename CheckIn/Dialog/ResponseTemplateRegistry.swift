@@ -292,10 +292,63 @@ enum ResponseTemplateRegistry {
         case .delete:
             return "move the latest email from \(sender) to Deleted Items"
         case .bulkMarkRead, .bulkFlag, .bulkDelete:
-            // Bulk variants land in Phase 7 with count-aware phrasing.
+            // Bulk variants use `bulkMutationDescription` — the count is
+            // load-bearing, so the call site needs the richer signature.
             return ""
         }
     }
+
+    /// Speakable verb phrase for a pending bulk mutation. Always carries
+    /// the count so the user hears the scope before any write happens.
+    /// `sender` narrows the count ("five emails from Microsoft"); when nil
+    /// the phrasing leans on "all" against the full unread set. The
+    /// `exceptLatest` modifier appends "and keep the latest one" — the
+    /// canonical phrasing for the "delete from Microsoft but not the most
+    /// recent" use case.
+    static func bulkMutationDescription(kind: MutationKind,
+                                        count: Int,
+                                        sender: String?,
+                                        exceptLatest: Bool) -> String {
+        let countWord = spellCount(count).lowercased()
+        let noun = count == 1 ? "email" : "emails"
+
+        let verbPhrase: String
+        switch kind {
+        case .bulkMarkRead:
+            if let s = sender {
+                verbPhrase = "mark \(countWord) \(noun) from \(s) as read"
+            } else {
+                verbPhrase = "mark all \(countWord) \(noun) as read"
+            }
+        case .bulkFlag:
+            if let s = sender {
+                verbPhrase = "flag \(countWord) \(noun) from \(s)"
+            } else {
+                verbPhrase = "flag all \(countWord) \(noun)"
+            }
+        case .bulkDelete:
+            if let s = sender {
+                verbPhrase = "delete \(countWord) \(noun) from \(s)"
+            } else {
+                verbPhrase = "delete all \(countWord) \(noun)"
+            }
+        case .markRead, .flag, .delete:
+            // Single-target variants use `mutationDescription`.
+            return ""
+        }
+
+        if exceptLatest {
+            return "\(verbPhrase) and keep the latest one"
+        }
+        return verbPhrase
+    }
+
+    /// Spoken when a bulk mutation lands but the resolved target set is
+    /// empty — sender named no one in the unread set after the "except
+    /// the latest" modifier removed the only message, or the inbox itself
+    /// is empty. Distinct from `openNotFound` because the user named a
+    /// scope rather than a single target.
+    static let bulkNothingToMutate: String = "Nothing to do — the inbox is already there."
 
     /// Spoken when a `.markRead` / `.flag` / `.delete` turn classifies
     /// but no sender is in scope or the utterance only carries a pronoun
@@ -308,6 +361,78 @@ enum ResponseTemplateRegistry {
     /// will be `.error`; the underlying error description rides in the
     /// debug log, not the speech, so the user doesn't hear a stack trace.
     static let mutationFailed: String = "Couldn't do that. Try again?"
+
+    // MARK: - Advanced count predicates
+    //
+    // `.filter` utterances without a sender sometimes carry a time
+    // predicate ("how many today", "how many in the last hour"). These
+    // count the existing unread set against a date window — no new Graph
+    // round-trip — and answer with a count rather than a list. The
+    // detector returns nil when no predicate matches and the caller falls
+    // back to the standard summary phrasing.
+
+    enum CountPredicate {
+        case today
+        case thisMorning
+        case lastHour
+    }
+
+    static func detectAdvancedCount(_ utterance: String) -> CountPredicate? {
+        let lower = utterance.lowercased()
+        // Order matters: "this morning" is a sub-window of "today", so
+        // check it first to avoid the broader match swallowing it.
+        if lower.contains("this morning") { return .thisMorning }
+        if lower.contains("last hour") || lower.contains("past hour")
+            || lower.contains("in the last sixty minutes")
+            || lower.contains("in the last 60 minutes") {
+            return .lastHour
+        }
+        if lower.contains("today") { return .today }
+        return nil
+    }
+
+    /// Count emails whose `received` falls inside the predicate's window.
+    /// Uses the current `Date()` as the reference point so the predicate
+    /// is naturally relative to when the user asks.
+    static func countEmails(_ emails: [Email], matching predicate: CountPredicate) -> Int {
+        let now = Date()
+        let calendar = Calendar.current
+        switch predicate {
+        case .today:
+            return emails.filter { calendar.isDateInToday($0.received) }.count
+        case .thisMorning:
+            let startOfToday = calendar.startOfDay(for: now)
+            guard let noon = calendar.date(byAdding: .hour, value: 12, to: startOfToday) else {
+                return 0
+            }
+            return emails.filter {
+                $0.received >= startOfToday && $0.received < noon
+            }.count
+        case .lastHour:
+            let cutoff = now.addingTimeInterval(-3600)
+            return emails.filter { $0.received >= cutoff }.count
+        }
+    }
+
+    /// Spoken response for an advanced count predicate. Mirrors the
+    /// terse register of `summaryEmailOnly` — count plus the window the
+    /// user named, no list dump.
+    static func advancedCountResponse(count: Int, predicate: CountPredicate) -> String {
+        let window: String
+        switch predicate {
+        case .today: window = "today"
+        case .thisMorning: window = "this morning"
+        case .lastHour: window = "in the last hour"
+        }
+        switch count {
+        case 0:
+            return "Nothing \(window)."
+        case 1:
+            return "One \(window)."
+        case let n:
+            return "\(spellCount(n)) \(window)."
+        }
+    }
 
     // MARK: - Filter narrowing
 
