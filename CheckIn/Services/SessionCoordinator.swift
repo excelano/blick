@@ -26,6 +26,8 @@ final class SessionCoordinator {
     private let utteranceLog: any UtteranceLog
     private let disambiguationController: DisambiguationController
     private let intentExecutor: IntentExecutor
+    private let commandExecutor: CommandExecutor
+    private let interpreter: any Interpreter
     private let transitionRouter = TransitionRouter()
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "coordinator")
@@ -48,6 +50,8 @@ final class SessionCoordinator {
          responseGenerator: any ResponseGenerator,
          entityMatcher: any EntityMatcher,
          utteranceLog: any UtteranceLog,
+         commandExecutor: CommandExecutor,
+         interpreter: any Interpreter,
          mutationDispatcher: @escaping (MutationKind, [String]) async -> Result<Void, Error>
             = { _, _ in .success(()) }) {
         self.stateMachine = stateMachine
@@ -60,6 +64,8 @@ final class SessionCoordinator {
         self.responseGenerator = responseGenerator
         self.entityMatcher = entityMatcher
         self.utteranceLog = utteranceLog
+        self.commandExecutor = commandExecutor
+        self.interpreter = interpreter
         self.intentExecutor = IntentExecutor(
             entityMatcher: entityMatcher,
             urlOpener: { url in
@@ -361,6 +367,18 @@ final class SessionCoordinator {
             stateMachine.transition(to: .active(.processing(.thinking)))
         }
 
+        // New command path: when the interpreter recognizes a phrase,
+        // route through the executor (which calls InboxActions or fires
+        // a deep link) and feed the result into the speaking state. The
+        // legacy intent classifier / persona / disambiguation machinery
+        // below stays available for phrases the interpreter doesn't
+        // yet handle, so this is additive — nothing regresses until a
+        // phrase migrates over.
+        if let command = interpreter.interpret(update.text) {
+            await handleCommand(command, utterance: update.text)
+            return
+        }
+
         let context = stateMachine.context
         let classified = intentClassifier.classify(
             utterance: update.text,
@@ -523,6 +541,41 @@ final class SessionCoordinator {
                     to: .active(.speaking(response: response, followUp: followUp))
                 )
             }
+        }
+    }
+
+    // MARK: - New command path
+
+    /// Run a recognized command and feed the result back into the state
+    /// machine. The executor returns a `CommandResult` with the canonical
+    /// spoken response; non-empty text routes through `.speaking` so the
+    /// router's existing audio plumbing handles TTS playback. Silent
+    /// commands return directly to rest. The voice path stays inside the
+    /// state machine for TTS, but bypasses the classifier / persona pool
+    /// for everything between transcript and result.
+    private func handleCommand(_ command: Command, utterance: String) async {
+        let result = await commandExecutor.execute(command)
+        let response = SpokenResponse(text: result.spokenResponse, category: .answer)
+
+        stateMachine.recordTurn(user: utterance,
+                                system: response.text,
+                                category: response.category)
+
+        #if DEBUG
+        print("[command] result \"\(response.text)\"")
+        #endif
+
+        guard case .active(.processing) = stateMachine.currentState else { return }
+
+        if response.text.isEmpty {
+            switch stateMachine.preferredRestState {
+            case .idle: stateMachine.transition(to: .active(.idle))
+            case .listening: stateMachine.transition(to: .active(.listening))
+            }
+        } else {
+            stateMachine.transition(to: .active(.speaking(
+                response: response,
+                followUp: .rest(stateMachine.preferredRestState))))
         }
     }
 

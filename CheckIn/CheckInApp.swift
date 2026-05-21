@@ -63,6 +63,17 @@ struct CheckInApp: App {
                 return .failure(error)
             }
         }
+        // InboxActions exists in front of the coordinator so the new
+        // command path can route through it. The coordinator picks up
+        // the same executor / interpreter pair and short-circuits
+        // recognized voice phrases through it before the legacy intent
+        // path is consulted.
+        let actions = InboxActions(graphClient: graph,
+                                   summaryService: summary,
+                                   stateMachine: sm)
+        self.inboxActions = actions
+        let executor = CommandExecutor(inboxActions: actions)
+        let interpreter: any Interpreter = PhraseInterpreter()
         self.coordinator = SessionCoordinator(
             stateMachine: sm,
             speechService: speech,
@@ -73,11 +84,10 @@ struct CheckInApp: App {
             responseGenerator: generator,
             entityMatcher: entityMatcher,
             utteranceLog: utteranceLog,
+            commandExecutor: executor,
+            interpreter: interpreter,
             mutationDispatcher: mutationDispatcher
         )
-        self.inboxActions = InboxActions(graphClient: graph,
-                                         summaryService: summary,
-                                         stateMachine: sm)
     }
 
     var body: some Scene {
