@@ -16,8 +16,14 @@ struct CheckInApp: App {
     init() {
         let auth = AuthService()
         let graph = GraphClient(authService: auth, enableTeams: Constants.teamsEnabled)
+        let inbox = Inbox(graphClient: graph, teamsEnabled: Constants.teamsEnabled)
+        // Wire the sign-out hook before exposing the AuthService — when
+        // the user signs out (potentially to switch to a different
+        // account), Inbox drops its summary and the cached user id so
+        // the next refresh starts clean.
+        auth.onSignOut = { [inbox] in inbox.reset() }
         _authService = State(initialValue: auth)
-        self.inbox = Inbox(graphClient: graph, teamsEnabled: Constants.teamsEnabled)
+        self.inbox = inbox
     }
 
     var body: some Scene {

@@ -410,16 +410,34 @@ struct SummaryView: View {
         deepLink(DeepLinkService.teams)
     }
 
+    @ViewBuilder
     private var notFetchedState: some View {
-        VStack(spacing: 12) {
-            Spacer(minLength: 80)
-            ProgressView().tint(Brand.accent)
-            Text("Loading your day…")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-            Spacer(minLength: 80)
+        if inbox.lastRefreshFailed {
+            VStack(spacing: 12) {
+                Spacer(minLength: 80)
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.largeTitle)
+                    .foregroundStyle(.orange)
+                Text("Couldn't load")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text("Pull down to retry.")
+                    .font(.callout)
+                    .foregroundStyle(Brand.textMuted)
+                Spacer(minLength: 80)
+            }
+            .frame(maxWidth: .infinity)
+        } else {
+            VStack(spacing: 12) {
+                Spacer(minLength: 80)
+                ProgressView().tint(Brand.accent)
+                Text("Loading your day…")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 80)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
     }
 
     private var emptyDayState: some View {

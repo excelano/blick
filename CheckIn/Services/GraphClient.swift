@@ -4,6 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import Foundation
+import os
 
 final class GraphClient {
     private let authService: AuthService
@@ -25,6 +26,14 @@ final class GraphClient {
         let data: UserResponse = try await get("/me", query: ["$select": "id,mail,userPrincipalName"])
         userID = data.id
         userMail = data.mail ?? data.userPrincipalName ?? ""
+    }
+
+    /// Drop the cached user identity. Called when the signed-in account
+    /// changes so the next refresh re-fetches the new user's id/mail
+    /// instead of reusing the previous user's.
+    func clearUser() {
+        userID = ""
+        userMail = ""
     }
 
     /// Domain portion of the signed-in user's mail address (lowercased).
@@ -386,7 +395,13 @@ private func parseGraphDate(_ dateString: String, timeZone: String) -> Date {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSS"
     formatter.timeZone = TimeZone(identifier: timeZone) ?? .current
-    return formatter.date(from: dateString) ?? Date()
+    if let date = formatter.date(from: dateString) { return date }
+    // Falling back to `Date()` here used to be silent; logging so a
+    // bad date string is debuggable when a meeting renders at the
+    // wrong time.
+    Logger(subsystem: "com.excelano.checkin", category: "graph")
+        .error("parseGraphDate failed: '\(dateString, privacy: .public)' tz='\(timeZone, privacy: .public)'")
+    return Date()
 }
 
 enum GraphError: LocalizedError {

@@ -35,6 +35,18 @@ final class Inbox {
         self.showingAllEmails = UserDefaults.standard.bool(forKey: AppStorageKey.showingAllEmails)
     }
 
+    /// Drop in-memory state tied to the previous session so the next
+    /// refresh starts clean. Called from sign-out — the next user may be
+    /// a different account on the same device, so the cached user id,
+    /// summary, and any pending failure flag are all stale.
+    func reset() {
+        summary = nil
+        didFetchUserID = false
+        lastRefreshedAt = nil
+        lastRefreshFailed = false
+        graphClient.clearUser()
+    }
+
     /// Toggle the email cap and refetch just the emails. No need to ripple
     /// meeting/chat updates.
     func setShowingAllEmails(_ show: Bool) async {
@@ -186,6 +198,7 @@ final class Inbox {
 
         summary?.emails.removeAll { idSet.contains($0.id) }
         summary?.totalUnreadEmails -= ids.count
+        defer { Task { await updateAppBadge() } }
 
         do {
             let failed = try await graphClient.batchMarkRead(ids: ids)
@@ -205,7 +218,6 @@ final class Inbox {
                 summary?.totalUnreadEmails = result.totalCount
                 if result.failed { lastRefreshFailed = true }
             }
-            await updateAppBadge()
         } catch {
             logger.error("performMarkRead failed: \(error.localizedDescription, privacy: .public)")
             summary?.emails.append(contentsOf: preserved)
@@ -251,9 +263,9 @@ final class Inbox {
         guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
               let removed = summary?.emails.remove(at: idx) else { return }
         summary?.totalUnreadEmails -= 1
+        defer { Task { await updateAppBadge() } }
         do {
             try await graphClient.deleteEmail(id: emailId)
-            await updateAppBadge()
         } catch {
             logger.error("deleteEmail failed: \(error.localizedDescription, privacy: .public)")
             let insertAt = summary?.emails.firstIndex(where: { $0.received < removed.received })
@@ -269,9 +281,9 @@ final class Inbox {
         guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
               let removed = summary?.emails.remove(at: idx) else { return }
         summary?.totalUnreadEmails -= 1
+        defer { Task { await updateAppBadge() } }
         do {
             try await graphClient.markEmailRead(id: emailId)
-            await updateAppBadge()
         } catch {
             logger.error("markRead failed: \(error.localizedDescription, privacy: .public)")
             let insertAt = summary?.emails.firstIndex(where: { $0.received < removed.received })

@@ -13,6 +13,10 @@ final class AuthService {
     private(set) var configurationError: Error?
     private var msalApp: MSALPublicClientApplication?
     private var currentAccount: MSALAccount?
+    /// Invoked when the signed-in account is removed so dependent
+    /// services (Inbox, GraphClient) can drop their cached user state.
+    /// Set by the App layer at construction.
+    var onSignOut: (() -> Void)?
 
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "auth")
 
@@ -146,6 +150,7 @@ final class AuthService {
 
         currentAccount = nil
         isAuthenticated = false
+        onSignOut?()
     }
 }
 
