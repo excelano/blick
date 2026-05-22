@@ -1,7 +1,5 @@
 // Brand.swift
 // CheckIn
-// Excelano brand colors — Tatsiana palette (2021 origin, navy + cyan).
-//
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 

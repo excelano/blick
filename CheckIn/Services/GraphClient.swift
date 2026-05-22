@@ -97,19 +97,11 @@ final class GraphClient {
 
         for chat in data.value {
             guard let preview = chat.lastMessagePreview else { continue }
-
-            // Skip system messages (meeting recordings, etc.)
             if !preview.messageType.isEmpty && preview.messageType != "message" {
                 continue
             }
-
-            // Skip if sender is unknown
             guard let from = preview.from?.user else { continue }
-
-            // Skip if you sent the last message (not pending)
             if from.id == userID { continue }
-
-            // Parse sent time, skip if older than 24 hours
             guard let sent = parseISO8601(preview.createdDateTime),
                   sent > cutoff else { continue }
 

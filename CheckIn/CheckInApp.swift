@@ -9,30 +9,18 @@ import MSAL
 @main
 struct CheckInApp: App {
     @State private var authService: AuthService
-    @State private var stateMachine: StateMachine
-    private let inboxActions: InboxActions
+    private let inbox: Inbox
 
     init() {
         let auth = AuthService()
-        let sm = StateMachine()
-
         let graph = GraphClient(authService: auth, enableTeams: Constants.teamsEnabled)
-        let summary = GraphSummaryService(graphClient: graph,
-                                          teamsEnabled: Constants.teamsEnabled)
-
         _authService = State(initialValue: auth)
-        _stateMachine = State(initialValue: sm)
-
-        self.inboxActions = InboxActions(graphClient: graph,
-                                         summaryService: summary,
-                                         stateMachine: sm)
+        self.inbox = Inbox(graphClient: graph, teamsEnabled: Constants.teamsEnabled)
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(authService: authService,
-                        stateMachine: stateMachine,
-                        inboxActions: inboxActions)
+            ContentView(authService: authService, inbox: inbox)
                 .onOpenURL { url in
                     MSALPublicClientApplication.handleMSALResponse(
                         url, sourceApplication: nil

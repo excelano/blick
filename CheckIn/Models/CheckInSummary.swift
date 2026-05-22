@@ -6,7 +6,7 @@
 import Foundation
 
 struct CheckInSummary {
-    let meeting: Meeting?
-    let emails: [Email]
-    let chats: [ChatMessage]
+    var meeting: Meeting?
+    var emails: [Email]
+    var chats: [ChatMessage]
 }

@@ -5,19 +5,23 @@
 
 import SwiftUI
 
-/// Settings sheet. Sign-out lives here.
 struct SettingsView: View {
     var authService: AuthService
-    var stateMachine: StateMachine
 
     @Environment(\.dismiss) private var dismiss
-
     @State private var showSignOutConfirm = false
 
     var body: some View {
         NavigationStack {
             Form {
-                signOutSection
+                Section {
+                    Button(role: .destructive) {
+                        showSignOutConfirm = true
+                    } label: {
+                        Text("Sign Out")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Brand.bg)
@@ -40,27 +44,13 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
-    private var signOutSection: some View {
-        Section {
-            Button(role: .destructive) {
-                showSignOutConfirm = true
-            } label: {
-                Text("Sign Out")
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-        }
-    }
-
     private func signOut() {
-        authService.signOut()
         dismiss()
-        // Defer so the sheet dismissal animation settles before ContentView
-        // swaps SummaryView for SignInView.
+        // Let the sheet dismissal animate before the parent view swaps;
+        // otherwise the cross-fade looks chopped.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))
-            stateMachine.transition(to: .signedOut)
-            stateMachine.resetContext()
+            authService.signOut()
         }
     }
 }
-

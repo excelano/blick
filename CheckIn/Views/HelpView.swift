@@ -5,8 +5,6 @@
 
 import SwiftUI
 
-/// Help sheet placeholder. Content lives elsewhere for now; the sheet
-/// exists so the toolbar's "?" button has somewhere to land.
 struct HelpView: View {
     @Environment(\.dismiss) private var dismiss
 

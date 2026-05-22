@@ -6,12 +6,12 @@
 import SwiftUI
 import UIKit
 
-/// The single main screen. List of next meeting / emails / chats with
-/// per-row taps and swipes wired to `InboxActions`.
 struct SummaryView: View {
-    var stateMachine: StateMachine
+    var inbox: Inbox
     var authService: AuthService
-    var inboxActions: InboxActions
+
+    @State private var showHelp = false
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -26,18 +26,18 @@ struct SummaryView: View {
             .padding(.bottom, 24)
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: helpBinding) {
+        .sheet(isPresented: $showHelp) {
             HelpView()
         }
-        .sheet(isPresented: settingsBinding) {
-            SettingsView(authService: authService, stateMachine: stateMachine)
+        .sheet(isPresented: $showSettings) {
+            SettingsView(authService: authService)
         }
     }
 
     private var topBar: some View {
         HStack {
             Button {
-                openHelp()
+                showHelp = true
             } label: {
                 Image(systemName: "questionmark.circle")
                     .font(.title2)
@@ -55,7 +55,7 @@ struct SummaryView: View {
             Spacer()
 
             Button {
-                openSettings()
+                showSettings = true
             } label: {
                 Image(systemName: "gearshape")
                     .font(.title2)
@@ -69,7 +69,7 @@ struct SummaryView: View {
 
     @ViewBuilder
     private var summaryContent: some View {
-        if let summary = stateMachine.context.summary {
+        if let summary = inbox.summary {
             if summary.meeting == nil && summary.emails.isEmpty && summary.chats.isEmpty {
                 emptyDayScrollable
             } else {
@@ -100,7 +100,7 @@ struct SummaryView: View {
                             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button {
-                                    Task { await inboxActions.markRead(emailId: email.id) }
+                                    Task { await inbox.markRead(emailId: email.id) }
                                 } label: {
                                     Label("Mark Read", systemImage: "envelope.open")
                                 }
@@ -108,7 +108,7 @@ struct SummaryView: View {
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                 Button {
-                                    Task { await inboxActions.setFlagged(!email.isFlagged, emailId: email.id) }
+                                    Task { await inbox.setFlagged(!email.isFlagged, emailId: email.id) }
                                 } label: {
                                     Label(email.isFlagged ? "Unflag" : "Flag",
                                           systemImage: email.isFlagged ? "flag.slash" : "flag")
@@ -136,7 +136,7 @@ struct SummaryView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Brand.bg)
-        .refreshable { await inboxActions.refresh() }
+        .refreshable { await inbox.refresh() }
     }
 
     private var emptyDayScrollable: some View {
@@ -144,7 +144,7 @@ struct SummaryView: View {
             emptyDayState
                 .padding(.top, 60)
         }
-        .refreshable { await inboxActions.refresh() }
+        .refreshable { await inbox.refresh() }
     }
 
     private func sectionHeader(title: String, count: Int) -> some View {
@@ -227,51 +227,9 @@ struct SummaryView: View {
         .padding(.vertical, 60)
     }
 
-    private func openHelp() {
-        guard case .active = stateMachine.currentState else { return }
-        stateMachine.transition(to: .active(.helpDisplayed))
-    }
-
-    private func openSettings() {
-        guard case .active = stateMachine.currentState else { return }
-        stateMachine.transition(to: .active(.settingsDisplayed))
-    }
-
     private func deepLink(_ url: URL?) {
         guard let url, UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
-    }
-
-    private var helpBinding: Binding<Bool> {
-        Binding(
-            get: {
-                if case .active(.helpDisplayed) = stateMachine.currentState { return true }
-                return false
-            },
-            set: { presented in
-                if !presented {
-                    if case .active(.helpDisplayed) = stateMachine.currentState {
-                        stateMachine.transition(to: .active(.idle))
-                    }
-                }
-            }
-        )
-    }
-
-    private var settingsBinding: Binding<Bool> {
-        Binding(
-            get: {
-                if case .active(.settingsDisplayed) = stateMachine.currentState { return true }
-                return false
-            },
-            set: { presented in
-                if !presented {
-                    if case .active(.settingsDisplayed) = stateMachine.currentState {
-                        stateMachine.transition(to: .active(.idle))
-                    }
-                }
-            }
-        )
     }
 }
 

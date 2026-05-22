@@ -5,56 +5,30 @@
 
 import SwiftUI
 
-/// Top-level auth gate. `.signedOut` -> SignInView; `.active` -> SummaryView.
 struct ContentView: View {
     var authService: AuthService
-    var stateMachine: StateMachine
-    var inboxActions: InboxActions
+    var inbox: Inbox
 
     var body: some View {
         Group {
-            switch stateMachine.currentState {
-            case .signedOut:
-                SignInView(authService: authService,
-                           onAuthenticated: bootstrapAfterAuth)
-            case .active:
-                SummaryView(stateMachine: stateMachine,
-                            authService: authService,
-                            inboxActions: inboxActions)
+            if authService.isAuthenticated {
+                SummaryView(inbox: inbox, authService: authService)
                     .task {
-                        // Initial fetch on landing in active. Skipped when
-                        // the summary is already loaded; the no-op re-task
-                        // on sheet dismissal then costs nothing.
-                        if stateMachine.context.summary == nil {
-                            await inboxActions.refresh()
+                        // .task re-fires when sheets dismiss; the nil-guard
+                        // keeps subsequent re-mounts from re-fetching.
+                        if inbox.summary == nil {
+                            await inbox.refresh()
                         }
                     }
+            } else {
+                SignInView(authService: authService)
             }
         }
-        .onAppear { bootstrapOnLaunch() }
-        .onChange(of: authService.isAuthenticated) { _, isAuth in
-            if !isAuth, case .active = stateMachine.currentState {
-                stateMachine.transition(to: .signedOut)
-                stateMachine.resetContext()
-            }
-        }
-    }
-
-    private func bootstrapOnLaunch() {
-        guard case .signedOut = stateMachine.currentState else { return }
-        if authService.isAuthenticated {
-            bootstrapAfterAuth()
-        }
-    }
-
-    private func bootstrapAfterAuth() {
-        stateMachine.transition(to: .active(.idle))
     }
 }
 
 private struct SignInView: View {
     var authService: AuthService
-    var onAuthenticated: () -> Void
 
     @State private var isSigningIn = false
     @State private var errorMessage: String?
@@ -104,7 +78,6 @@ private struct SignInView: View {
         Task {
             do {
                 _ = try await authService.signIn(enableTeams: Constants.teamsEnabled)
-                onAuthenticated()
             } catch {
                 #if DEBUG
                 let ns = error as NSError
