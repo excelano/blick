@@ -18,6 +18,10 @@ struct SummaryView: View {
 
             VStack(spacing: 0) {
                 topBar
+                if inbox.lastRefreshFailed {
+                    failureBanner
+                        .padding(.top, 8)
+                }
                 summaryContent
                 Spacer()
             }
@@ -28,6 +32,21 @@ struct SummaryView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(authService: authService)
         }
+    }
+
+    private var failureBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.footnote)
+            Text("Couldn't reach Microsoft \u{2014} pull to retry")
+                .font(.footnote.weight(.medium))
+            Spacer()
+        }
+        .foregroundStyle(.orange)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var topBar: some View {
@@ -60,7 +79,10 @@ struct SummaryView: View {
     @ViewBuilder
     private var summaryContent: some View {
         if let summary = inbox.summary {
-            if summary.meeting == nil && summary.emails.isEmpty && summary.chats.isEmpty {
+            if summary.meeting == nil
+                && summary.laterToday.isEmpty
+                && summary.emails.isEmpty
+                && summary.chats.isEmpty {
                 emptyDayScrollable
             } else {
                 itemsList(summary: summary)
@@ -84,6 +106,18 @@ struct SummaryView: View {
                         .listRowInsets(EdgeInsets(top: 16, leading: 0, bottom: 6, trailing: 0))
                 }
             }
+            if !summary.laterToday.isEmpty {
+                Section {
+                    ForEach(summary.laterToday) { meeting in
+                        LaterMeetingRow(meeting: meeting, onTap: { joinOrCalendar(meeting) })
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    }
+                } header: {
+                    sectionHeader(title: "Later today", count: summary.laterToday.count)
+                }
+            }
             if !summary.chats.isEmpty {
                 Section {
                     ForEach(summary.chats) { chat in
@@ -100,6 +134,13 @@ struct SummaryView: View {
                 let extras = summary.totalUnreadEmails - summary.emails.count
                 Section {
                     ForEach(summary.emails) { email in
+                        let senderCount = summary.emails.filter {
+                            !email.fromAddress.isEmpty && $0.fromAddress == email.fromAddress
+                        }.count
+                        let subjectKey = email.subject.normalizedSubjectKey
+                        let subjectCount = subjectKey.isEmpty ? 0 : summary.emails.filter {
+                            $0.subject.normalizedSubjectKey == subjectKey
+                        }.count
                         EmailRow(email: email, onTap: { replyTo(email) })
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -121,6 +162,52 @@ struct SummaryView: View {
                                 }
                                 .tint(.orange)
                             }
+                            .contextMenu {
+                                Button {
+                                    Task { await inbox.markRead(emailId: email.id) }
+                                } label: {
+                                    Label("Mark read", systemImage: "envelope.open")
+                                }
+                                Button {
+                                    Task { await inbox.setFlagged(!email.isFlagged, emailId: email.id) }
+                                } label: {
+                                    Label(email.isFlagged ? "Unflag" : "Flag",
+                                          systemImage: email.isFlagged ? "flag.slash" : "flag")
+                                }
+                                if senderCount > 1 || subjectCount > 1 {
+                                    Divider()
+                                    if senderCount > 1 {
+                                        Button {
+                                            Task { await inbox.markAllFromSenderRead(email.fromAddress) }
+                                        } label: {
+                                            Label("Mark \(senderCount) from this sender read",
+                                                  systemImage: "envelope.open")
+                                        }
+                                    }
+                                    if subjectCount > 1 {
+                                        Button {
+                                            Task { await inbox.markAllWithSubjectRead(email.subject) }
+                                        } label: {
+                                            Label("Mark \(subjectCount) with this subject read",
+                                                  systemImage: "envelope.open")
+                                        }
+                                    }
+                                }
+                                if !email.fromAddress.isEmpty {
+                                    Divider()
+                                    Button {
+                                        UIPasteboard.general.string = email.fromAddress
+                                    } label: {
+                                        Label("Copy sender address", systemImage: "doc.on.doc")
+                                    }
+                                }
+                                Divider()
+                                Button(role: .destructive) {
+                                    Task { await inbox.deleteEmail(emailId: email.id) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                     }
                 } header: {
                     sectionHeader(
@@ -136,9 +223,16 @@ struct SummaryView: View {
                         trailing: {
                             BulkActionsMenu(
                                 emails: summary.emails,
+                                totalUnread: summary.totalUnreadEmails,
+                                isShowingAll: inbox.showingAllEmails,
                                 onMarkAllRead: { Task { await inbox.markAllVisibleRead() } },
+                                onMarkOtherRead: { Task { await inbox.markOtherInboxRead() } },
+                                onMarkMeetingNoticesRead: { Task { await inbox.markMeetingNoticesRead() } },
+                                onMarkMailingListsRead: { Task { await inbox.markMailingListsRead() } },
                                 onFlagAll: { Task { await inbox.setFlaggedAllVisible(true) } },
-                                onUnflagAll: { Task { await inbox.setFlaggedAllVisible(false) } }
+                                onUnflagAll: { Task { await inbox.setFlaggedAllVisible(false) } },
+                                onShowAll: { Task { await inbox.setShowingAllEmails(true) } },
+                                onShowCapped: { Task { await inbox.setShowingAllEmails(false) } }
                             )
                         }
                     )
@@ -266,16 +360,53 @@ struct SummaryView: View {
 
 private struct BulkActionsMenu: View {
     let emails: [Email]
+    let totalUnread: Int
+    let isShowingAll: Bool
     let onMarkAllRead: () -> Void
+    let onMarkOtherRead: () -> Void
+    let onMarkMeetingNoticesRead: () -> Void
+    let onMarkMailingListsRead: () -> Void
     let onFlagAll: () -> Void
     let onUnflagAll: () -> Void
+    let onShowAll: () -> Void
+    let onShowCapped: () -> Void
+
+    private static let meetingNoiseTypes: Set<String> = [
+        "meetingCancelled",
+        "meetingAccepted",
+        "meetingTentativelyAccepted",
+        "meetingDeclined"
+    ]
 
     var body: some View {
         let unflaggedCount = emails.filter { !$0.isFlagged }.count
         let flaggedCount = emails.count - unflaggedCount
+        let otherCount = emails.filter { $0.inferenceClassification == "other" }.count
+        let meetingNoticeCount = emails.filter {
+            guard let t = $0.meetingMessageType else { return false }
+            return Self.meetingNoiseTypes.contains(t)
+        }.count
+        let mailingListCount = emails.filter { $0.isMailingList }.count
+        let canExpand = !isShowingAll && totalUnread > emails.count
+
         Menu {
             Button(action: onMarkAllRead) {
                 Label("Mark \(emails.count) read", systemImage: "envelope.open")
+            }
+            if otherCount > 0 {
+                Button(action: onMarkOtherRead) {
+                    Label("Mark \(otherCount) in Other read", systemImage: "tray.2")
+                }
+            }
+            if meetingNoticeCount > 0 {
+                Button(action: onMarkMeetingNoticesRead) {
+                    Label("Mark \(meetingNoticeCount) meeting notices read", systemImage: "calendar.badge.checkmark")
+                }
+            }
+            if mailingListCount > 0 {
+                Button(action: onMarkMailingListsRead) {
+                    Label("Mark \(mailingListCount) mailing lists read", systemImage: "newspaper")
+                }
             }
             if unflaggedCount > 0 {
                 Button(action: onFlagAll) {
@@ -285,6 +416,17 @@ private struct BulkActionsMenu: View {
             if flaggedCount > 0 {
                 Button(action: onUnflagAll) {
                     Label("Unflag \(flaggedCount)", systemImage: "flag.slash")
+                }
+            }
+            if canExpand {
+                Divider()
+                Button(action: onShowAll) {
+                    Label("Show all \(totalUnread)", systemImage: "list.bullet")
+                }
+            } else if isShowingAll {
+                Divider()
+                Button(action: onShowCapped) {
+                    Label("Show top 20", systemImage: "list.bullet")
                 }
             }
         } label: {
@@ -325,14 +467,29 @@ private struct MeetingCard: View {
                         Spacer()
                     }
                     HStack(spacing: 12) {
-                        Text(untilTime(meeting.start))
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Brand.accent)
+                        // TimelineView re-renders this label every 15s so
+                        // "in 5 min" naturally counts down and flips to
+                        // "Starting soon" without needing a refresh.
+                        TimelineView(.periodic(from: .now, by: 15)) { _ in
+                            Text(untilTime(meeting.start))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(isMeetingImminent(meeting.start) ? .orange : Brand.accent)
+                        }
                         if !meeting.organizer.isEmpty {
                             Text("with \(meeting.organizer)")
                                 .font(.subheadline)
                                 .foregroundStyle(Brand.textMuted)
                                 .lineLimit(2)
+                        }
+                    }
+                    if meeting.hasConflict {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                            Text("Overlaps another meeting")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
                         }
                     }
                 }
@@ -425,6 +582,36 @@ private struct MeetingCard: View {
         var parts = ["Next meeting", meeting.subject, untilTime(meeting.start)]
         if !meeting.organizer.isEmpty { parts.append("with \(meeting.organizer)") }
         return parts.joined(separator: ", ")
+    }
+}
+
+private struct LaterMeetingRow: View {
+    let meeting: Meeting
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar")
+                    .foregroundStyle(Brand.accent)
+                    .frame(width: 20)
+                Text(formatTimeOfDay(meeting.start))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Brand.accent)
+                Text(meeting.subject)
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(formatTimeOfDay(meeting.start)): \(meeting.subject)")
+        .accessibilityHint("Open in Teams or Outlook calendar")
     }
 }
 

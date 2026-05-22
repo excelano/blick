@@ -40,6 +40,14 @@
 		<string>ms-outlook</string>
 		<string>msteams</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.excelano.checkin.refresh</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

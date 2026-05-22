@@ -29,6 +29,15 @@ enum Constants {
 
     static let teamsEnabled: Bool = true
 
+    /// Identifier the OS uses for our background refresh task. Must match
+    /// the `BGTaskSchedulerPermittedIdentifiers` entry in Info.plist.
+    static let backgroundRefreshIdentifier = "com.excelano.checkin.refresh"
+
+    /// Lower bound iOS uses when scheduling our next background run.
+    /// Actual run time is at the system's discretion and can be much
+    /// later (or never, on a quiet day or after a force-quit).
+    static let backgroundRefreshInterval: TimeInterval = 30 * 60
+
     static func scopes(enableTeams: Bool) -> [String] {
         enableTeams ? baseScopes + teamsScopes : baseScopes
     }
@@ -53,4 +62,5 @@ enum Constants {
 enum AppStorageKey {
     static let customClientID = "customClientID"
     static let customTenantID = "customTenantID"
+    static let showingAllEmails = "showingAllEmails"
 }

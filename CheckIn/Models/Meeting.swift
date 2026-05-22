@@ -16,6 +16,9 @@ struct Meeting: Identifiable {
     /// Teams when installed. Nil when the event has no online meeting.
     let joinUrl: String?
     let responseStatus: MeetingResponse
+    /// True when at least one other non-cancelled, non-declined event in
+    /// the next 24 hours overlaps this one's time range.
+    let hasConflict: Bool
 
     func with(responseStatus: MeetingResponse) -> Meeting {
         Meeting(id: id,
@@ -23,7 +26,8 @@ struct Meeting: Identifiable {
                 organizer: organizer,
                 start: start,
                 joinUrl: joinUrl,
-                responseStatus: responseStatus)
+                responseStatus: responseStatus,
+                hasConflict: hasConflict)
     }
 }
 

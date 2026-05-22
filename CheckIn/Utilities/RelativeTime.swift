@@ -26,8 +26,11 @@ func relativeTime(_ date: Date) -> String {
 func untilTime(_ date: Date) -> String {
     let seconds = date.timeIntervalSinceNow
 
-    if seconds < 60 {
+    if seconds < 0 {
         return "now"
+    }
+    if seconds <= 180 {
+        return "Starting soon"
     }
 
     let totalMinutes = Int(seconds / 60)
@@ -41,6 +44,23 @@ func untilTime(_ date: Date) -> String {
         return hours == 1 ? "in 1 hour" : "in \(hours) hours"
     }
     return "in \(hours)h \(minutes)m"
+}
+
+/// True when the meeting starts within the next three minutes (and hasn't
+/// started yet). Drives the orange "Starting soon" treatment on the
+/// meeting card.
+func isMeetingImminent(_ date: Date) -> Bool {
+    let seconds = date.timeIntervalSinceNow
+    return seconds >= 0 && seconds <= 180
+}
+
+/// Localized time-of-day, no date component (e.g., "2:00 PM" or "14:00"
+/// depending on user locale). Used by the "Later today" rows.
+func formatTimeOfDay(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.timeStyle = .short
+    formatter.dateStyle = .none
+    return formatter.string(from: date)
 }
 
 func truncate(_ s: String, maxLen: Int) -> String {

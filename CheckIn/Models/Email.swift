@@ -17,6 +17,17 @@ struct Email: Identifiable {
     let received: Date
     /// Mirrors Graph `flag.flagStatus == "flagged"`.
     let isFlagged: Bool
+    /// Graph's `inferenceClassification`: "focused" or "other". Drives the
+    /// "Mark N in Other" bulk action.
+    let inferenceClassification: String?
+    /// EventMessage subtype's `meetingMessageType`. Nil for non-meeting
+    /// messages. Values include `meetingRequest`, `meetingCancelled`,
+    /// `meetingAccepted`, `meetingTentativelyAccepted`, `meetingDeclined`.
+    let meetingMessageType: String?
+    /// True when the message has an RFC 2369 `List-Unsubscribe` header —
+    /// the standard signal that a message came from a mailing list.
+    /// Derived in GraphClient from `internetMessageHeaders`.
+    let isMailingList: Bool
 
     init(id: String,
          subject: String,
@@ -24,7 +35,10 @@ struct Email: Identifiable {
          fromAddress: String,
          preview: String,
          received: Date,
-         isFlagged: Bool = false) {
+         isFlagged: Bool = false,
+         inferenceClassification: String? = nil,
+         meetingMessageType: String? = nil,
+         isMailingList: Bool = false) {
         self.id = id
         self.subject = subject
         self.from = from
@@ -32,11 +46,17 @@ struct Email: Identifiable {
         self.preview = preview
         self.received = received
         self.isFlagged = isFlagged
+        self.inferenceClassification = inferenceClassification
+        self.meetingMessageType = meetingMessageType
+        self.isMailingList = isMailingList
     }
 
     func with(isFlagged: Bool) -> Email {
         Email(id: id, subject: subject, from: from,
               fromAddress: fromAddress, preview: preview,
-              received: received, isFlagged: isFlagged)
+              received: received, isFlagged: isFlagged,
+              inferenceClassification: inferenceClassification,
+              meetingMessageType: meetingMessageType,
+              isMailingList: isMailingList)
     }
 }

@@ -22,19 +22,23 @@ final class GraphClient {
         userID = data.id
     }
 
-    /// Fetch the next meeting in the next 24 hours using calendarView
-    /// (not /events, so recurring meetings are properly expanded)
-    func nextMeeting() async throws -> Meeting? {
+    /// Fetch today's remaining meetings using calendarView (not /events,
+    /// so recurring meetings are properly expanded). Returns the next
+    /// meeting plus the rest of today's attendable meetings, ordered by
+    /// start time. Window is `[now, start of tomorrow local]`, so we
+    /// don't bleed into tomorrow's calendar.
+    func todaysMeetings() async throws -> (next: Meeting?, laterToday: [Meeting]) {
         let now = Date()
-        let end = now.addingTimeInterval(24 * 3600)
+        let calendar = Calendar.current
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
         let formatter = ISO8601DateFormatter()
 
         let data: GraphList<CalendarEventResponse> = try await get("/me/calendarView", query: [
             "startDateTime": formatter.string(from: now),
-            "endDateTime": formatter.string(from: end),
+            "endDateTime": formatter.string(from: endOfDay),
             "$top": "10",
             "$orderby": "start/dateTime",
-            "$select": "id,subject,organizer,start,onlineMeeting,responseStatus,isCancelled"
+            "$select": "id,subject,organizer,start,end,onlineMeeting,responseStatus,isCancelled"
         ])
 
         // Skip cancelled events (they stay in calendarView until removed)
@@ -42,20 +46,41 @@ final class GraphClient {
         // the calendar rather than auto-removing them). Done client-side
         // because calendarView's `$filter` support is narrow and undocumented
         // for these fields.
-        guard let event = data.value.first(where: { e in
+        let isAttendable: (CalendarEventResponse) -> Bool = { e in
             !(e.isCancelled ?? false) && e.responseStatus?.response != "declined"
-        }) else { return nil }
+        }
+        let attendable = data.value
+            .filter(isAttendable)
+            .map { e -> (event: CalendarEventResponse, start: Date, end: Date) in
+                (e,
+                 parseGraphDate(e.start.dateTime, timeZone: e.start.timeZone),
+                 parseGraphDate(e.end.dateTime, timeZone: e.end.timeZone))
+            }
+        guard let first = attendable.first else { return (nil, []) }
 
-        let response = MeetingResponse(rawValue: event.responseStatus?.response ?? "") ?? .none
+        // Conflict = any other attendable event whose time range overlaps
+        // the next meeting's range. Half-open intervals so back-to-back
+        // meetings (one ending exactly when the next starts) don't count.
+        // Only computed for the next meeting in v1 — later-today rows are
+        // informational.
+        let firstHasConflict = attendable.dropFirst().contains { other in
+            other.start < first.end && first.start < other.end
+        }
 
-        return Meeting(
-            id: event.id,
-            subject: event.subject,
-            organizer: event.organizer.emailAddress.name,
-            start: parseGraphDate(event.start.dateTime, timeZone: event.start.timeZone),
-            joinUrl: event.onlineMeeting?.joinUrl,
-            responseStatus: response
-        )
+        let meetings: [Meeting] = attendable.enumerated().map { (i, t) in
+            let response = MeetingResponse(rawValue: t.event.responseStatus?.response ?? "") ?? .none
+            return Meeting(
+                id: t.event.id,
+                subject: t.event.subject,
+                organizer: t.event.organizer.emailAddress.name,
+                start: t.start,
+                joinUrl: t.event.onlineMeeting?.joinUrl,
+                responseStatus: response,
+                hasConflict: i == 0 ? firstHasConflict : false
+            )
+        }
+
+        return (meetings.first, Array(meetings.dropFirst()))
     }
 
     /// Accept/tentative/decline an event. Graph returns 202 with no body.
@@ -73,31 +98,40 @@ final class GraphClient {
         try await post("/me/events/\(id)/\(action)", body: RsvpBody(sendResponse: true))
     }
 
-    /// Returns the 20 newest unread emails along with the total unread
-    /// count. `$count=true` requires the `ConsistencyLevel: eventual`
-    /// header.
-    func unreadEmails() async throws -> (emails: [Email], totalCount: Int) {
+    /// Returns the newest unread emails (up to `top`, default 20) along
+    /// with the total unread count. `$count=true` requires the
+    /// `ConsistencyLevel: eventual` header. The
+    /// `microsoft.graph.eventMessage/meetingMessageType` cast fetches the
+    /// meeting-subtype field for invite/response messages without changing
+    /// the base collection type.
+    func unreadEmails(top: Int = 20) async throws -> (emails: [Email], totalCount: Int) {
         let data: GraphList<EmailResponse> = try await get(
             "/me/messages",
             query: [
                 "$filter": "isRead eq false",
                 "$orderby": "receivedDateTime desc",
-                "$top": "20",
+                "$top": "\(top)",
                 "$count": "true",
-                "$select": "id,subject,from,bodyPreview,receivedDateTime,flag"
+                "$select": "id,subject,from,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType"
             ],
             headers: ["ConsistencyLevel": "eventual"]
         )
 
         let emails = data.value.map { e in
-            Email(
+            let isMailingList = (e.internetMessageHeaders ?? []).contains { h in
+                h.name.caseInsensitiveCompare("List-Unsubscribe") == .orderedSame
+            }
+            return Email(
                 id: e.id,
                 subject: e.subject,
                 from: e.from.emailAddress.name,
                 fromAddress: e.from.emailAddress.address ?? "",
                 preview: e.bodyPreview,
                 received: parseISO8601(e.receivedDateTime) ?? Date(),
-                isFlagged: e.flag?.flagStatus == "flagged"
+                isFlagged: e.flag?.flagStatus == "flagged",
+                inferenceClassification: e.inferenceClassification,
+                meetingMessageType: e.meetingMessageType,
+                isMailingList: isMailingList
             )
         }
         return (emails, data.count ?? emails.count)
@@ -120,46 +154,62 @@ final class GraphClient {
                         body: FlagBody(flag: FlagStatusBody(flagStatus: "notFlagged")))
     }
 
-    /// Bulk mark-read via `/$batch`. One HTTP POST carries up to 20 PATCHes;
-    /// avoids the 429 Too Many Requests bursts we'd see firing 20 concurrent
-    /// requests directly. Returns the IDs that came back non-2xx so the
-    /// caller can selectively revert.
-    func batchMarkRead(ids: [String]) async throws -> Set<String> {
-        guard !ids.isEmpty else { return [] }
-        let requests = ids.enumerated().map { (i, id) in
-            BatchRequest(
-                id: "\(i)",
-                method: "PATCH",
-                url: "/me/messages/\(id)",
-                headers: ["Content-Type": "application/json"],
-                body: MarkReadBody(isRead: true)
-            )
-        }
-        let response: BatchResponse = try await postDecoded(
-            "/$batch",
-            body: BatchEnvelope(requests: requests)
-        )
-        return failedIds(in: response, against: ids)
+    /// Mail.ReadWrite required. Graph moves the message to the user's
+    /// Deleted Items folder; this is the same behavior as Outlook's trash
+    /// button. Tenant retention policy controls how long it stays
+    /// recoverable.
+    func deleteEmail(id: String) async throws {
+        try await delete("/me/messages/\(id)")
     }
 
-    /// Bulk flag/unflag via `/$batch`. Same rationale as `batchMarkRead`.
-    func batchSetFlagged(ids: [String], flagged: Bool) async throws -> Set<String> {
-        guard !ids.isEmpty else { return [] }
-        let status = flagged ? "flagged" : "notFlagged"
-        let requests = ids.enumerated().map { (i, id) in
-            BatchRequest(
-                id: "\(i)",
-                method: "PATCH",
-                url: "/me/messages/\(id)",
-                headers: ["Content-Type": "application/json"],
-                body: FlagBody(flag: FlagStatusBody(flagStatus: status))
+    /// Bulk mark-read via `/$batch`. Chunks larger inputs into 20-op
+    /// batches (Graph's per-batch ceiling). Avoids the 429 Too Many
+    /// Requests bursts we'd see firing concurrent PATCHes directly.
+    /// Returns the IDs that came back non-2xx so the caller can
+    /// selectively revert.
+    func batchMarkRead(ids: [String]) async throws -> Set<String> {
+        var failed: Set<String> = []
+        for chunk in ids.batched(by: 20) {
+            let requests = chunk.enumerated().map { (i, id) in
+                BatchRequest(
+                    id: "\(i)",
+                    method: "PATCH",
+                    url: "/me/messages/\(id)",
+                    headers: ["Content-Type": "application/json"],
+                    body: MarkReadBody(isRead: true)
+                )
+            }
+            let response: BatchResponse = try await postDecoded(
+                "/$batch",
+                body: BatchEnvelope(requests: requests)
             )
+            failed.formUnion(failedIds(in: response, against: chunk))
         }
-        let response: BatchResponse = try await postDecoded(
-            "/$batch",
-            body: BatchEnvelope(requests: requests)
-        )
-        return failedIds(in: response, against: ids)
+        return failed
+    }
+
+    /// Bulk flag/unflag via `/$batch`. Same chunking rationale as
+    /// `batchMarkRead`.
+    func batchSetFlagged(ids: [String], flagged: Bool) async throws -> Set<String> {
+        let status = flagged ? "flagged" : "notFlagged"
+        var failed: Set<String> = []
+        for chunk in ids.batched(by: 20) {
+            let requests = chunk.enumerated().map { (i, id) in
+                BatchRequest(
+                    id: "\(i)",
+                    method: "PATCH",
+                    url: "/me/messages/\(id)",
+                    headers: ["Content-Type": "application/json"],
+                    body: FlagBody(flag: FlagStatusBody(flagStatus: status))
+                )
+            }
+            let response: BatchResponse = try await postDecoded(
+                "/$batch",
+                body: BatchEnvelope(requests: requests)
+            )
+            failed.formUnion(failedIds(in: response, against: chunk))
+        }
+        return failed
     }
 
     private func failedIds(in response: BatchResponse, against ids: [String]) -> Set<String> {
@@ -272,6 +322,15 @@ final class GraphClient {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
+    private func delete(_ path: String) async throws {
+        var request = URLRequest(url: try makeURL(path: path))
+        request.httpMethod = "DELETE"
+        request = try await authorize(request)
+
+        let (data, response) = try await session.data(for: request)
+        try checkResponse(response, data: data, method: "DELETE", path: path)
+    }
+
     private func authorize(_ request: URLRequest) async throws -> URLRequest {
         let token = try await authService.acquireTokenSilently(enableTeams: enableTeams)
         var req = request
@@ -346,6 +405,7 @@ private struct CalendarEventResponse: Decodable {
     let subject: String
     let organizer: OrganizerResponse
     let start: DateTimeResponse
+    let end: DateTimeResponse
     let onlineMeeting: OnlineMeetingResponse?
     let responseStatus: EventResponseStatus?
     let isCancelled: Bool?
@@ -380,6 +440,14 @@ private struct EmailResponse: Decodable {
     let bodyPreview: String
     let receivedDateTime: String
     let flag: FlagResponse?
+    let inferenceClassification: String?
+    let meetingMessageType: String?
+    let internetMessageHeaders: [InternetMessageHeader]?
+}
+
+private struct InternetMessageHeader: Decodable {
+    let name: String
+    let value: String
 }
 
 private struct FlagResponse: Decodable {
@@ -458,4 +526,14 @@ private struct BatchResponse: Decodable {
 private struct BatchResponseItem: Decodable {
     let id: String
     let status: Int
+}
+
+private extension Array {
+    /// Split into contiguous sub-arrays of at most `size` elements.
+    func batched(by size: Int) -> [[Element]] {
+        guard size > 0, !isEmpty else { return isEmpty ? [] : [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
+    }
 }

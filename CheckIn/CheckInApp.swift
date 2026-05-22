@@ -3,11 +3,13 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
-import SwiftUI
+import BackgroundTasks
 import MSAL
+import SwiftUI
 
 @main
 struct CheckInApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var authService: AuthService
     private let inbox: Inbox
 
@@ -27,5 +29,27 @@ struct CheckInApp: App {
                     )
                 }
         }
+        .backgroundTask(.appRefresh(Constants.backgroundRefreshIdentifier)) {
+            // Schedule the next run first — if the refresh hangs or the
+            // task is killed by iOS at its time limit, we still want to
+            // be on the schedule.
+            scheduleNextBackgroundRefresh()
+            await inbox.refresh()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                scheduleNextBackgroundRefresh()
+            }
+        }
+    }
+
+    /// Submit a new request with our identifier. iOS supersedes any
+    /// existing pending request with the same identifier, so this is
+    /// idempotent. Whether and when it actually runs is at the system's
+    /// discretion (usage patterns, battery, time of day).
+    private func scheduleNextBackgroundRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: Constants.backgroundRefreshIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: Constants.backgroundRefreshInterval)
+        try? BGTaskScheduler.shared.submit(request)
     }
 }
