@@ -34,7 +34,7 @@ final class GraphClient {
             "endDateTime": formatter.string(from: end),
             "$top": "1",
             "$orderby": "start/dateTime",
-            "$select": "subject,organizer,start,onlineMeeting"
+            "$select": "subject,organizer,start,onlineMeeting,webLink"
         ])
 
         guard let event = data.value.first else { return nil }
@@ -43,7 +43,8 @@ final class GraphClient {
             subject: event.subject,
             organizer: event.organizer.emailAddress.name,
             start: parseGraphDate(event.start.dateTime, timeZone: event.start.timeZone),
-            joinUrl: event.onlineMeeting?.joinUrl
+            joinUrl: event.onlineMeeting?.joinUrl,
+            webLink: event.webLink
         )
     }
 
@@ -97,7 +98,7 @@ final class GraphClient {
     func pendingChats() async throws -> [ChatMessage] {
         let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
             "$select": "topic,webUrl,lastMessagePreview",
-            "$expand": "lastMessagePreview",
+            "$expand": "lastMessagePreview,members",
             "$top": "50"
         ])
 
@@ -114,11 +115,18 @@ final class GraphClient {
             guard let sent = parseISO8601(preview.createdDateTime),
                   sent > cutoff else { continue }
 
+            let others: [String] = (chat.members ?? []).compactMap { m in
+                guard let uid = m.userId, let name = m.displayName, !name.isEmpty else { return nil }
+                if uid == userID || uid == from.id { return nil }
+                return name
+            }
+
             messages.append(ChatMessage(
                 topic: chat.topic ?? "",
                 from: from.displayName,
                 preview: stripHTML(preview.body.content),
                 sent: sent,
+                otherParticipants: others,
                 webUrl: chat.webUrl
             ))
         }
@@ -237,6 +245,7 @@ private struct CalendarEventResponse: Decodable {
     let organizer: OrganizerResponse
     let start: DateTimeResponse
     let onlineMeeting: OnlineMeetingResponse?
+    let webLink: String?
 }
 
 private struct OnlineMeetingResponse: Decodable {
@@ -282,6 +291,12 @@ private struct ChatResponse: Decodable {
     let topic: String?
     let webUrl: String?
     let lastMessagePreview: ChatPreviewResponse?
+    let members: [ChatMemberResponse]?
+}
+
+private struct ChatMemberResponse: Decodable {
+    let userId: String?
+    let displayName: String?
 }
 
 private struct ChatPreviewResponse: Decodable {

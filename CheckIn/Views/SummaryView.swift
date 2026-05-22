@@ -179,6 +179,17 @@ struct SummaryView: View {
         if let urlString = meeting.joinUrl,
            let url = DeepLinkService.passthrough(urlString) {
             UIApplication.shared.open(url) { ok in
+                if !ok { openEventOrCalendar(meeting) }
+            }
+            return
+        }
+        openEventOrCalendar(meeting)
+    }
+
+    private func openEventOrCalendar(_ meeting: Meeting) {
+        if let urlString = meeting.webLink,
+           let url = DeepLinkService.passthrough(urlString) {
+            UIApplication.shared.open(url) { ok in
                 if !ok { deepLink(DeepLinkService.outlookCalendar) }
             }
             return
@@ -351,6 +362,13 @@ private struct ChatRow: View {
                             .font(.caption)
                             .foregroundStyle(Brand.textMuted)
                     }
+                    if let line = participantsLine {
+                        Text(line)
+                            .font(.caption)
+                            .foregroundStyle(Brand.textMuted)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if !chat.topic.isEmpty {
                         Text(chat.topic).font(.body).foregroundStyle(.white).lineLimit(2)
                     } else {
@@ -369,5 +387,16 @@ private struct ChatRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Teams chat from \(chat.from)")
         .accessibilityHint("Open in Teams")
+    }
+
+    /// Empty for 1:1 chats. Full "with A, B, C" when the joined names fit
+    /// in about two caption lines; collapses to "with A, B +N" past that.
+    private var participantsLine: String? {
+        guard !chat.otherParticipants.isEmpty else { return nil }
+        let joined = chat.otherParticipants.joined(separator: ", ")
+        if joined.count <= 95 { return "with \(joined)" }
+        let head = chat.otherParticipants.prefix(2).joined(separator: ", ")
+        let extra = chat.otherParticipants.count - 2
+        return "with \(head) +\(extra)"
     }
 }
