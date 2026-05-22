@@ -54,13 +54,17 @@ func isMeetingImminent(_ date: Date) -> Bool {
     return seconds >= 0 && seconds <= 180
 }
 
+private let timeOfDayFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.timeStyle = .short
+    f.dateStyle = .none
+    return f
+}()
+
 /// Localized time-of-day, no date component (e.g., "2:00 PM" or "14:00"
 /// depending on user locale). Used by the "Later today" rows.
 func formatTimeOfDay(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.timeStyle = .short
-    formatter.dateStyle = .none
-    return formatter.string(from: date)
+    timeOfDayFormatter.string(from: date)
 }
 
 func truncate(_ s: String, maxLen: Int) -> String {

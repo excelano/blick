@@ -100,7 +100,20 @@ struct SummaryView: View {
     }
 
     private func itemsList(summary: CheckInSummary) -> some View {
-        List {
+        // Precompute the per-sender and per-subject counts once rather
+        // than filtering the email list inside the ForEach. With "Show
+        // all" the visible list can grow to ~200 emails, where the
+        // O(N²) inline version became measurable.
+        let senderCounts: [String: Int] = summary.emails.reduce(into: [:]) { acc, e in
+            guard !e.fromAddress.isEmpty else { return }
+            acc[e.fromAddress, default: 0] += 1
+        }
+        let subjectCounts: [String: Int] = summary.emails.reduce(into: [:]) { acc, e in
+            let key = e.subject.normalizedSubjectKey
+            guard !key.isEmpty else { return }
+            acc[key, default: 0] += 1
+        }
+        return List {
             if let meeting = summary.meeting {
                 Section {
                     MeetingCard(meeting: meeting,
@@ -150,13 +163,10 @@ struct SummaryView: View {
                 let extras = summary.totalUnreadEmails - summary.emails.count
                 Section {
                     ForEach(summary.emails) { email in
-                        let senderCount = summary.emails.filter {
-                            !email.fromAddress.isEmpty && $0.fromAddress == email.fromAddress
-                        }.count
-                        let subjectKey = email.subject.normalizedSubjectKey
-                        let subjectCount = subjectKey.isEmpty ? 0 : summary.emails.filter {
-                            $0.subject.normalizedSubjectKey == subjectKey
-                        }.count
+                        let senderCount = email.fromAddress.isEmpty
+                            ? 0
+                            : senderCounts[email.fromAddress, default: 0]
+                        let subjectCount = subjectCounts[email.subject.normalizedSubjectKey, default: 0]
                         EmailRow(email: email, onTap: { replyTo(email) })
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
