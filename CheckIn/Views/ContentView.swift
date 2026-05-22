@@ -32,44 +32,65 @@ private struct SignInView: View {
 
     @State private var isSigningIn = false
     @State private var errorMessage: String?
+    @State private var showSettings = false
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Text("CheckIn")
-                .font(.system(.largeTitle, design: .monospaced).weight(.bold))
-                .foregroundStyle(.white)
-            Text("Sign in with your Microsoft 365 account to get started.")
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(Brand.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Button(action: signIn) {
-                HStack(spacing: 8) {
-                    if isSigningIn { ProgressView().tint(.white) }
-                    Text(isSigningIn ? "Signing In\u{2026}" : "Sign In with Microsoft")
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.title2)
+                        .foregroundStyle(Brand.accent)
+                        .frame(width: 44, height: 44)
                 }
-                .font(.system(.body, design: .monospaced).weight(.medium))
-                .foregroundStyle(.white)
-                .frame(maxWidth: 280)
-                .padding(.vertical, 14)
-                .background(Brand.accent)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .accessibilityLabel("Settings")
             }
-            .disabled(isSigningIn)
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.red)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            VStack(spacing: 24) {
+                Spacer()
+                Text("CheckIn")
+                    .font(.system(.largeTitle, design: .monospaced).weight(.bold))
+                    .foregroundStyle(.white)
+                Text("Sign in with your Microsoft 365 account to get started.")
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(Brand.textMuted)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
+                Button(action: signIn) {
+                    HStack(spacing: 8) {
+                        if isSigningIn { ProgressView().tint(.white) }
+                        Text(isSigningIn ? "Signing In\u{2026}" : "Sign In with Microsoft")
+                    }
+                    .font(.system(.body, design: .monospaced).weight(.medium))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: 280)
+                    .padding(.vertical, 14)
+                    .background(Brand.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .disabled(isSigningIn)
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                Spacer()
+                Spacer()
             }
-            Spacer()
-            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Brand.bg.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showSettings) {
+            SettingsView(authService: authService)
+        }
     }
 
     private func signIn() {

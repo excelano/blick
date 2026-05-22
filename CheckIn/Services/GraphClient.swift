@@ -32,19 +32,45 @@ final class GraphClient {
         let data: GraphList<CalendarEventResponse> = try await get("/me/calendarView", query: [
             "startDateTime": formatter.string(from: now),
             "endDateTime": formatter.string(from: end),
-            "$top": "1",
+            "$top": "5",
             "$orderby": "start/dateTime",
-            "$select": "subject,organizer,start,onlineMeeting"
+            "$select": "id,subject,organizer,start,onlineMeeting,responseStatus,isCancelled"
         ])
 
-        guard let event = data.value.first else { return nil }
+        // Skip cancelled events (they stay in calendarView until removed)
+        // and declined events (some tenants/users keep declined invites on
+        // the calendar rather than auto-removing them). Done client-side
+        // because calendarView's `$filter` support is narrow and undocumented
+        // for these fields.
+        guard let event = data.value.first(where: { e in
+            !(e.isCancelled ?? false) && e.responseStatus?.response != "declined"
+        }) else { return nil }
+
+        let response = MeetingResponse(rawValue: event.responseStatus?.response ?? "") ?? .none
 
         return Meeting(
+            id: event.id,
             subject: event.subject,
             organizer: event.organizer.emailAddress.name,
             start: parseGraphDate(event.start.dateTime, timeZone: event.start.timeZone),
-            joinUrl: event.onlineMeeting?.joinUrl
+            joinUrl: event.onlineMeeting?.joinUrl,
+            responseStatus: response
         )
+    }
+
+    /// Accept/tentative/decline an event. Graph returns 202 with no body.
+    /// `sendResponse: true` matches Outlook's default behavior — the
+    /// organizer's tracking is updated.
+    func respondToMeeting(id: String, response: MeetingResponse) async throws {
+        let action: String
+        switch response {
+        case .accepted: action = "accept"
+        case .tentativelyAccepted: action = "tentativelyAccept"
+        case .declined: action = "decline"
+        case .none, .notResponded, .organizer:
+            return
+        }
+        try await post("/me/events/\(id)/\(action)", body: RsvpBody(sendResponse: true))
     }
 
     /// Returns the 20 newest unread emails along with the total unread
@@ -171,6 +197,17 @@ final class GraphClient {
         try checkResponse(response, data: data, method: "PATCH", path: path)
     }
 
+    private func post(_ path: String, body: some Encodable) async throws {
+        var request = URLRequest(url: try makeURL(path: path))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        request = try await authorize(request)
+
+        let (data, response) = try await session.data(for: request)
+        try checkResponse(response, data: data, method: "POST", path: path)
+    }
+
     private func authorize(_ request: URLRequest) async throws -> URLRequest {
         let token = try await authService.acquireTokenSilently(enableTeams: enableTeams)
         var req = request
@@ -241,10 +278,17 @@ private struct GraphList<T: Decodable>: Decodable {
 }
 
 private struct CalendarEventResponse: Decodable {
+    let id: String
     let subject: String
     let organizer: OrganizerResponse
     let start: DateTimeResponse
     let onlineMeeting: OnlineMeetingResponse?
+    let responseStatus: EventResponseStatus?
+    let isCancelled: Bool?
+}
+
+private struct EventResponseStatus: Decodable {
+    let response: String
 }
 
 private struct OnlineMeetingResponse: Decodable {
@@ -325,4 +369,8 @@ private struct FlagBody: Encodable {
 
 private struct FlagStatusBody: Encodable {
     let flagStatus: String
+}
+
+private struct RsvpBody: Encodable {
+    let sendResponse: Bool
 }

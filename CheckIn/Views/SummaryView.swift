@@ -85,7 +85,10 @@ struct SummaryView: View {
             if let meeting = summary.meeting {
                 Section {
                     MeetingCard(meeting: meeting,
-                                onTap: { joinOrCalendar(meeting) })
+                                onTap: { joinOrCalendar(meeting) },
+                                onRsvp: { response in
+                                    Task { await inbox.respondToMeeting(response) }
+                                })
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 16, leading: 0, bottom: 6, trailing: 0))
@@ -247,40 +250,116 @@ struct SummaryView: View {
 private struct MeetingCard: View {
     let meeting: Meeting
     let onTap: () -> Void
+    let onRsvp: (MeetingResponse) -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "calendar")
-                        .foregroundStyle(Brand.accent)
-                    Text(meeting.subject)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                    Spacer()
-                }
-                HStack(spacing: 12) {
-                    Text(untilTime(meeting.start))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Brand.accent)
-                    if !meeting.organizer.isEmpty {
-                        Text("with \(meeting.organizer)")
-                            .font(.subheadline)
-                            .foregroundStyle(Brand.textMuted)
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: onTap) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(Brand.accent)
+                        Text(meeting.subject)
+                            .font(.headline)
+                            .foregroundStyle(.white)
                             .lineLimit(2)
+                        Spacer()
+                    }
+                    HStack(spacing: 12) {
+                        Text(untilTime(meeting.start))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Brand.accent)
+                        if !meeting.organizer.isEmpty {
+                            Text("with \(meeting.organizer)")
+                                .font(.subheadline)
+                                .foregroundStyle(Brand.textMuted)
+                                .lineLimit(2)
+                        }
                     }
                 }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Brand.bgDarker)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint("Open in Outlook calendar")
+
+            switch meeting.responseStatus {
+            case .notResponded:
+                rsvpRow
+            case .accepted, .tentativelyAccepted, .declined:
+                respondedPill
+            case .none, .organizer:
+                EmptyView()
+            }
+        }
+        .background(Brand.bgDarker)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var rsvpRow: some View {
+        HStack(spacing: 8) {
+            rsvpButton(.accepted, label: "Accept", icon: "checkmark")
+            rsvpButton(.tentativelyAccepted, label: "Maybe", icon: "questionmark")
+            rsvpButton(.declined, label: nil, icon: "xmark")
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 14)
+    }
+
+    private func rsvpButton(_ response: MeetingResponse, label: String?, icon: String) -> some View {
+        Button {
+            onRsvp(response)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.subheadline.weight(.semibold))
+                if let label {
+                    Text(label).font(.subheadline.weight(.medium))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(Brand.bg)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Open in Outlook calendar")
+        .accessibilityLabel(accessibilityLabel(for: response))
+    }
+
+    private func accessibilityLabel(for response: MeetingResponse) -> String {
+        switch response {
+        case .accepted: return "Accept meeting"
+        case .tentativelyAccepted: return "Tentatively accept meeting"
+        case .declined: return "Decline meeting"
+        default: return ""
+        }
+    }
+
+    private var respondedPill: some View {
+        HStack {
+            Text(respondedLabel)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Brand.textMuted)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Brand.bg)
+                .clipShape(Capsule())
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 12)
+    }
+
+    private var respondedLabel: String {
+        switch meeting.responseStatus {
+        case .accepted: return "Accepted"
+        case .tentativelyAccepted: return "Tentative"
+        case .declined: return "Declined"
+        default: return ""
+        }
     }
 
     private var accessibilityLabel: String {

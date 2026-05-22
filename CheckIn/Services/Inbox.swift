@@ -61,6 +61,38 @@ final class Inbox {
         }
     }
 
+    /// Optimistic. Mutates `summary.meeting.responseStatus` immediately so
+    /// the UI swaps to the responded pill, and reverts on failure. After a
+    /// successful RSVP, also marks any invite emails still sitting unread
+    /// in the inbox as read.
+    func respondToMeeting(_ response: MeetingResponse) async {
+        guard let meeting = summary?.meeting else { return }
+        let previous = meeting.responseStatus
+        summary?.meeting = meeting.with(responseStatus: response)
+        do {
+            try await graphClient.respondToMeeting(id: meeting.id, response: response)
+            await markMatchingInviteEmailsRead(for: meeting)
+        } catch {
+            logger.error("respondToMeeting(\(response.rawValue)) failed: \(error.localizedDescription, privacy: .public)")
+            summary?.meeting = meeting.with(responseStatus: previous)
+        }
+    }
+
+    /// Subject-matches against the three invite-side forms Outlook uses
+    /// ("Sprint Planning", "Updated: Sprint Planning", "Cancelled: Sprint
+    /// Planning"). Bounded to the local unread list, so it can't reach
+    /// beyond the 20 newest emails we already have.
+    private func markMatchingInviteEmailsRead(for meeting: Meeting) async {
+        let target = meeting.subject.lowercased()
+        let acceptable: Set<String> = [target, "updated: \(target)", "cancelled: \(target)"]
+        let matchIds = (summary?.emails ?? [])
+            .filter { acceptable.contains($0.subject.lowercased()) }
+            .map(\.id)
+        for id in matchIds {
+            await markRead(emailId: id)
+        }
+    }
+
     /// Optimistic. Caller passes the desired state rather than asking us to
     /// flip what we read, so rapid double-swipes can't oscillate against
     /// stale state.

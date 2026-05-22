@@ -40,7 +40,7 @@ func untilTime(_ date: Date) -> String {
     if minutes == 0 {
         return hours == 1 ? "in 1 hour" : "in \(hours) hours"
     }
-    return "in \(hours)h\(minutes)m"
+    return "in \(hours)h \(minutes)m"
 }
 
 func truncate(_ s: String, maxLen: Int) -> String {

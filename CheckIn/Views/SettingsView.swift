@@ -23,7 +23,9 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 advancedSection
-                signOutSection
+                if authService.isAuthenticated {
+                    signOutSection
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Brand.bg)

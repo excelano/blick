@@ -14,12 +14,13 @@ enum Constants {
 
     // MSAL for iOS automatically requests openid, profile, and offline_access.
     // Mail.ReadWrite drives the email mutation surface (mark read, flag).
-    // Calendars.Read drives the next-meeting fetch. Chat.ReadWrite drives
-    // the Teams pending-chat surface.
+    // Calendars.ReadWrite drives the next-meeting fetch and the RSVP
+    // (accept/tentative/decline) calls. Chat.ReadWrite drives the Teams
+    // pending-chat surface.
     static let baseScopes = [
         "User.Read",
         "Mail.ReadWrite",
-        "Calendars.Read"
+        "Calendars.ReadWrite"
     ]
 
     static let teamsScopes = [
