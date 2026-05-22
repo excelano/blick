@@ -56,6 +56,72 @@ final class Inbox {
         await refresh()
     }
 
+    /// Optimistically clears the visible email list, sends a single Graph
+    /// `$batch` PATCH, and re-inserts only the emails that came back
+    /// non-2xx. Uses `$batch` rather than fanning 20 concurrent PATCHes
+    /// because Graph rate-limits bursts and silently drops some.
+    func markAllVisibleRead() async {
+        let preserved = summary?.emails ?? []
+        let ids = preserved.map(\.id)
+        guard !ids.isEmpty else { return }
+
+        summary?.emails = []
+        summary?.totalUnreadEmails -= ids.count
+
+        do {
+            let failed = try await graphClient.batchMarkRead(ids: ids)
+            let toRestore = preserved.filter { failed.contains($0.id) }
+            if !toRestore.isEmpty {
+                summary?.emails = toRestore
+                summary?.totalUnreadEmails += toRestore.count
+                logger.error("markAllVisibleRead: \(toRestore.count) of \(ids.count) failed")
+            }
+            // Top up from the server when there are still-unread emails
+            // beyond what we had cached (the "N more unread" footer's set).
+            // Otherwise the user is left looking at an empty email section
+            // that pull-to-refresh would fix.
+            if let s = summary, s.totalUnreadEmails > s.emails.count {
+                let result = await fetchEmails()
+                summary?.emails = result.emails
+                summary?.totalUnreadEmails = result.totalCount
+            }
+        } catch {
+            logger.error("markAllVisibleRead failed: \(error.localizedDescription, privacy: .public)")
+            summary?.emails = preserved
+            summary?.totalUnreadEmails += ids.count
+        }
+    }
+
+    /// Optimistically flips the flag on every visible email not already in
+    /// the target state, sends a single Graph `$batch` PATCH, and reverts
+    /// only the emails that came back non-2xx.
+    func setFlaggedAllVisible(_ flagged: Bool) async {
+        let targets = (summary?.emails ?? []).filter { $0.isFlagged != flagged }
+        let ids = Set(targets.map(\.id))
+        guard !ids.isEmpty else { return }
+
+        flipFlagged(matching: ids, to: flagged)
+
+        do {
+            let failed = try await graphClient.batchSetFlagged(ids: Array(ids), flagged: flagged)
+            if !failed.isEmpty {
+                flipFlagged(matching: failed, to: !flagged)
+                logger.error("setFlaggedAllVisible(\(flagged)): \(failed.count) of \(ids.count) failed")
+            }
+        } catch {
+            logger.error("setFlaggedAllVisible(\(flagged)) failed: \(error.localizedDescription, privacy: .public)")
+            flipFlagged(matching: ids, to: !flagged)
+        }
+    }
+
+    private func flipFlagged(matching ids: Set<String>, to flagged: Bool) {
+        guard var current = summary?.emails else { return }
+        for i in current.indices where ids.contains(current[i].id) {
+            current[i] = current[i].with(isFlagged: flagged)
+        }
+        summary?.emails = current
+    }
+
     /// Optimistic: drops the row immediately, restores it (in received-time
     /// order) if the Graph PATCH fails.
     func markRead(emailId: String) async {

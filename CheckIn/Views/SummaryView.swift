@@ -122,18 +122,26 @@ struct SummaryView: View {
                                 .tint(.orange)
                             }
                     }
-                    if extras > 0 {
-                        Text("\(extras) more unread")
-                            .font(.footnote)
-                            .foregroundStyle(Brand.textMuted)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
-                    }
                 } header: {
-                    sectionHeader(title: "Email", count: summary.emails.count)
+                    sectionHeader(
+                        title: "Email",
+                        count: summary.emails.count,
+                        subtitle: {
+                            if extras > 0 {
+                                Text("+ \(extras) more unread")
+                                    .font(.footnote)
+                                    .foregroundStyle(Brand.textMuted)
+                            }
+                        },
+                        trailing: {
+                            BulkActionsMenu(
+                                emails: summary.emails,
+                                onMarkAllRead: { Task { await inbox.markAllVisibleRead() } },
+                                onFlagAll: { Task { await inbox.setFlaggedAllVisible(true) } },
+                                onUnflagAll: { Task { await inbox.setFlaggedAllVisible(false) } }
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -152,6 +160,23 @@ struct SummaryView: View {
     }
 
     private func sectionHeader(title: String, count: Int) -> some View {
+        sectionHeader(title: title, count: count, subtitle: { EmptyView() }, trailing: { EmptyView() })
+    }
+
+    private func sectionHeader<Trailing: View>(
+        title: String,
+        count: Int,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        sectionHeader(title: title, count: count, subtitle: { EmptyView() }, trailing: trailing)
+    }
+
+    private func sectionHeader<Subtitle: View, Trailing: View>(
+        title: String,
+        count: Int,
+        @ViewBuilder subtitle: () -> Subtitle,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
         HStack {
             Text(title)
                 .font(.subheadline.weight(.semibold))
@@ -164,7 +189,9 @@ struct SummaryView: View {
                 .padding(.vertical, 1)
                 .background(Brand.bgDarker)
                 .clipShape(Capsule())
+            subtitle()
             Spacer()
+            trailing()
         }
     }
 
@@ -234,6 +261,48 @@ struct SummaryView: View {
     private func deepLink(_ url: URL?) {
         guard let url, UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
+    }
+}
+
+private struct BulkActionsMenu: View {
+    let emails: [Email]
+    let onMarkAllRead: () -> Void
+    let onFlagAll: () -> Void
+    let onUnflagAll: () -> Void
+
+    var body: some View {
+        let unflaggedCount = emails.filter { !$0.isFlagged }.count
+        let flaggedCount = emails.count - unflaggedCount
+        Menu {
+            Button(action: onMarkAllRead) {
+                Label("Mark \(emails.count) read", systemImage: "envelope.open")
+            }
+            if unflaggedCount > 0 {
+                Button(action: onFlagAll) {
+                    Label("Flag \(unflaggedCount)", systemImage: "flag")
+                }
+            }
+            if flaggedCount > 0 {
+                Button(action: onUnflagAll) {
+                    Label("Unflag \(flaggedCount)", systemImage: "flag.slash")
+                }
+            }
+        } label: {
+            ZStack {
+                // Invisible text reserves the same vertical space as the
+                // count pill, so the two capsules render the same height
+                // despite an SF Symbol having no ascender/descender.
+                Text("0").opacity(0)
+                Image(systemName: "ellipsis")
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Brand.accent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 1)
+            .background(Brand.bgDarker)
+            .clipShape(Capsule())
+        }
+        .accessibilityLabel("Bulk email actions")
     }
 }
 

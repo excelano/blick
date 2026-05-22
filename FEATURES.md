@@ -14,7 +14,8 @@ What a user can do, mapped to the entry point in the UI.
 | See your current RSVP state on a responded meeting | Pill ("Accepted", "Tentative", "Declined") under the meeting info, in place of the buttons |
 | Auto-mark matching invite emails read after RSVP | After a successful RSVP, unread emails whose subject matches the meeting subject (or "Updated: ..." / "Cancelled: ...") are marked read |
 | See up to 20 newest unread emails | Email section |
-| See the count of additional unread beyond the 20 shown | "N more unread" footer line under the email section, when total unread > 20 |
+| See the count of additional unread beyond the 20 shown | "+ N more unread" inline in the Email section header, next to the count badge, when total unread > 20 |
+| Bulk mark visible emails read, flag all unflagged, or unflag all flagged | Email section header → ellipsis pill on the right → menu with "Mark N read" / "Flag N" / "Unflag N" (flag/unflag entries hidden when their count is 0). Sends a single Graph `$batch` POST; selectively reverts only the operations that failed. After Mark all read, tops up from the server if "more unread" existed. |
 | Read each email's sender, subject, and preview | Each row shows sender + relative time, subject, and Graph's bodyPreview (up to 2 lines) |
 | See a flag indicator on flagged emails | Orange flag icon next to the sender name |
 | Reply to an email in Outlook | Tap an email row (opens Outlook compose with `Re: <subject>` to the sender) |

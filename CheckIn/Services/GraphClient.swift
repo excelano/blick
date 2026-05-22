@@ -120,6 +120,58 @@ final class GraphClient {
                         body: FlagBody(flag: FlagStatusBody(flagStatus: "notFlagged")))
     }
 
+    /// Bulk mark-read via `/$batch`. One HTTP POST carries up to 20 PATCHes;
+    /// avoids the 429 Too Many Requests bursts we'd see firing 20 concurrent
+    /// requests directly. Returns the IDs that came back non-2xx so the
+    /// caller can selectively revert.
+    func batchMarkRead(ids: [String]) async throws -> Set<String> {
+        guard !ids.isEmpty else { return [] }
+        let requests = ids.enumerated().map { (i, id) in
+            BatchRequest(
+                id: "\(i)",
+                method: "PATCH",
+                url: "/me/messages/\(id)",
+                headers: ["Content-Type": "application/json"],
+                body: MarkReadBody(isRead: true)
+            )
+        }
+        let response: BatchResponse = try await postDecoded(
+            "/$batch",
+            body: BatchEnvelope(requests: requests)
+        )
+        return failedIds(in: response, against: ids)
+    }
+
+    /// Bulk flag/unflag via `/$batch`. Same rationale as `batchMarkRead`.
+    func batchSetFlagged(ids: [String], flagged: Bool) async throws -> Set<String> {
+        guard !ids.isEmpty else { return [] }
+        let status = flagged ? "flagged" : "notFlagged"
+        let requests = ids.enumerated().map { (i, id) in
+            BatchRequest(
+                id: "\(i)",
+                method: "PATCH",
+                url: "/me/messages/\(id)",
+                headers: ["Content-Type": "application/json"],
+                body: FlagBody(flag: FlagStatusBody(flagStatus: status))
+            )
+        }
+        let response: BatchResponse = try await postDecoded(
+            "/$batch",
+            body: BatchEnvelope(requests: requests)
+        )
+        return failedIds(in: response, against: ids)
+    }
+
+    private func failedIds(in response: BatchResponse, against ids: [String]) -> Set<String> {
+        var failed: Set<String> = []
+        for r in response.responses where !(200..<300).contains(r.status) {
+            if let idx = Int(r.id), idx < ids.count {
+                failed.insert(ids[idx])
+            }
+        }
+        return failed
+    }
+
     /// Fetch pending chats: chats where someone else sent the last message within 24 hours.
     func pendingChats() async throws -> [ChatMessage] {
         let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
@@ -206,6 +258,18 @@ final class GraphClient {
 
         let (data, response) = try await session.data(for: request)
         try checkResponse(response, data: data, method: "POST", path: path)
+    }
+
+    private func postDecoded<T: Decodable>(_ path: String, body: some Encodable) async throws -> T {
+        var request = URLRequest(url: try makeURL(path: path))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        request = try await authorize(request)
+
+        let (data, response) = try await session.data(for: request)
+        try checkResponse(response, data: data, method: "POST", path: path)
+        return try JSONDecoder().decode(T.self, from: data)
     }
 
     private func authorize(_ request: URLRequest) async throws -> URLRequest {
@@ -373,4 +437,25 @@ private struct FlagStatusBody: Encodable {
 
 private struct RsvpBody: Encodable {
     let sendResponse: Bool
+}
+
+private struct BatchRequest<B: Encodable>: Encodable {
+    let id: String
+    let method: String
+    let url: String
+    let headers: [String: String]
+    let body: B
+}
+
+private struct BatchEnvelope<B: Encodable>: Encodable {
+    let requests: [BatchRequest<B>]
+}
+
+private struct BatchResponse: Decodable {
+    let responses: [BatchResponseItem]
+}
+
+private struct BatchResponseItem: Decodable {
+    let id: String
+    let status: Int
 }
