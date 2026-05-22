@@ -13,28 +13,34 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Brand.bg.ignoresSafeArea()
-                .navigationTitle("Settings")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Sign Out", role: .destructive) {
-                            showSignOutConfirm = true
-                        }
-                        .foregroundStyle(.red)
+            Form {
+                Section {
+                    Button(role: .destructive) {
+                        showSignOutConfirm = true
+                    } label: {
+                        Text("Sign Out")
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { dismiss() }
-                            .foregroundStyle(Brand.accent)
-                            .accessibilityLabel("Close settings")
-                    }
+                    .listRowBackground(Brand.bgDarker)
                 }
-                .confirmationDialog("Sign out of CheckIn?",
-                                    isPresented: $showSignOutConfirm,
-                                    titleVisibility: .visible) {
-                    Button("Sign Out", role: .destructive) { signOut() }
-                    Button("Cancel", role: .cancel) { }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Brand.bg)
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Brand.accent)
+                        .accessibilityLabel("Close settings")
                 }
+            }
+            .confirmationDialog("Sign out of CheckIn?",
+                                isPresented: $showSignOutConfirm,
+                                titleVisibility: .visible) {
+                Button("Sign Out", role: .destructive) { signOut() }
+                Button("Cancel", role: .cancel) { }
+            }
         }
         .preferredColorScheme(.dark)
     }
