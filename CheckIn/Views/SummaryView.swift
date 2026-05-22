@@ -241,10 +241,12 @@ struct SummaryView: View {
                                 emails: summary.emails,
                                 totalUnread: summary.totalUnreadEmails,
                                 isShowingAll: inbox.showingAllEmails,
+                                userMailDomain: inbox.userMailDomain,
                                 onMarkAllRead: { Task { await inbox.markAllVisibleRead() } },
                                 onMarkOtherRead: { Task { await inbox.markOtherInboxRead() } },
                                 onMarkMeetingNoticesRead: { Task { await inbox.markMeetingNoticesRead() } },
                                 onMarkMailingListsRead: { Task { await inbox.markMailingListsRead() } },
+                                onMarkExternalRead: { Task { await inbox.markExternalSendersRead() } },
                                 onFlagAll: { Task { await inbox.setFlaggedAllVisible(true) } },
                                 onUnflagAll: { Task { await inbox.setFlaggedAllVisible(false) } },
                                 onShowAll: { Task { await inbox.setShowingAllEmails(true) } },
@@ -447,10 +449,12 @@ private struct BulkActionsMenu: View {
     let emails: [Email]
     let totalUnread: Int
     let isShowingAll: Bool
+    let userMailDomain: String
     let onMarkAllRead: () -> Void
     let onMarkOtherRead: () -> Void
     let onMarkMeetingNoticesRead: () -> Void
     let onMarkMailingListsRead: () -> Void
+    let onMarkExternalRead: () -> Void
     let onFlagAll: () -> Void
     let onUnflagAll: () -> Void
     let onShowAll: () -> Void
@@ -462,6 +466,7 @@ private struct BulkActionsMenu: View {
         let otherCount = emails.filter { $0.inferenceClassification == "other" }.count
         let meetingNoticeCount = emails.filter(\.isMeetingNotice).count
         let mailingListCount = emails.filter { $0.isMailingList }.count
+        let externalCount = externalSenderCount(in: emails, userMailDomain: userMailDomain)
         let canExpand = !isShowingAll && totalUnread > emails.count
 
         Menu {
@@ -481,6 +486,11 @@ private struct BulkActionsMenu: View {
             if mailingListCount > 0 {
                 Button(action: onMarkMailingListsRead) {
                     Label("Mark \(mailingListCount) mailing lists read", systemImage: "newspaper")
+                }
+            }
+            if externalCount > 0 {
+                Button(action: onMarkExternalRead) {
+                    Label("Mark \(externalCount) external senders read", systemImage: "globe")
                 }
             }
             if unflaggedCount > 0 {
@@ -520,6 +530,15 @@ private struct BulkActionsMenu: View {
             .clipShape(Capsule())
         }
         .accessibilityLabel("Bulk email actions")
+    }
+
+    private func externalSenderCount(in emails: [Email], userMailDomain: String) -> Int {
+        guard !userMailDomain.isEmpty else { return 0 }
+        return emails.filter { e in
+            guard !e.fromAddress.isEmpty,
+                  let atIdx = e.fromAddress.firstIndex(of: "@") else { return false }
+            return e.fromAddress[e.fromAddress.index(after: atIdx)...].lowercased() != userMailDomain
+        }.count
     }
 }
 

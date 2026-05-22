@@ -10,16 +10,28 @@ final class GraphClient {
     private let session = URLSession.shared
     private let enableTeams: Bool
     private var userID = ""
+    private var userMail = ""
 
     init(authService: AuthService, enableTeams: Bool) {
         self.authService = authService
         self.enableTeams = enableTeams
     }
 
-    /// Fetch the signed-in user's ID (needed for the Teams pending-chat heuristic)
+    /// Fetch the signed-in user's ID and mail address. ID powers the Teams
+    /// pending-chat self-filter; mail powers external-sender detection.
+    /// Some accounts (personal/MSA, occasionally) don't populate `mail`,
+    /// so we fall back to `userPrincipalName`.
     func fetchUserID() async throws {
-        let data: UserResponse = try await get("/me", query: ["$select": "id"])
+        let data: UserResponse = try await get("/me", query: ["$select": "id,mail,userPrincipalName"])
         userID = data.id
+        userMail = data.mail ?? data.userPrincipalName ?? ""
+    }
+
+    /// Domain portion of the signed-in user's mail address (lowercased).
+    /// Empty until `fetchUserID` runs successfully.
+    var userMailDomain: String {
+        guard let atIdx = userMail.firstIndex(of: "@") else { return "" }
+        return String(userMail[userMail.index(after: atIdx)...]).lowercased()
     }
 
     /// Fetch today's remaining meetings using calendarView (not /events,
@@ -396,6 +408,8 @@ enum GraphError: LocalizedError {
 
 private struct UserResponse: Decodable {
     let id: String
+    let mail: String?
+    let userPrincipalName: String?
 }
 
 private struct GraphList<T: Decodable>: Decodable {

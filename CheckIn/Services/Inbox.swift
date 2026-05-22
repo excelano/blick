@@ -49,18 +49,19 @@ final class Inbox {
 
     func refresh() async {
         var anyFailed = false
-        var userIDReady = !teamsEnabled || didFetchUserID
-        if teamsEnabled && !didFetchUserID {
+        // `fetchUserID` powers two features now: Teams pending-chat
+        // filtering (only when teamsEnabled) and external-sender
+        // detection (always useful). Always fetch on first refresh.
+        if !didFetchUserID {
             do {
                 try await graphClient.fetchUserID()
                 didFetchUserID = true
-                userIDReady = true
             } catch {
                 logger.error("fetchUserID failed: \(error.localizedDescription, privacy: .public)")
-                userIDReady = false
                 anyFailed = true
             }
         }
+        let userIDReady = didFetchUserID
 
         async let meetingsT = fetchMeetings()
         async let emailsT = fetchEmails()
@@ -133,6 +134,26 @@ final class Inbox {
         let candidates = (summary?.emails ?? []).filter { $0.isMailingList }
         await performMarkRead(emails: candidates)
     }
+
+    /// Mark visible emails sent from a domain other than the signed-in
+    /// user's own. Useful when work-internal mail is the priority and
+    /// outside-the-company senders can be dismissed.
+    func markExternalSendersRead() async {
+        let userDomain = graphClient.userMailDomain
+        guard !userDomain.isEmpty else { return }
+        let candidates = (summary?.emails ?? []).filter { e in
+            guard !e.fromAddress.isEmpty,
+                  let atIdx = e.fromAddress.firstIndex(of: "@") else { return false }
+            let senderDomain = e.fromAddress[e.fromAddress.index(after: atIdx)...].lowercased()
+            return senderDomain != userDomain
+        }
+        await performMarkRead(emails: candidates)
+    }
+
+    /// Exposes the user's mail domain so the view layer can compute the
+    /// count for the bulk-actions menu without re-implementing the
+    /// fromAddress comparison.
+    var userMailDomain: String { graphClient.userMailDomain }
 
     /// Mark every visible email from the given SMTP address as read.
     /// Used by the row-level context menu.
