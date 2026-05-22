@@ -47,15 +47,23 @@ final class GraphClient {
         )
     }
 
-    func unreadEmails() async throws -> [Email] {
-        let data: GraphList<EmailResponse> = try await get("/me/messages", query: [
-            "$filter": "isRead eq false",
-            "$orderby": "receivedDateTime desc",
-            "$top": "10",
-            "$select": "id,subject,from,receivedDateTime,flag"
-        ])
+    /// Returns the 20 newest unread emails along with the total unread
+    /// count. `$count=true` requires the `ConsistencyLevel: eventual`
+    /// header.
+    func unreadEmails() async throws -> (emails: [Email], totalCount: Int) {
+        let data: GraphList<EmailResponse> = try await get(
+            "/me/messages",
+            query: [
+                "$filter": "isRead eq false",
+                "$orderby": "receivedDateTime desc",
+                "$top": "20",
+                "$count": "true",
+                "$select": "id,subject,from,receivedDateTime,flag"
+            ],
+            headers: ["ConsistencyLevel": "eventual"]
+        )
 
-        return data.value.map { e in
+        let emails = data.value.map { e in
             Email(
                 id: e.id,
                 subject: e.subject,
@@ -65,6 +73,7 @@ final class GraphClient {
                 isFlagged: e.flag?.flagStatus == "flagged"
             )
         }
+        return (emails, data.count ?? emails.count)
     }
 
     /// Mail.ReadWrite required. Idempotent.
@@ -130,9 +139,12 @@ final class GraphClient {
         return url
     }
 
-    private func get<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
+    private func get<T: Decodable>(_ path: String,
+                                   query: [String: String],
+                                   headers: [String: String] = [:]) async throws -> T {
         var request = URLRequest(url: try makeURL(path: path, query: query))
         request.httpMethod = "GET"
+        for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
         request = try await authorize(request)
 
         let (data, response) = try await session.data(for: request)
@@ -212,6 +224,12 @@ private struct UserResponse: Decodable {
 
 private struct GraphList<T: Decodable>: Decodable {
     let value: [T]
+    let count: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case value
+        case count = "@odata.count"
+    }
 }
 
 private struct CalendarEventResponse: Decodable {

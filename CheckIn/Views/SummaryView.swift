@@ -104,6 +104,7 @@ struct SummaryView: View {
                 }
             }
             if !summary.emails.isEmpty {
+                let extras = summary.totalUnreadEmails - summary.emails.count
                 Section {
                     ForEach(summary.emails) { email in
                         EmailRow(email: email, onTap: { replyTo(email) })
@@ -127,6 +128,16 @@ struct SummaryView: View {
                                 }
                                 .tint(.orange)
                             }
+                    }
+                    if extras > 0 {
+                        Text("\(extras) more unread")
+                            .font(.footnote)
+                            .foregroundStyle(Brand.textMuted)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 8, trailing: 0))
                     }
                 } header: {
                     sectionHeader(title: "Email", count: summary.emails.count)

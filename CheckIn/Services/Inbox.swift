@@ -37,9 +37,11 @@ final class Inbox {
         async let meeting = fetchMeeting()
         async let emails = fetchEmails()
         async let chats = fetchChats(userIDReady: userIDReady)
+        let emailsResult = await emails
         summary = CheckInSummary(meeting: await meeting,
-                                 emails: await emails,
-                                 chats: await chats)
+                                 emails: emailsResult.emails,
+                                 chats: await chats,
+                                 totalUnreadEmails: emailsResult.totalCount)
     }
 
     /// Optimistic: drops the row immediately, restores it (in received-time
@@ -47,6 +49,7 @@ final class Inbox {
     func markRead(emailId: String) async {
         guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
               let removed = summary?.emails.remove(at: idx) else { return }
+        summary?.totalUnreadEmails -= 1
         do {
             try await graphClient.markEmailRead(id: emailId)
         } catch {
@@ -54,6 +57,7 @@ final class Inbox {
             let insertAt = summary?.emails.firstIndex(where: { $0.received < removed.received })
                 ?? summary?.emails.count ?? 0
             summary?.emails.insert(removed, at: insertAt)
+            summary?.totalUnreadEmails += 1
         }
     }
 
@@ -85,12 +89,12 @@ final class Inbox {
         }
     }
 
-    private func fetchEmails() async -> [Email] {
+    private func fetchEmails() async -> (emails: [Email], totalCount: Int) {
         do {
             return try await graphClient.unreadEmails()
         } catch {
             logger.error("unreadEmails failed: \(error.localizedDescription, privacy: .public)")
-            return []
+            return ([], 0)
         }
     }
 
