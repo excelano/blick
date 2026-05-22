@@ -33,10 +33,10 @@ struct ChatRow: View {
                     if !chat.topic.isEmpty {
                         Text(chat.topic).font(.body).foregroundStyle(.white).lineLimit(2)
                     } else {
-                        Text(truncate(chat.preview, maxLen: 60))
+                        Text(truncate(chat.preview, maxLen: 200))
                             .font(.body)
                             .foregroundStyle(Brand.textMuted)
-                            .lineLimit(2)
+                            .lineLimit(4)
                     }
                 }
             }

@@ -155,7 +155,7 @@ final class GraphClient {
                 subject: e.subject,
                 from: e.from.emailAddress.name,
                 fromAddress: e.from.emailAddress.address ?? "",
-                preview: e.bodyPreview,
+                preview: cleanEmailPreview(e.bodyPreview),
                 received: parseISO8601(e.receivedDateTime) ?? Date(),
                 isFlagged: e.flag?.flagStatus == "flagged",
                 inferenceClassification: e.inferenceClassification,

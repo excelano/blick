@@ -34,7 +34,7 @@ struct EmailRow: View {
                         Text(email.preview)
                             .font(.footnote)
                             .foregroundStyle(Brand.textMuted)
-                            .lineLimit(2)
+                            .lineLimit(4)
                     }
                 }
             }
