@@ -6,14 +6,8 @@
 import Foundation
 import os
 
-/// Touch-driven operations on the inbox: mark read, flag, refresh. Calls
-/// Graph directly and publishes results into the state machine's context
-/// so the view re-renders. No voice involvement — taps and swipes route
-/// here without going through the speech / intent classification / state
-/// machine substates that the voice path uses today. The voice path will
-/// be re-pointed at the same methods in a subsequent step so both inputs
-/// share one execution path.
-///
+/// Touch-driven inbox operations. Calls Graph directly and publishes
+/// results into the state machine's context so the view re-renders.
 /// Mutations are optimistic: the displayed unread set updates immediately,
 /// the Graph call runs in the background, and a failure restores the row.
 @MainActor
@@ -98,14 +92,11 @@ final class InboxActions {
         let summary = await summaryService.fetchSummary()
         stateMachine.updateContext { context in
             context.summary = summary
-            context.summaryFetchedAt = Date()
         }
         #if DEBUG
         print("[actions] refresh ok emails=\(summary.emails.count) chats=\(summary.chats.count)")
         #endif
     }
-
-    // MARK: - Optimistic helpers
 
     private func removeEmail(emailId: String) -> Email? {
         guard let summary = stateMachine.context.summary,
@@ -124,8 +115,7 @@ final class InboxActions {
     private func restoreEmail(_ email: Email) {
         guard let summary = stateMachine.context.summary else { return }
         var emails = summary.emails
-        // Insert in received-time desc position to preserve ordering —
-        // Graph returns desc and ordinals downstream assume it.
+        // Insert in received-time desc to preserve Graph ordering.
         let index = emails.firstIndex(where: { $0.received < email.received }) ?? emails.count
         emails.insert(email, at: index)
         stateMachine.updateContext {
@@ -134,16 +124,8 @@ final class InboxActions {
     }
 
     /// `CheckInSummary` is immutable; rebuilding with a new emails array
-    /// is the only way to publish a change. The non-email fields ride
-    /// through unchanged.
+    /// is the only way to publish a change.
     private func rebuilt(_ summary: CheckInSummary, withEmails emails: [Email]) -> CheckInSummary {
-        CheckInSummary(
-            meeting: summary.meeting,
-            emails: emails,
-            chats: summary.chats,
-            emailError: summary.emailError,
-            chatError: summary.chatError,
-            teamsEnabled: summary.teamsEnabled
-        )
+        CheckInSummary(meeting: summary.meeting, emails: emails, chats: summary.chats)
     }
 }

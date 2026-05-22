@@ -5,9 +5,8 @@
 
 import Foundation
 
-/// Top-level app state. Sign-in gate plus an active substate for sheet
-/// presentation. Voice substates and onboarding are gone; what's left is
-/// just the shape the views need to navigate.
+/// Top-level app state. Sign-in gate plus an active substate that tracks
+/// which sheet (if any) is presented.
 enum DialogState: Equatable {
     case signedOut
     case active(ActiveSubstate)

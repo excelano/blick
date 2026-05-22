@@ -9,7 +9,4 @@ struct CheckInSummary {
     let meeting: Meeting?
     let emails: [Email]
     let chats: [ChatMessage]
-    let emailError: String?
-    let chatError: String?
-    let teamsEnabled: Bool
 }

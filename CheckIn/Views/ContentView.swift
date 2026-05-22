@@ -5,10 +5,7 @@
 
 import SwiftUI
 
-/// Top-level auth gate. Routes off the state machine top-level case:
-///   `.signedOut`  -> SignInView
-///   `.active`     -> SummaryView
-/// Onboarding is gone; first launch lands directly in active after sign-in.
+/// Top-level auth gate. `.signedOut` -> SignInView; `.active` -> SummaryView.
 struct ContentView: View {
     var authService: AuthService
     var stateMachine: StateMachine
@@ -54,8 +51,6 @@ struct ContentView: View {
         stateMachine.transition(to: .active(.idle))
     }
 }
-
-// MARK: - Sign-in screen
 
 private struct SignInView: View {
     var authService: AuthService

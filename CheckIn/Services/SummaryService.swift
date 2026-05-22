@@ -7,25 +7,16 @@ import Foundation
 import os
 
 /// Pulls the three launch surfaces (next meeting, unread email, pending
-/// Teams chats) into a single `CheckInSummary` for the response generator
-/// to consume.
-///
-/// Per-stream errors collapse into the `emailError` / `chatError` slots on
-/// `CheckInSummary` so partial success surfaces correctly (Teams down,
-/// email up still produces a useful summary). The meeting slot has no
-/// error field by design — a meeting fetch failure is indistinguishable
-/// from "nothing in the next 24 hours."
+/// Teams chats) into a single `CheckInSummary`. Per-stream fetch failures
+/// log and collapse to an empty result for that stream — partial success
+/// still produces a useful summary.
 protocol SummaryService {
     func fetchSummary() async -> CheckInSummary
-    /// Drop any per-account cached state (currently the one-shot user ID
-    /// flag). Call on sign-out so an account switch doesn't carry the
-    /// previous user's identity into the pending-chat heuristic.
-    func reset()
 }
 
 /// Microsoft Graph implementation. The three calls run in parallel via
-/// `async let`; a single missing user-ID call (a prerequisite for the
-/// Teams pending-chat heuristic) runs serially on first use.
+/// `async let`; a one-shot user-ID fetch (a prerequisite for the Teams
+/// pending-chat heuristic) runs serially on first use.
 @MainActor
 final class GraphSummaryService: SummaryService {
     private let graphClient: GraphClient
@@ -54,20 +45,13 @@ final class GraphSummaryService: SummaryService {
 
         let userIDForChats = userIDReady
         async let meetingTask: Meeting? = fetchMeetingOrNil()
-        async let emailsTask: (emails: [Email], error: String?) = fetchEmails()
-        async let chatsTask: (chats: [ChatMessage], error: String?) = fetchChats(userIDReady: userIDForChats)
-
-        let meeting = await meetingTask
-        let emailsTuple = await emailsTask
-        let chatsTuple = await chatsTask
+        async let emailsTask: [Email] = fetchEmails()
+        async let chatsTask: [ChatMessage] = fetchChats(userIDReady: userIDForChats)
 
         return CheckInSummary(
-            meeting: meeting,
-            emails: emailsTuple.emails,
-            chats: chatsTuple.chats,
-            emailError: emailsTuple.error,
-            chatError: chatsTuple.error,
-            teamsEnabled: teamsEnabled
+            meeting: await meetingTask,
+            emails: await emailsTask,
+            chats: await chatsTask
         )
     }
 
@@ -80,48 +64,24 @@ final class GraphSummaryService: SummaryService {
         }
     }
 
-    private func fetchEmails() async -> (emails: [Email], error: String?) {
+    private func fetchEmails() async -> [Email] {
         do {
-            return (try await graphClient.unreadEmails(), nil)
+            return try await graphClient.unreadEmails()
         } catch {
             logger.error("unreadEmails failed: \(error.localizedDescription, privacy: .public)")
-            return ([], error.localizedDescription)
+            return []
         }
     }
 
-    func reset() {
-        didFetchUserID = false
-    }
-
-    private func fetchChats(userIDReady: Bool) async -> (chats: [ChatMessage], error: String?) {
-        guard teamsEnabled else { return ([], nil) }
-        // If fetchUserID failed the pending-chat heuristic can't run; the
-        // Teams scope likely isn't granted on the silent token.
-        guard userIDReady else {
-            return ([], "Teams access not available.")
-        }
+    /// If `fetchUserID` failed the pending-chat heuristic can't run; the
+    /// Teams scope likely isn't granted on the silent token.
+    private func fetchChats(userIDReady: Bool) async -> [ChatMessage] {
+        guard teamsEnabled, userIDReady else { return [] }
         do {
-            return (try await graphClient.pendingChats(), nil)
+            return try await graphClient.pendingChats()
         } catch {
             logger.error("pendingChats failed: \(error.localizedDescription, privacy: .public)")
-            return ([], error.localizedDescription)
+            return []
         }
     }
-}
-
-/// Preview/test stub: returns a fixed empty summary.
-final class StubSummaryService: SummaryService {
-    private let summary: CheckInSummary
-    init(_ summary: CheckInSummary = CheckInSummary(
-        meeting: nil,
-        emails: [],
-        chats: [],
-        emailError: nil,
-        chatError: nil,
-        teamsEnabled: false
-    )) {
-        self.summary = summary
-    }
-    func fetchSummary() async -> CheckInSummary { summary }
-    func reset() {}
 }
