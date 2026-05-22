@@ -31,4 +31,25 @@ enum Constants {
     static func scopes(enableTeams: Bool) -> [String] {
         enableTeams ? baseScopes + teamsScopes : baseScopes
     }
+
+    /// User-supplied client ID if set, otherwise the published default.
+    static var effectiveClientID: String {
+        let custom = (UserDefaults.standard.string(forKey: AppStorageKey.customClientID) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return custom.isEmpty ? clientID : custom
+    }
+
+    /// `https://login.microsoftonline.com/<tenant>` where `<tenant>` is the
+    /// user-supplied Directory (tenant) ID, or `common` when none is set.
+    static var effectiveAuthority: String {
+        let tenant = (UserDefaults.standard.string(forKey: AppStorageKey.customTenantID) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if tenant.isEmpty { return authority }
+        return "https://login.microsoftonline.com/\(tenant)"
+    }
+}
+
+enum AppStorageKey {
+    static let customClientID = "customClientID"
+    static let customTenantID = "customTenantID"
 }

@@ -22,7 +22,7 @@ final class AuthService {
     }
 
     private func configureMSAL() {
-        guard let authorityURL = URL(string: Constants.authority) else {
+        guard let authorityURL = URL(string: Constants.effectiveAuthority) else {
             configurationError = AuthError.invalidAuthority
             return
         }
@@ -30,14 +30,25 @@ final class AuthService {
         do {
             let authority = try MSALAADAuthority(url: authorityURL)
             let config = MSALPublicClientApplicationConfig(
-                clientId: Constants.clientID,
+                clientId: Constants.effectiveClientID,
                 redirectUri: Constants.redirectURI,
                 authority: authority
             )
             msalApp = try MSALPublicClientApplication(configuration: config)
+            configurationError = nil
         } catch {
             configurationError = error
         }
+    }
+
+    /// Rebuild MSAL using the current effective client ID and authority,
+    /// after the user changes their custom Azure registration. Signs the
+    /// current account out first so the next sign-in goes through the new
+    /// registration cleanly. Does not auto-recover any cached account for
+    /// the new client ID; the user must re-authenticate.
+    func reconfigure() {
+        signOut()
+        configureMSAL()
     }
 
     private func checkExistingAccount() {
