@@ -560,6 +560,46 @@ private struct BulkActionsMenu: View {
     }
 }
 
+/// Shared RSVP capsule button used by both `MeetingCard` (un-responded
+/// state — all three buttons, none tinted) and `ConflictMeetingRow`
+/// (current state tinted so the user can see what they previously
+/// selected). The `label` is optional because `MeetingCard` uses an
+/// icon-only decline button to save space.
+private struct RsvpButton: View {
+    let response: MeetingResponse
+    let label: String?
+    let icon: String
+    var isCurrentResponse: Bool = false
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.subheadline.weight(.semibold))
+                if let label {
+                    Text(label).font(.subheadline.weight(.medium))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(isCurrentResponse ? Brand.accent.opacity(0.25) : Brand.bg)
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        switch response {
+        case .accepted: return "Accept meeting"
+        case .tentativelyAccepted: return "Tentatively accept meeting"
+        case .declined: return "Decline meeting"
+        default: return ""
+        }
+    }
+}
+
 private struct MeetingCard: View {
     let meeting: Meeting
     let onTap: () -> Void
@@ -641,64 +681,35 @@ private struct MeetingCard: View {
 
     private var rsvpRow: some View {
         HStack(spacing: 8) {
-            rsvpButton(.accepted, label: "Accept", icon: "checkmark")
-            rsvpButton(.tentativelyAccepted, label: "Maybe", icon: "questionmark")
-            rsvpButton(.declined, label: nil, icon: "xmark")
+            RsvpButton(response: .accepted, label: "Accept", icon: "checkmark") {
+                onRsvp(.accepted)
+            }
+            RsvpButton(response: .tentativelyAccepted, label: "Maybe", icon: "questionmark") {
+                onRsvp(.tentativelyAccepted)
+            }
+            RsvpButton(response: .declined, label: nil, icon: "xmark") {
+                onRsvp(.declined)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 14)
     }
 
-    private func rsvpButton(_ response: MeetingResponse, label: String?, icon: String) -> some View {
-        Button {
-            onRsvp(response)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.subheadline.weight(.semibold))
-                if let label {
-                    Text(label).font(.subheadline.weight(.medium))
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(Brand.bg)
-            .foregroundStyle(.white)
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel(for: response))
-    }
-
-    private func accessibilityLabel(for response: MeetingResponse) -> String {
-        switch response {
-        case .accepted: return "Accept meeting"
-        case .tentativelyAccepted: return "Tentatively accept meeting"
-        case .declined: return "Decline meeting"
-        default: return ""
-        }
-    }
-
+    @ViewBuilder
     private var respondedPill: some View {
-        HStack {
-            Text(respondedLabel)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Brand.textMuted)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Brand.bg)
-                .clipShape(Capsule())
-            Spacer()
-        }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 12)
-    }
-
-    private var respondedLabel: String {
-        switch meeting.responseStatus {
-        case .accepted: return "Accepted"
-        case .tentativelyAccepted: return "Tentative"
-        case .declined: return "Declined"
-        default: return ""
+        if let label = meeting.responseStatus.displayLabel {
+            HStack {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Brand.textMuted)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Brand.bg)
+                    .clipShape(Capsule())
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
         }
     }
 
@@ -807,7 +818,7 @@ private struct ConflictMeetingRow: View {
                     .foregroundStyle(Brand.textMuted)
                     .lineLimit(1)
             }
-            if let label = respondedLabel {
+            if let label = meeting.responseStatus.displayLabel {
                 Text(label)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Brand.textMuted)
@@ -818,9 +829,24 @@ private struct ConflictMeetingRow: View {
             }
             if meeting.responseStatus.canRsvp {
                 HStack(spacing: 8) {
-                    rsvpButton(.accepted, label: "Accept", icon: "checkmark")
-                    rsvpButton(.tentativelyAccepted, label: "Maybe", icon: "questionmark")
-                    rsvpButton(.declined, label: "Decline", icon: "xmark")
+                    RsvpButton(response: .accepted,
+                               label: "Accept",
+                               icon: "checkmark",
+                               isCurrentResponse: meeting.responseStatus == .accepted) {
+                        onRsvp(.accepted)
+                    }
+                    RsvpButton(response: .tentativelyAccepted,
+                               label: "Maybe",
+                               icon: "questionmark",
+                               isCurrentResponse: meeting.responseStatus == .tentativelyAccepted) {
+                        onRsvp(.tentativelyAccepted)
+                    }
+                    RsvpButton(response: .declined,
+                               label: "Decline",
+                               icon: "xmark",
+                               isCurrentResponse: meeting.responseStatus == .declined) {
+                        onRsvp(.declined)
+                    }
                 }
             } else {
                 deleteButton
@@ -830,23 +856,6 @@ private struct ConflictMeetingRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Brand.bgDarker)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func rsvpButton(_ response: MeetingResponse, label: String, icon: String) -> some View {
-        Button {
-            onRsvp(response)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.subheadline.weight(.semibold))
-                Text(label).font(.subheadline.weight(.medium))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(meeting.responseStatus == response ? Brand.accent.opacity(0.25) : Brand.bg)
-            .foregroundStyle(.white)
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     private var deleteButton: some View {
@@ -864,14 +873,6 @@ private struct ConflictMeetingRow: View {
         .buttonStyle(.plain)
     }
 
-    private var respondedLabel: String? {
-        switch meeting.responseStatus {
-        case .accepted: return "Accepted"
-        case .tentativelyAccepted: return "Tentative"
-        case .declined: return "Declined"
-        case .organizer, .none, .notResponded: return nil
-        }
-    }
 }
 
 private struct LaterMeetingRow: View {

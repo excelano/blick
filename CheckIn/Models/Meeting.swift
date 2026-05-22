@@ -66,4 +66,15 @@ enum MeetingResponse: String, Codable {
         case .notResponded, .accepted, .tentativelyAccepted, .declined: return true
         }
     }
+
+    /// Short pill label for the actioned states. Nil for states that
+    /// shouldn't surface as a "you replied" hint.
+    var displayLabel: String? {
+        switch self {
+        case .accepted: return "Accepted"
+        case .tentativelyAccepted: return "Tentative"
+        case .declined: return "Declined"
+        case .organizer, .none, .notResponded: return nil
+        }
+    }
 }
