@@ -1,7 +1,5 @@
 // RelativeTime.swift
 // CheckIn
-// Port of Go relativeTime() and untilTime() from nursery/checkin/display.go
-//
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 

@@ -6,19 +6,12 @@
 import SwiftUI
 import UIKit
 
-/// The single main screen. Numbered list of meeting / emails / chats with
-/// per-row taps and swipes wired to `InboxActions`. When the voice
-/// toggle is on, a microphone button is shown for visual chrome — tapping
-/// it cycles the local `isMicActive` flag and shows a listening indicator,
-/// but no recognizer runs. Voice plumbing is gone; the mic is a placeholder
-/// for the future voice surface.
+/// The single main screen. List of next meeting / emails / chats with
+/// per-row taps and swipes wired to `InboxActions`.
 struct SummaryView: View {
     var stateMachine: StateMachine
     var authService: AuthService
     var inboxActions: InboxActions
-
-    @AppStorage(AppStorageKey.voiceEnabled) private var voiceEnabled: Bool = true
-    @State private var isMicActive: Bool = false
 
     var body: some View {
         ZStack {
@@ -28,7 +21,6 @@ struct SummaryView: View {
                 topBar
                 summaryContent
                 Spacer()
-                voiceArea
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
@@ -41,8 +33,6 @@ struct SummaryView: View {
             SettingsView(authService: authService, stateMachine: stateMachine)
         }
     }
-
-    // MARK: - Top bar
 
     private var topBar: some View {
         HStack {
@@ -76,8 +66,6 @@ struct SummaryView: View {
         }
         .padding(.top, 8)
     }
-
-    // MARK: - Summary content
 
     @ViewBuilder
     private var summaryContent: some View {
@@ -176,8 +164,6 @@ struct SummaryView: View {
         }
     }
 
-    // MARK: - Tap actions
-
     private func joinOrCalendar(_ meeting: Meeting) {
         if let urlString = meeting.joinUrl,
            let url = DeepLinkService.passthrough(urlString) {
@@ -241,38 +227,6 @@ struct SummaryView: View {
         .padding(.vertical, 60)
     }
 
-    // MARK: - Voice area (placeholder)
-
-    @ViewBuilder
-    private var voiceArea: some View {
-        if voiceEnabled {
-            VStack(spacing: 14) {
-                if isMicActive {
-                    ListeningIndicator()
-                }
-                micButton
-            }
-        }
-    }
-
-    private var micButton: some View {
-        Button {
-            isMicActive.toggle()
-        } label: {
-            Image(systemName: isMicActive ? "stop.fill" : "mic.fill")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 76, height: 76)
-                .background(Brand.accent)
-                .clipShape(Circle())
-                .shadow(color: Brand.accent.opacity(0.3), radius: 12)
-        }
-        .accessibilityLabel(isMicActive ? "Stop listening" : "Microphone")
-        .accessibilityHint("Voice commands are not wired up yet")
-    }
-
-    // MARK: - Actions
-
     private func openHelp() {
         guard case .active = stateMachine.currentState else { return }
         stateMachine.transition(to: .active(.helpDisplayed))
@@ -287,8 +241,6 @@ struct SummaryView: View {
         guard let url, UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
     }
-
-    // MARK: - Sheet bindings
 
     private var helpBinding: Binding<Bool> {
         Binding(
@@ -322,8 +274,6 @@ struct SummaryView: View {
         )
     }
 }
-
-// MARK: - Sub-views
 
 private struct MeetingCard: View {
     let meeting: Meeting

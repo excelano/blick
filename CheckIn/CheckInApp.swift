@@ -34,7 +34,6 @@ struct CheckInApp: App {
                         stateMachine: stateMachine,
                         inboxActions: inboxActions)
                 .onOpenURL { url in
-                    // Pass the MSAL redirect callback URL back to MSAL.
                     MSALPublicClientApplication.handleMSALResponse(
                         url, sourceApplication: nil
                     )

@@ -21,8 +21,6 @@ final class AuthService {
         checkExistingAccount()
     }
 
-    // MARK: - Configuration
-
     private func configureMSAL() {
         guard let authorityURL = URL(string: Constants.authority) else {
             configurationError = AuthError.invalidAuthority
@@ -58,8 +56,6 @@ final class AuthService {
         }
     }
 
-    // MARK: - Sign In (interactive browser flow)
-
     func signIn(enableTeams: Bool) async throws -> String {
         guard let msalApp else {
             throw configurationError ?? AuthError.notConfigured
@@ -67,7 +63,6 @@ final class AuthService {
 
         let scopes = Constants.scopes(enableTeams: enableTeams)
 
-        // Get the root view controller for presenting the auth browser
         let viewController: UIViewController = try await MainActor.run {
             guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                   let vc = scene.keyWindow?.rootViewController else {
@@ -108,8 +103,6 @@ final class AuthService {
             || description.contains("admin approval")
     }
 
-    // MARK: - Silent Token Refresh
-
     func acquireTokenSilently(enableTeams: Bool) async throws -> String {
         guard let msalApp, let account = currentAccount else {
             throw AuthError.notAuthenticated
@@ -128,8 +121,6 @@ final class AuthService {
         }
     }
 
-    // MARK: - Sign Out
-
     func signOut() {
         guard let msalApp, let account = currentAccount else { return }
 
@@ -146,8 +137,6 @@ final class AuthService {
         isAuthenticated = false
     }
 }
-
-// MARK: - Errors
 
 enum AuthError: LocalizedError {
     case notConfigured
