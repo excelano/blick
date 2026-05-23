@@ -27,9 +27,14 @@ struct PresenceMenu: View {
                 Label("Reset to auto", systemImage: "arrow.counterclockwise")
             }
         } label: {
-            presenceGlyph(presence)
-                .font(.title2)
-                .frame(width: 44, height: 44)
+            ZStack {
+                // Invisible text reserves the count-pill's vertical
+                // footprint, so the chats section header doesn't grow
+                // taller than the email section header.
+                Text("0").opacity(0)
+                presenceGlyph(presence)
+            }
+            .font(.subheadline.weight(.semibold))
         }
         .accessibilityLabel("Teams presence: \(presence.displayName)")
         .accessibilityHint("Change your presence")

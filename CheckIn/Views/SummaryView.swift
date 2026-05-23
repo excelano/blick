@@ -101,9 +101,6 @@ struct SummaryView: View {
                 .foregroundStyle(.white)
 
             HStack {
-                PresenceMenu(presence: inbox.currentPresence) { selection in
-                    Task { await inbox.setPresence(selection) }
-                }
                 Spacer()
                 Button {
                     showSettings = true
@@ -183,22 +180,23 @@ struct SummaryView: View {
                     sectionHeader(title: "Later today", count: summary.laterToday.count)
                 }
             }
-            if !summary.chats.isEmpty {
-                Section {
-                    ForEach(summary.chats) { chat in
-                        ChatRow(chat: chat, onTap: { openChat(chat) })
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            Section {
+                ForEach(summary.chats) { chat in
+                    ChatRow(chat: chat, onTap: { openChat(chat) })
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                }
+            } header: {
+                sectionHeader(title: "Chats", count: summary.chats.count) {
+                    PresenceMenu(presence: inbox.currentPresence) { selection in
+                        Task { await inbox.setPresence(selection) }
                     }
-                } header: {
-                    sectionHeader(title: "Chats", count: summary.chats.count)
                 }
             }
-            if !summary.emails.isEmpty {
-                let extras = summary.totalUnreadEmails - summary.emails.count
-                Section {
-                    ForEach(summary.emails) { email in
+            let extras = summary.totalUnreadEmails - summary.emails.count
+            Section {
+                ForEach(summary.emails) { email in
                         let senderCount = email.fromAddress.isEmpty
                             ? 0
                             : senderCounts[email.fromAddress, default: 0]
@@ -301,7 +299,6 @@ struct SummaryView: View {
                         }
                     )
                 }
-            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -351,6 +348,7 @@ struct SummaryView: View {
             Spacer()
             trailing()
         }
+        .transaction { $0.animation = nil }
     }
 
     @ViewBuilder
