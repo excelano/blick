@@ -141,14 +141,7 @@ struct SummaryView: View {
     @ViewBuilder
     private var summaryContent: some View {
         if let summary = inbox.summary {
-            if summary.meeting == nil
-                && summary.laterToday.isEmpty
-                && summary.emails.isEmpty
-                && summary.chats.isEmpty {
-                emptyDayScrollable
-            } else {
-                itemsList(summary: summary)
-            }
+            itemsList(summary: summary)
         } else {
             notFetchedState
         }
@@ -203,6 +196,12 @@ struct SummaryView: View {
                 }
             }
             Section {
+                if summary.chats.isEmpty {
+                    emptyStateButton(label: "Mark today's chats unread",
+                                     icon: "bubble.left.fill") {
+                        Task { await inbox.markTodayChatsUnread() }
+                    }
+                }
                 ForEach(summary.chats) { chat in
                     ChatRow(chat: chat, onTap: {
                         #if DEBUG
@@ -219,6 +218,11 @@ struct SummaryView: View {
                                     previewTarget = .chat(chat, openComposer: true)
                                 } label: {
                                     Label("Reply", systemImage: "arrowshape.turn.up.left")
+                                }
+                                Button {
+                                    Task { await inbox.markChatRead(chat) }
+                                } label: {
+                                    Label("Mark read", systemImage: "checkmark.bubble")
                                 }
                             }
                             if chat.webUrl != nil {
@@ -263,6 +267,12 @@ struct SummaryView: View {
             }
             let extras = summary.totalUnreadEmails - summary.emails.count
             Section {
+                if summary.emails.isEmpty {
+                    emptyStateButton(label: "Mark today's emails unread",
+                                     icon: "envelope.badge") {
+                        Task { await inbox.markTodayUnread() }
+                    }
+                }
                 ForEach(summary.emails) { email in
                         let senderCount = email.fromAddress.isEmpty
                             ? 0
@@ -385,12 +395,25 @@ struct SummaryView: View {
         .refreshable { await inbox.refresh() }
     }
 
-    private var emptyDayScrollable: some View {
-        ScrollView {
-            emptyDayState
-                .padding(.top, 60)
+/// Inline action shown inside a section when there are no rows to
+    /// display. Subtle styling (muted text, footnote font) so the empty
+    /// state doesn't shout louder than the populated state.
+    private func emptyStateButton(label: String,
+                                  icon: String,
+                                  action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(label, systemImage: icon)
+                .font(.footnote)
+                .foregroundStyle(Brand.textMuted)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
-        .refreshable { await inbox.refresh() }
+        .buttonStyle(.plain)
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
     }
 
     private func sectionHeader(title: String, count: Int) -> some View {
@@ -544,24 +567,7 @@ struct SummaryView: View {
         }
     }
 
-    private var emptyDayState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "checkmark.circle")
-                .font(.largeTitle)
-                .foregroundStyle(Brand.accent)
-            Text("Nothing pending.")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-            Text("No meetings in the next 24 hours, no pending chats, no unread emails.")
-                .font(.callout)
-                .foregroundStyle(Brand.textMuted)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
-    }
-
-    private func deepLink(_ url: URL?) {
+private func deepLink(_ url: URL?) {
         guard let url, UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)
     }

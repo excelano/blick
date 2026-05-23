@@ -13,6 +13,14 @@ final class AuthService {
     private(set) var configurationError: Error?
     private var msalApp: MSALPublicClientApplication?
     private var currentAccount: MSALAccount?
+
+    /// Home-tenant ID of the signed-in account. Needed for the Teams
+    /// chat-level mutations (`markChatReadForUser` /
+    /// `markChatUnreadForUser`) which require a `teamworkUserIdentity`
+    /// with both id and tenantId in the body.
+    var homeTenantId: String? {
+        currentAccount?.homeAccountId?.tenantId
+    }
     /// Invoked when the signed-in account is removed so dependent
     /// services (Inbox, GraphClient) can drop their cached user state.
     /// Set by the App layer at construction.

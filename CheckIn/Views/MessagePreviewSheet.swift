@@ -195,11 +195,11 @@ struct MessagePreviewSheet: View {
     @ViewBuilder
     private var actionBar: some View {
         HStack(spacing: 12) {
-            if case .email = target.kind {
+            if canMarkUnread {
                 Button {
                     Task { await markUnreadAndDismiss() }
                 } label: {
-                    Label("Mark unread", systemImage: "envelope.badge")
+                    Label("Mark unread", systemImage: markUnreadSymbol)
                         .font(.subheadline.weight(.medium))
                 }
                 .buttonStyle(.plain)
@@ -219,6 +219,23 @@ struct MessagePreviewSheet: View {
             }
             .buttonStyle(.plain)
             .disabled(!canReply)
+        }
+    }
+
+    /// Email always offers Mark Unread (we auto-marked it on open).
+    /// Chat offers it only when we have a `chatId` to address the
+    /// Graph mutation. The same auto-mark-on-open logic applies.
+    private var canMarkUnread: Bool {
+        switch target.kind {
+        case .email: return true
+        case .chat(let chat): return chat.chatId != nil
+        }
+    }
+
+    private var markUnreadSymbol: String {
+        switch target.kind {
+        case .email: return "envelope.badge"
+        case .chat: return "bubble.left.fill"
         }
     }
 
@@ -273,16 +290,29 @@ struct MessagePreviewSheet: View {
     }
 
     private func autoMarkReadIfNeeded() async {
-        guard case .email(let email) = target.kind,
-              !didAutoMarkRead,
-              emailBody != nil else { return }
-        didAutoMarkRead = true
-        await inbox.markRead(emailId: email.id)
+        guard !didAutoMarkRead else { return }
+        switch target.kind {
+        case .email(let email):
+            // Email body has to load before we mark read — otherwise a
+            // fetch failure would silently mark unread emails as read.
+            guard emailBody != nil else { return }
+            didAutoMarkRead = true
+            await inbox.markRead(emailId: email.id)
+        case .chat(let chat):
+            // Chat preview body is preloaded with the summary, so no
+            // fetch gate — opening the sheet implies the user saw it.
+            guard chat.chatId != nil else { return }
+            didAutoMarkRead = true
+            await inbox.markChatRead(chat)
+        }
     }
 
     private func markUnreadAndDismiss() async {
-        if case .email(let email) = target.kind {
+        switch target.kind {
+        case .email(let email):
             await inbox.markUnread(email)
+        case .chat(let chat):
+            await inbox.markChatUnread(chat)
         }
         dismiss()
     }

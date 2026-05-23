@@ -39,6 +39,7 @@ final class Inbox {
     private(set) var currentPresence: TeamsPresence = .unknown
 
     private let graphClient: GraphClient
+    private let authService: AuthService
     private let teamsEnabled: Bool
     private let meetingNotifications = MeetingNotifications()
     private var didFetchUserID = false
@@ -50,8 +51,9 @@ final class Inbox {
 
     @ObservationIgnored private let logger = Logger(subsystem: "com.excelano.checkin", category: "inbox")
 
-    init(graphClient: GraphClient, teamsEnabled: Bool) {
+    init(graphClient: GraphClient, authService: AuthService, teamsEnabled: Bool) {
         self.graphClient = graphClient
+        self.authService = authService
         self.teamsEnabled = teamsEnabled
         self.showingAllEmails = UserDefaults.standard.bool(forKey: AppStorageKey.showingAllEmails)
     }
@@ -662,6 +664,109 @@ final class Inbox {
         if let idx = summary?.chats.firstIndex(where: { $0.chatId == chatId }) {
             summary?.chats.remove(at: idx)
             await updateAppBadge()
+        }
+    }
+
+    /// Mark a Teams chat as read for the signed-in user. Optimistically
+    /// drops the chat from the summary. Requires the chat to have a
+    /// `chatId` (set by `pendingChats`); otherwise no-op. Mirrors the
+    /// email `markRead` shape — no undo banner (the Mark Unread button
+    /// on the preview sheet covers the recovery path).
+    func markChatRead(_ chat: ChatMessage) async {
+        guard let chatId = chat.chatId else { return }
+        let userId = graphClient.currentUserID
+        guard let tenantId = authService.homeTenantId, !tenantId.isEmpty, !userId.isEmpty else {
+            logger.error("markChatRead: missing userId or tenantId")
+            return
+        }
+        let removedIdx = summary?.chats.firstIndex(where: { $0.chatId == chatId })
+        if let idx = removedIdx {
+            summary?.chats.remove(at: idx)
+            await updateAppBadge()
+        }
+        do {
+            try await graphClient.markChatRead(chatId: chatId, userId: userId, tenantId: tenantId)
+        } catch {
+            logger.error("markChatRead failed: \(error.localizedDescription, privacy: .public)")
+            // Restore the row on failure.
+            if removedIdx != nil, summary?.chats.contains(where: { $0.chatId == chatId }) == false {
+                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
+                    ?? summary?.chats.count ?? 0
+                summary?.chats.insert(chat, at: insertAt)
+                await updateAppBadge()
+            }
+        }
+    }
+
+    /// Flip every read chat with a message from today back to unread,
+    /// so a day's chat activity that got cleared elsewhere (Teams
+    /// desktop, another mobile client) shows up in CheckIn again.
+    /// Refreshes the summary and registers an undo. No Graph batch
+    /// endpoint for chats, so this is a client-side loop.
+    func markTodayChatsUnread() async {
+        let userId = graphClient.currentUserID
+        guard let tenantId = authService.homeTenantId, !tenantId.isEmpty, !userId.isEmpty else {
+            logger.error("markTodayChatsUnread: missing userId or tenantId")
+            return
+        }
+        do {
+            let ids = try await graphClient.idsOfReadChatsToday()
+            guard !ids.isEmpty else { return }
+            for id in ids {
+                try? await graphClient.markChatUnread(chatId: id, userId: userId, tenantId: tenantId)
+            }
+            await refreshChats()
+            await updateAppBadge()
+            setPendingUndo(UndoableBulkAction(
+                summary: "Marked \(ids.count) chat\(ids.count == 1 ? "" : "s") unread",
+                undo: { [weak self] in
+                    guard let self else { return }
+                    for id in ids {
+                        try? await self.graphClient.markChatRead(chatId: id, userId: userId, tenantId: tenantId)
+                    }
+                    await self.refreshChats()
+                    await self.updateAppBadge()
+                }
+            ))
+        } catch {
+            logger.error("markTodayChatsUnread failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Re-fetch the pending-chats list and slot it back into the
+    /// summary. Used after bulk read-state mutations so the visible
+    /// list reflects the new server-side viewpoint.
+    private func refreshChats() async {
+        guard teamsEnabled else { return }
+        do {
+            let chats = try await graphClient.pendingChats()
+            summary?.chats = chats
+        } catch {
+            logger.error("refreshChats failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Mark a Teams chat as unread for the signed-in user. Re-inserts
+    /// the chat into the visible list in sent-time order so the user
+    /// sees the action immediately. Same shape as the email
+    /// `markUnread` recovery path.
+    func markChatUnread(_ chat: ChatMessage) async {
+        guard let chatId = chat.chatId else { return }
+        let userId = graphClient.currentUserID
+        guard let tenantId = authService.homeTenantId, !tenantId.isEmpty, !userId.isEmpty else {
+            logger.error("markChatUnread: missing userId or tenantId")
+            return
+        }
+        do {
+            try await graphClient.markChatUnread(chatId: chatId, userId: userId, tenantId: tenantId)
+            if summary?.chats.contains(where: { $0.chatId == chatId }) == false {
+                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
+                    ?? summary?.chats.count ?? 0
+                summary?.chats.insert(chat, at: insertAt)
+                await updateAppBadge()
+            }
+        } catch {
+            logger.error("markChatUnread failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

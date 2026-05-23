@@ -18,7 +18,7 @@ struct CheckInApp: App {
     init() {
         let auth = AuthService()
         let graph = GraphClient(authService: auth, enableTeams: Constants.teamsEnabled)
-        let inbox = Inbox(graphClient: graph, teamsEnabled: Constants.teamsEnabled)
+        let inbox = Inbox(graphClient: graph, authService: auth, teamsEnabled: Constants.teamsEnabled)
         // Wire the sign-out hook before exposing the AuthService — when
         // the user signs out (potentially to switch to a different
         // account), Inbox drops its summary and the cached user id so

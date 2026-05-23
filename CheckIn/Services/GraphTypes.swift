@@ -121,12 +121,47 @@ struct ChatMessageSendContent: Encodable {
     let content: String
 }
 
+/// POST body for `/chats/{id}/markChatReadForUser`. The user identity
+/// requires both id and tenantId — tenantId comes from MSAL's
+/// homeAccountId, id from /me.
+struct MarkChatReadBody: Encodable {
+    let user: TeamworkUserIdentityBody
+}
+
+/// POST body for `/chats/{id}/markChatUnreadForUser`. Per Graph docs,
+/// when `lastMessageReadDateTime` is omitted the API defaults to
+/// "mark the last message unread" — which is exactly what we want
+/// here, so we just don't send the field. Avoids the trap of Graph
+/// rejecting out-of-range timestamps (1970 etc.) for that parameter.
+struct MarkChatUnreadBody: Encodable {
+    let user: TeamworkUserIdentityBody
+}
+
+struct TeamworkUserIdentityBody: Encodable {
+    let id: String
+    let tenantId: String
+}
+
 struct ChatResponse: Decodable {
     let id: String
     let topic: String?
     let webUrl: String?
     let lastMessagePreview: ChatPreviewResponse?
     let members: [ChatMemberResponse]?
+    /// Per-user state for this chat. `lastMessageReadDateTime` is the
+    /// signal we use to decide whether a chat has unread activity:
+    /// unread iff `lastMessagePreview.createdDateTime` is newer.
+    /// `isHidden` reflects the user hiding the chat in Teams; we honor
+    /// that and skip hidden chats entirely.
+    let viewpoint: ChatViewpointResponse?
+}
+
+struct ChatViewpointResponse: Decodable {
+    let isHidden: Bool?
+    /// ISO8601. `"0001-01-01T00:00:00Z"` for chats the user has never
+    /// opened — the comparison still works because that date is older
+    /// than any real `createdDateTime`.
+    let lastMessageReadDateTime: String?
 }
 
 struct ChatMemberResponse: Decodable {

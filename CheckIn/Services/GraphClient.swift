@@ -43,6 +43,11 @@ final class GraphClient {
         return String(userMail[userMail.index(after: atIdx)...]).lowercased()
     }
 
+    /// Graph user id of the signed-in account. Empty until `fetchUserID`
+    /// runs. Exposed for callers (Inbox) that need to assemble a
+    /// `teamworkUserIdentity` body — see `markChatRead` / `markChatUnread`.
+    var currentUserID: String { userID }
+
     /// Fetch today's remaining meetings using calendarView (not /events,
     /// so recurring meetings are properly expanded). Returns the next
     /// meeting plus the rest of today's attendable meetings, ordered by
@@ -350,6 +355,64 @@ final class GraphClient {
         )
     }
 
+    /// Mark a chat as read for the signed-in user — advances the
+    /// per-user `viewpoint.lastMessageReadDateTime`, which is what we
+    /// now key the chat-list filter off. Chat.ReadWrite required.
+    func markChatRead(chatId: String, userId: String, tenantId: String) async throws {
+        try await post(
+            "/chats/\(chatId)/markChatReadForUser",
+            body: MarkChatReadBody(
+                user: TeamworkUserIdentityBody(id: userId, tenantId: tenantId)
+            )
+        )
+    }
+
+    /// Mark a chat as unread for the signed-in user. Setting
+    /// `lastMessageReadDateTime` to a distant past timestamp marks the
+    /// whole chat unread (Graph's filter then treats the latest message
+    /// as newer than the read mark). Chat.ReadWrite required.
+    func markChatUnread(chatId: String, userId: String, tenantId: String) async throws {
+        try await post(
+            "/chats/\(chatId)/markChatUnreadForUser",
+            body: MarkChatUnreadBody(
+                user: TeamworkUserIdentityBody(id: userId, tenantId: tenantId)
+            )
+        )
+    }
+
+    /// Chat ids whose last message arrived within today (local midnight
+    /// to tomorrow's local midnight) and are currently read for the
+    /// signed-in user. Drives the "Mark today's chats unread" empty-
+    /// state action. Filtering is client-side because Graph doesn't
+    /// expose `viewpoint.lastMessageReadDateTime` as a $filter field.
+    func idsOfReadChatsToday() async throws -> [String] {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: Date())
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? Date()
+
+        let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
+            "$select": "id,lastMessagePreview,viewpoint",
+            "$expand": "lastMessagePreview",
+            "$top": "50"
+        ])
+
+        var ids: [String] = []
+        for chat in data.value {
+            if chat.viewpoint?.isHidden == true { continue }
+            guard let preview = chat.lastMessagePreview else { continue }
+            guard preview.messageType.isEmpty || preview.messageType == "message" else { continue }
+            guard let created = parseISO8601(preview.createdDateTime),
+                  created >= todayStart, created < tomorrowStart else { continue }
+            let lastRead = (chat.viewpoint?.lastMessageReadDateTime)
+                .flatMap(parseISO8601) ?? .distantPast
+            // Already-read chats only — pulling an unread one back to
+            // unread is a no-op and just wastes a round-trip.
+            guard lastRead >= created else { continue }
+            ids.append(chat.id)
+        }
+        return ids
+    }
+
     /// Mail.ReadWrite required. Idempotent.
     func flagEmail(id: String) async throws {
         try await patch("/me/messages/\(id)",
@@ -440,10 +503,30 @@ final class GraphClient {
         return failed
     }
 
-    /// Fetch pending chats: chats where someone else sent the last message within 24 hours.
+    /// Fetch chats with unread activity. "Unread" here uses Graph's
+    /// per-user `viewpoint.lastMessageReadDateTime`: a chat is unread
+    /// when the last message's `createdDateTime` is newer than the
+    /// user's last-read timestamp. This replaces the older heuristic of
+    /// "the last message wasn't from me" (which was a workaround from
+    /// when Graph didn't expose read state for chats).
+    ///
+    /// Additional filters:
+    /// - Skip chats the user hid in Teams (`viewpoint.isHidden`).
+    /// - Skip messages older than 24h so the list stays focused on
+    ///   recent activity (an unread message from last week shouldn't
+    ///   linger forever in the panel).
+    /// - Skip non-message events (joins, leaves, renames).
+    ///
+    /// We intentionally do NOT skip chats where the last message is
+    /// from the signed-in user — Teams reliably advances
+    /// `lastMessageReadDateTime` on send, so the viewpoint check
+    /// already handles that case. Adding a `from.id == userID` skip
+    /// here would fight against the "Mark today's chats unread" bulk
+    /// action (which flips viewpoint back to unread; the explicit
+    /// skip would re-hide those chats).
     func pendingChats() async throws -> [ChatMessage] {
         let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
-            "$select": "id,topic,webUrl,lastMessagePreview",
+            "$select": "id,topic,webUrl,lastMessagePreview,viewpoint",
             "$expand": "lastMessagePreview,members",
             "$top": "50"
         ])
@@ -452,14 +535,22 @@ final class GraphClient {
         var messages: [ChatMessage] = []
 
         for chat in data.value {
+            if chat.viewpoint?.isHidden == true { continue }
             guard let preview = chat.lastMessagePreview else { continue }
             // Keep regular messages (and the rare empty-string `messageType`)
             // and drop everything else — joins, leaves, renames, etc.
             guard preview.messageType.isEmpty || preview.messageType == "message" else { continue }
             guard let from = preview.from?.user else { continue }
-            if from.id == userID { continue }
             guard let sent = parseISO8601(preview.createdDateTime),
                   sent > cutoff else { continue }
+
+            // The real read-state check. `lastMessageReadDateTime` may be
+            // `"0001-01-01T00:00:00Z"` (never read) — parseISO8601 returns
+            // nil for that in some configurations, so fall back to
+            // `.distantPast`, which is unread vs. any real `sent` date.
+            let lastRead = (chat.viewpoint?.lastMessageReadDateTime)
+                .flatMap(parseISO8601) ?? .distantPast
+            guard sent > lastRead else { continue }
 
             let others: [String] = (chat.members ?? []).compactMap { m in
                 guard let uid = m.userId, let name = m.displayName, !name.isEmpty else { return nil }
