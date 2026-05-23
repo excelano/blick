@@ -371,9 +371,8 @@ final class GraphClient {
                 // is visible without bringing down the rest of the
                 // refresh. The outer summary still renders; just no
                 // RSVP buttons on the affected invites.
-                #if DEBUG
-                print("CHECKIN-DEBUG fetchInviteEvents batch err=\(error)")
-                #endif
+                Logger(subsystem: "com.excelano.checkin", category: "graph")
+                    .error("fetchInviteEvents batch failed: \(error.localizedDescription, privacy: .public)")
             }
         }
         return result

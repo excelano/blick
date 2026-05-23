@@ -162,7 +162,7 @@ final class Inbox {
                                  chats: chats,
                                  totalUnreadEmails: emailsResult.totalCount)
         inviteMeetings = emailsResult.inviteMeetings
-        conflictReferenceMeetings = await fetchConflictReferenceMeetings()
+        conflictReferenceMeetings = await fetchConflictReferenceMeetings(for: Array(inviteMeetings.values))
         recomputeConflicts()
         let (fetchedPresence, fetchedMessage) = await presenceT
         currentPresence = fetchedPresence
@@ -866,9 +866,7 @@ final class Inbox {
             }
             summary?.laterToday = later
         }
-        for (key, cached) in inviteMeetings {
-            inviteMeetings[key] = cached.with(hasConflict: overlapsAny(cached, in: pool))
-        }
+        inviteMeetings = inviteMeetings.mapValues { $0.with(hasConflict: overlapsAny($0, in: pool)) }
     }
 
     private func overlapsAny(_ m: Meeting, in all: [Meeting]) -> Bool {
@@ -1028,13 +1026,12 @@ final class Inbox {
     }
 
     /// Best-effort. Fetch calendar events overlapping the date range
-    /// spanned by the current Phase 2 invite cache, so conflict
-    /// detection can include plain calendar events the user already
-    /// has on their schedule. Returns an empty pool on failure (no
-    /// banner; this is purely a UX enhancement on top of the visible
-    /// surfaces). Skipped when the invite cache is empty.
-    private func fetchConflictReferenceMeetings() async -> [Meeting] {
-        let invites = Array(inviteMeetings.values)
+    /// spanned by the supplied invites, so conflict detection can
+    /// include plain calendar events the user already has on their
+    /// schedule. Returns an empty pool on failure (no banner; this is
+    /// purely a UX enhancement on top of the visible surfaces).
+    /// Skipped when there are no invites.
+    private func fetchConflictReferenceMeetings(for invites: [Meeting]) async -> [Meeting] {
         guard !invites.isEmpty,
               let earliest = invites.map(\.start).min(),
               let latest = invites.map(\.end).max() else { return [] }
