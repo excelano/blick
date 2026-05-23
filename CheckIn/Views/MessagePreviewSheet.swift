@@ -109,12 +109,21 @@ struct MessagePreviewSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider().overlay(Brand.bgDarker)
-            if let meeting = matchingMeeting,
-               meeting.responseStatus == .notResponded {
-                rsvpRow(for: meeting)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 4)
+            if let meeting = matchingMeeting {
+                switch meeting.responseStatus {
+                case .notResponded:
+                    rsvpRow(for: meeting)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
+                case .accepted, .tentativelyAccepted, .declined:
+                    respondedPill(for: meeting)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
+                case .none, .organizer:
+                    EmptyView()
+                }
             }
             actionBar
                 .padding(.horizontal, 20)
@@ -150,6 +159,25 @@ struct MessagePreviewSheet: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Open conflict resolution")
+            }
+        }
+    }
+
+    /// Non-interactive status pill shown in place of the RSVP buttons
+    /// when the user has already responded. Mirrors `EmailRow`'s
+    /// responded pill so both surfaces convey the same state.
+    @ViewBuilder
+    private func respondedPill(for meeting: Meeting) -> some View {
+        if let label = meeting.responseStatus.displayLabel {
+            HStack {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Brand.textMuted)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Brand.bgDarker)
+                    .clipShape(Capsule())
+                Spacer()
             }
         }
     }

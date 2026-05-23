@@ -2,49 +2,112 @@
 
 What a user can do, mapped to the entry point in the UI.
 
+## App lifecycle & global
+
 | Function | Triggered by |
 |---|---|
 | Sign in with Microsoft 365 | "Sign In with Microsoft" button on launch when signed out |
 | Sign out | Settings sheet → Sign Out (with confirm dialog; the section is hidden when not signed in) |
-| Refresh inbox (meeting, chats, emails) | Pull-to-refresh on the list or empty-day state. Also auto-refreshes when the app returns to the foreground (skipped if a refresh finished within the last 30 seconds). |
-| Background refresh of inbox while the app is closed | iOS `BGAppRefreshTask` scheduled every time the app goes to the background, with a 30-min minimum interval. Actual cadence is at the OS's discretion (typically 15-60 min during active hours, less when quiet). Disabled by iOS if you force-quit from the app switcher until the next launch. |
-| App-icon badge showing pending items | iOS app-icon badge updated to `unread emails + pending chats` after every refresh and after every local mark-read / delete. Meetings are intentionally excluded — they're scheduled, not items to triage. Requests notification permission (`.badge` only) on first use; silently no-ops if denied. |
-| See when a refresh failed | Orange warning banner ("Couldn't reach Microsoft — pull to retry") appears between the top bar and the content when any Graph call in the last refresh hit an error. Cleared automatically by the next successful refresh. Covers full refreshes, the show-all toggle's refetch, and the mark-all-read top-up. Detailed errors still go to `os.Logger` for diagnostics. |
+| Refresh inbox (meeting, chats, emails) | Pull-to-refresh on the summary list. Also auto-refreshes when the app returns to the foreground (skipped if a refresh finished within the last 30 seconds). |
+| Background refresh while the app is closed | iOS `BGAppRefreshTask` scheduled every time the app goes to the background, with a 30-min minimum interval. Actual cadence is at the OS's discretion (typically 15-60 min during active hours, less when quiet). Disabled by iOS if you force-quit from the app switcher until the next launch. |
+| App-icon badge showing pending items | iOS app-icon badge updated to `unread emails + pending chats` after every refresh and after every local mark-read. Meetings are intentionally excluded — they're scheduled, not items to triage. Requests notification permission (`.badge` only) on first use; silently no-ops if denied. |
+| See when a refresh failed | Orange warning banner ("Couldn't reach Microsoft — pull to retry") appears between the top bar and the content when any Graph call in the last refresh hit an error. Cleared automatically by the next successful refresh. Detailed errors still go to `os.Logger` for diagnostics. |
+
+## Meetings
+
+| Function | Triggered by |
+|---|---|
 | See next meeting in the next 24 hours | Top of the list when one exists; cancelled events and events you've declined are skipped |
-| See the rest of today's meetings | "Later today" section between the next-meeting card and the Chats section, showing each remaining meeting as a compact row (time of day + subject). Same cancelled/declined skip. Tap a row to join in Teams (falls back to Outlook Calendar). Window ends at start of tomorrow local time, so we don't bleed into tomorrow. |
-| See a conflict warning when the next meeting overlaps another | Orange triangle + "Overlaps another meeting" line on the meeting card. Computed across the same 10-event window we fetch; back-to-back meetings (one ending exactly when the next starts) don't count. |
-| Highlight when the next meeting is starting soon | When the meeting starts within the next 3 minutes, the time label flips from the usual cyan "in N min" to orange "Starting soon". In-progress meetings continue to show "now" in cyan — they're not urgent in the same way. Refreshes when the view re-renders (foreground transition or pull-to-refresh). |
-| Join that meeting in Teams | Tap the meeting card (falls back to Outlook Calendar if no Teams join URL) |
-| Open Outlook Calendar | Tap a non-Teams meeting card |
-| RSVP to a meeting (Accept / Maybe / Decline) | Three buttons under the meeting info, visible when you haven't responded; optimistic update, POSTs to Graph with sendResponse=true |
-| See your current RSVP state on a responded meeting | Pill ("Accepted", "Tentative", "Declined") under the meeting info, in place of the buttons |
-| Auto-mark matching invite emails read after RSVP | After a successful RSVP, unread emails whose subject matches the meeting subject (or "Updated: ..." / "Cancelled: ...") are marked read |
-| See up to 20 newest unread emails | Email section |
+| See the rest of today's meetings | "Later today" section between the next-meeting card and the Chats section, showing each remaining meeting as a compact row (time of day + subject). Same cancelled/declined skip. Tap a row to join in Teams. Window ends at start of tomorrow local time. |
+| Join a meeting in Teams | Tap the meeting card (for the next meeting) or a "Later today" row (uses Graph's `onlineMeeting.joinUrl`; rewritten to `msteams:/` so iOS routes directly to the Teams app) |
+| Highlight when the next meeting is starting soon | When the meeting starts within the next 3 minutes, the time label flips from the usual cyan "in N min" to orange "Starting soon". In-progress meetings continue to show "now" in cyan. |
+| See a conflict warning when a meeting overlaps another | Orange triangle on the meeting card, on "Later today" rows, AND on the matching invite email's subject line. Computed across the same 10-event window we fetch; back-to-back meetings (one ending exactly when the next starts) don't count. |
+| Resolve a meeting conflict | Tap the orange triangle on any of: the meeting card, a "Later today" row, an invite-email row, or an invite preview sheet. Opens a conflict-resolution sheet that lists the overlapping meetings and lets you Accept / Maybe / Decline each. |
+| RSVP to a meeting (Accept / Maybe / Decline) | Three buttons under the meeting info on the calendar card OR under the meeting info on an invite-email row OR in the preview sheet for an invite email — all three surfaces feed the same Graph endpoint and stay in sync. Optimistic update, POSTs to Graph with `sendResponse=true`. |
+| See your current RSVP state | "Accepted" / "Tentative" / "Declined" pill in place of the RSVP buttons on whichever surface you're looking at (calendar card, invite-email row, invite preview sheet). |
+| Auto-mark matching invite emails read after RSVP | After a successful RSVP from any surface, unread emails whose subject matches the meeting subject (or "Updated: ..." / "Cancelled: ...", or organizer + meetingMessageType contains-match) are marked read. |
+| See meeting metadata on an invitation email | Calendar icon + "Today at 3:00 PM" / "Tomorrow at 9:30 AM" / "May 26 at 2:00 PM" line on the invite-email row and preview sheet, plus the orange conflict triangle on the subject line when applicable. |
+
+## Notifications
+
+| Function | Triggered by |
+|---|---|
+| Get a notification 1 minute before each meeting | Settings sheet → "Meeting reminders" toggle. Local `UNUserNotification` scheduled per meeting on every refresh. Tap the notification to open the meeting in Teams. |
+
+## Emails
+
+| Function | Triggered by |
+|---|---|
+| See up to 20 newest unread emails (Inbox folder only) | Email section, sorted by received-time desc. Sent items, drafts, and other folders excluded — scoped to `/me/mailFolders/inbox/messages`. |
 | See the count of additional unread beyond the 20 shown | "+ N more unread" inline in the Email section header, next to the count badge, when total unread > 20 |
-| Bulk mark visible emails as read | Email section header → ellipsis pill → "Mark N read". Sends a Graph `$batch` POST (chunked at 20 ops per batch when N > 20); selectively reverts only operations that failed. Tops up from the server if "more unread" remains. |
-| Bulk mark visible "Other" inbox emails as read | Same menu → "Mark N in Other read" (visible only when N > 0). Uses Microsoft's Focused/Other classification from Graph's `inferenceClassification` field. |
-| Bulk mark visible meeting notices as read | Same menu → "Mark N meeting notices read" (visible only when N > 0). Covers `meetingCancelled`, `meetingAccepted`, `meetingTentativelyAccepted`, `meetingDeclined` from Graph's `meetingMessageType` field. Leaves actionable `meetingRequest` invites alone. |
-| Bulk mark visible mailing-list emails as read | Same menu → "Mark N mailing lists read" (visible only when N > 0). Detected by the presence of an RFC 2369 `List-Unsubscribe` header in `internetMessageHeaders`. |
+| Lift the 20-email cap to see everything unread | Email section header → ⋯ menu → "Show all N" (only when there are emails beyond the cap). Persists across launches. Toggle back via "Show top 20". |
+| See each email's sender, subject, and preview | Each row shows sender + relative time, subject, and Graph's `bodyPreview` (up to 4 lines) |
+| See a flag indicator on flagged emails | Orange flag icon next to the sender name |
+| Preview an email | Tap an email row. Opens a sheet with the full message body (plain text via `Prefer: outlook.body-content-type="text"`). Email auto-marks-as-read on open. Body is cleaned via the same stripper used for summary previews (salutations, signatures, quoted replies, etc.). |
+| Mark an email read | Swipe right-to-left on the row, OR auto on preview-sheet open, OR long-press → "Mark read" (optimistic, reverts on failure) |
+| Mark an email back to unread | Preview sheet → "Mark unread" button (re-inserts the row in received-time order; also rolls back the server's read state) |
+| Reply to an email | Preview sheet → "Reply" (swaps in a composer with a TextEditor), OR long-press an email row → "Reply" (opens the preview sheet straight into the composer). Replies default to Reply-all; Graph degrades to reply-to-sender for single-recipient messages. Lands in the user's Outlook Sent Items folder. |
+| Flag / unflag an email | Swipe left-to-right on the row, or long-press → "Flag" / "Unflag" (optimistic, reverts on failure) |
+| Bulk mark visible emails as read | Email section header → ⋯ menu → "Mark read: N visible". Sends a Graph `$batch` POST (chunked at 20 ops per batch when N > 20); selectively reverts only operations that failed. Tops up from the server if "more unread" remains. |
+| Bulk mark visible "Other inbox" emails as read | Same menu → "Mark read: N in Other inbox" (visible only when N > 0). Uses Microsoft's Focused/Other classification from Graph's `inferenceClassification` field. |
+| Bulk mark visible meeting notices as read | Same menu → "Mark read: N meeting notice(s)" (visible only when N > 0). Covers `meetingCancelled`, `meetingAccepted`, `meetingTentativelyAccepted`, `meetingDeclined` from Graph's `meetingMessageType` field. Leaves actionable `meetingRequest` invites alone. |
+| Bulk mark visible mailing-list emails as read | Same menu → "Mark read: N mailing list(s)" (visible only when N > 0). Detected by the presence of an RFC 2369 `List-Unsubscribe` header in `internetMessageHeaders`. |
+| Bulk mark visible external-sender emails as read | Same menu → "Mark read: N external sender(s)" (visible only when N > 0). External = sender's domain doesn't match the signed-in user's mail domain. |
+| Mark all visible from this sender as read | Long-press an email row → "Mark read: N from this sender" (visible only when N > 1; same SMTP address) |
+| Mark all visible with this subject as read | Long-press an email row → "Mark read: N with this subject" (visible only when N > 1). Subjects normalized: Re:/Fwd:/Fw:/Aw:/Sv: prefixes stripped iteratively, case-insensitive. |
 | Bulk flag all unflagged visible emails | Same menu → "Flag N" (visible only when there are unflagged emails). |
 | Bulk unflag all flagged visible emails | Same menu → "Unflag N" (visible only when there are flagged emails). |
-| Lift the 20-email cap to see everything unread | Same menu → "Show all N" (visible only when there are emails beyond the cap). Persists across launches. Toggle back via "Show top 20". |
-| Read each email's sender, subject, and preview | Each row shows sender + relative time, subject, and Graph's bodyPreview (up to 2 lines) |
-| See a flag indicator on flagged emails | Orange flag icon next to the sender name |
-| Reply to an email in Outlook | Tap an email row (opens Outlook compose with `Re: <subject>` to the sender) |
-| Mark an email read | Swipe right-to-left on the row, or long-press → "Mark read" (optimistic, reverts on failure) |
-| Flag / unflag an email | Swipe left-to-right on the row, or long-press → "Flag" / "Unflag" (optimistic, reverts on failure) |
-| Mark all visible from this sender as read | Long-press an email row → "Mark N from this sender read" (visible only when N > 1; same SMTP address) |
-| Mark all visible with this subject as read | Long-press an email row → "Mark N with this subject read" (visible only when N > 1). Subjects are normalized: Re:/Fwd:/Fw:/Aw:/Sv: prefixes stripped iteratively, case-insensitive. |
+| Restore today's emails to unread | Same menu → "Mark unread: today's emails", OR (when the email list is empty) the inline "Mark unread: today's emails" button under the section header. Fetches Inbox messages received between local midnight and now that are currently read, batch-marks them unread, refreshes. Registers an undo. |
 | Copy the sender's email address | Long-press an email row → "Copy sender address". Writes the SMTP address to the system pasteboard. |
-| Delete an email | Long-press an email row → "Delete" (red, last item). Graph moves the message to the user's Deleted Items folder, where it stays recoverable in Outlook for the tenant's retention window. |
-| See pending Teams chats from the last 24 hours where someone else sent the last message | Chats section, above emails |
+| Undo a bulk action | Floating "Undo" banner at the bottom of the screen for 8 seconds after any bulk mark-read / flag / mark-today-unread. |
+
+## Teams chats
+
+| Function | Triggered by |
+|---|---|
+| See chats with unread activity in the last 24 hours | Chats section, above emails. "Unread" uses Graph's per-user `viewpoint.lastMessageReadDateTime`: a chat is unread when the last message's `createdDateTime` is newer than the user's last-read timestamp. Reading the chat in any Teams client drops it from CheckIn automatically; new messages in a previously-replied chat re-surface. |
 | See the sender plus other thread participants | "with A, B, C" line below the sender name; wraps to 2 lines, collapses to "with A, B +N" for big groups |
-| Open a chat in Teams | Tap a chat row (falls back to the Teams app if no chat URL) |
+| Preview a chat | Tap a chat row. Opens a sheet with the last message body (cleaned plain text). Auto-marks the chat as read on open (advances `viewpoint.lastMessageReadDateTime` via `markChatReadForUser`). |
+| Mark a chat back to unread | Preview sheet → "Mark unread" button (re-inserts in sent-time order; rolls back the server's read state via `markChatUnreadForUser`) |
+| Reply to a chat | Preview sheet → "Reply" (composer with TextEditor), OR long-press → "Reply" (opens the preview sheet straight into the composer). Posts a new message into the existing chat thread via `POST /me/chats/{chatId}/messages`. |
+| Mark a chat as read | Swipe right-to-left on the row, or long-press → "Mark read" |
+| Open a chat in Teams | Long-press a chat row → "Open in Teams" (uses Graph's `chat.webUrl`, which iOS routes to the Teams app via Universal Links) |
+| Copy chat link | Long-press → "Copy chat link". Writes the Teams chat URL to the system pasteboard. |
+| Restore today's chats to unread | Inline "Mark unread: today's chats" button under the Chats section header when the section is empty. Fetches today's read chats and batch-flips them via `markChatUnreadForUser`. Registers an undo. |
+
+## Teams presence & status
+
+| Function | Triggered by |
+|---|---|
+| Set Teams presence (Available, Busy, Do not disturb, Be right back, Away, Offline) | Top of the Chats section → presence menu. Calls Graph's `setUserPreferredPresence` (1-day expiration) plus a private session via `setPresence` (PT1H, refreshed on every CheckIn refresh) so the preferred state holds even when no other Microsoft client is running. |
+| Set Out of Office | Same presence menu → "Out of office" (peer of the regular presences). Enables Microsoft 365 auto-replies with a default message; preserves any existing internal/external auto-reply text. The presence menu shows a distinct purple OOO icon when active. |
+| Reset Teams presence to auto | Same presence menu → "Reset to auto". Clears the preferred-presence override, clears OOO if set, re-fetches the current auto-detected state. |
+| Set / edit a custom Teams status message | Chats section header → "Set message…" (when no message is set) or the existing message text (when one is set) → opens a sheet with a multi-line TextField. Calls `setStatusMessage` on Graph. |
+
+## Settings
+
+| Function | Triggered by |
+|---|---|
+| Open the Settings sheet | Top-right gear button, visible on both the summary screen and the sign-in screen (so a stuck custom registration can be undone before sign-in) |
+| Enable / disable meeting reminders | Settings → "Meeting reminders" toggle (see Notifications above) |
 | Override the Azure App Registration with your own | Settings → "Custom Azure registration" → enter Application (client) ID and/or Directory (tenant) ID → "Save and sign in" (signs out, rebuilds MSAL, sends you to Sign In) |
 | Revert to Excelano's default registration | Settings → "Reset to defaults" |
-| Open the Settings sheet | Top-right gear button, visible on both the summary screen and the sign-in screen (so a stuck custom registration can be undone before sign-in) |
+
+## Home screen widget
+
+| Function | Triggered by |
+|---|---|
+| Glance at next meeting + unread counts from the home screen | Add the CheckIn widget (medium size). Shows the next meeting (subject, time, organizer, countdown), unread email count, and pending chat count. Refreshed by the main app on every refresh via `WidgetCenter`. |
+| Join the next meeting directly from the widget | Tap the "Join meeting" pill on the widget (only present when the meeting has a join URL). Rewrites to `msteams:/` so iOS routes to Teams. |
 
 ## Not yet supported
 
-- Reply to a chat from inside the app (the tap hands off to Teams)
-- Open the specific calendar event for non-Teams meetings (only the calendar at large)
+- Compose a brand-new email from scratch (only Reply-all from existing messages)
+- Move emails between folders / archive
+- View past meetings (the calendar view is "today only")
+- RSVP to invites for meetings beyond today's window from inside CheckIn (those invites surface as regular emails until the meeting moves into today's view)
+- Open the specific calendar event for non-Teams meetings (only the calendar at large, via Teams)
+- Edit the auto-reply message body (only the on/off state — edit the message itself in Outlook on the web)
+- App Intents / Siri shortcuts
+- Apple Watch companion
+- iPad layout

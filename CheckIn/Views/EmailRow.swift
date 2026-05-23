@@ -66,18 +66,11 @@ struct EmailRow: View {
             if let meeting = matchingMeeting {
                 meetingInfoRow(for: meeting)
                     .padding(.horizontal, 14)
-                    .padding(.bottom, 12)
-                switch meeting.responseStatus {
-                case .notResponded:
+                    .padding(.bottom, meeting.responseStatus == .notResponded ? 12 : 14)
+                if meeting.responseStatus == .notResponded {
                     rsvpRow
                         .padding(.horizontal, 14)
                         .padding(.bottom, 14)
-                case .accepted, .tentativelyAccepted, .declined:
-                    respondedPill(for: meeting)
-                        .padding(.horizontal, 14)
-                        .padding(.bottom, 14)
-                case .none, .organizer:
-                    EmptyView()
                 }
             }
         }
@@ -109,40 +102,40 @@ struct EmailRow: View {
         }
     }
 
-    /// Date + time only. The conflict indicator has moved up to the
-    /// subject line so the user's finger isn't near the Decline RSVP
-    /// button when tapping to resolve a conflict.
+    /// Date + time on the left, plus a small right-justified
+    /// responded-state pill ("Accepted" / "Tentative" / "Declined")
+    /// when the user has already responded. The conflict triangle
+    /// lives on the subject line above; the responded pill sits
+    /// directly under it, vertically aligned with the right edge.
     private func meetingInfoRow(for meeting: Meeting) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "calendar")
                 .font(.footnote)
             Text(formatMeetingTime(meeting.start))
                 .font(.footnote)
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            if let label = meeting.responseStatus.displayLabel {
+                respondedPill(label: label)
+            }
         }
         .foregroundStyle(Brand.textMuted)
     }
 
-    /// Non-interactive status pill shown in place of the RSVP buttons
-    /// when the user has already responded (typically because they
-    /// RSVP'd from another client and the invite email hasn't been
-    /// cleared yet). Mirrors `MeetingCard`'s responded-pill style but
-    /// uses the darker `Brand.bgDarker` shade so it stands out against
-    /// the main view background instead of the meeting card.
-    @ViewBuilder
-    private func respondedPill(for meeting: Meeting) -> some View {
-        if let label = meeting.responseStatus.displayLabel {
-            HStack {
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Brand.textMuted)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Brand.bgDarker)
-                    .clipShape(Capsule())
-                Spacer()
+    /// Non-interactive status pill shown inline on the meeting info
+    /// row when the user has already responded. Outlined with
+    /// `Brand.textMuted` so it reads as the softer status indicator
+    /// — matches the RSVP buttons' outline treatment on this surface
+    /// rather than the filled pill the calendar card uses on its
+    /// darker background.
+    private func respondedPill(label: String) -> some View {
+        Text(label)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(Brand.textMuted)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .overlay {
+                Capsule().strokeBorder(Brand.textMuted, lineWidth: 1)
             }
-        }
     }
 
     private var rsvpRow: some View {
