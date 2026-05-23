@@ -189,9 +189,14 @@ struct SummaryView: View {
                 }
             } header: {
                 sectionHeader(title: "Chats", count: summary.chats.count) {
-                    PresenceMenu(presence: inbox.currentPresence) { selection in
-                        Task { await inbox.setPresence(selection) }
-                    }
+                    PresenceMenu(
+                        presence: inbox.currentPresence,
+                        isOutOfOffice: inbox.isOutOfOffice,
+                        onSelect: { selection in
+                            Task { await inbox.setPresence(selection) }
+                        },
+                        onOpenSettings: { showSettings = true }
+                    )
                 }
             }
             let extras = summary.totalUnreadEmails - summary.emails.count

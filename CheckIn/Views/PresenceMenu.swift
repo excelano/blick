@@ -10,34 +10,54 @@ import SwiftUI
 /// presence (Teams resumes auto-detection from calendar/idle/etc).
 struct PresenceMenu: View {
     let presence: TeamsPresence
+    let isOutOfOffice: Bool
     let onSelect: (TeamsPresence) -> Void
+    let onOpenSettings: () -> Void
 
     var body: some View {
-        Menu {
-            menuButton(for: .available)
-            menuButton(for: .busy)
-            menuButton(for: .doNotDisturb)
-            menuButton(for: .beRightBack)
-            menuButton(for: .away)
-            menuButton(for: .offline)
-            Divider()
-            Button {
-                onSelect(.unknown)
+        if isOutOfOffice {
+            Button(action: onOpenSettings) {
+                ZStack {
+                    Text("0").opacity(0)
+                    outOfOfficeGlyph
+                }
+                .font(.subheadline.weight(.semibold))
+            }
+            .accessibilityLabel("Out of office")
+            .accessibilityHint("Open settings to manage")
+        } else {
+            Menu {
+                menuButton(for: .available)
+                menuButton(for: .busy)
+                menuButton(for: .doNotDisturb)
+                menuButton(for: .beRightBack)
+                menuButton(for: .away)
+                menuButton(for: .offline)
+                Divider()
+                Button {
+                    onSelect(.unknown)
+                } label: {
+                    Label("Reset to auto", systemImage: "arrow.counterclockwise")
+                }
             } label: {
-                Label("Reset to auto", systemImage: "arrow.counterclockwise")
+                ZStack {
+                    // Invisible text reserves the count-pill's vertical
+                    // footprint, so the chats section header doesn't grow
+                    // taller than the email section header.
+                    Text("0").opacity(0)
+                    presenceGlyph(presence)
+                }
+                .font(.subheadline.weight(.semibold))
             }
-        } label: {
-            ZStack {
-                // Invisible text reserves the count-pill's vertical
-                // footprint, so the chats section header doesn't grow
-                // taller than the email section header.
-                Text("0").opacity(0)
-                presenceGlyph(presence)
-            }
-            .font(.subheadline.weight(.semibold))
+            .accessibilityLabel("Teams presence: \(presence.displayName)")
+            .accessibilityHint("Change your presence")
         }
-        .accessibilityLabel("Teams presence: \(presence.displayName)")
-        .accessibilityHint("Change your presence")
+    }
+
+    private var outOfOfficeGlyph: some View {
+        Image(systemName: "arrow.up.forward.circle.fill")
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, .purple)
     }
 
     private func menuButton(for state: TeamsPresence) -> some View {

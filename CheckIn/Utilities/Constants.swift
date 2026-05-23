@@ -20,7 +20,8 @@ enum Constants {
     static let baseScopes = [
         "User.Read",
         "Mail.ReadWrite",
-        "Calendars.ReadWrite"
+        "Calendars.ReadWrite",
+        "MailboxSettings.ReadWrite"
     ]
 
     static let teamsScopes = [

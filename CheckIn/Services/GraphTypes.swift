@@ -164,3 +164,34 @@ struct SetPresenceBody: Encodable {
     let activity: String
     let expirationDuration: String  // ISO 8601 duration, e.g., "PT4H"
 }
+
+/// Subset of `/me/mailboxSettings/automaticRepliesSetting` we care about
+/// for the OOO toggle. `status` drives the indicator and the toggle;
+/// the messages are kept so we can preserve a user's existing
+/// auto-reply text when toggling, rather than overwriting it with our
+/// canned default every time.
+struct AutomaticRepliesResponse: Decodable {
+    let status: String  // disabled | alwaysEnabled | scheduled
+    let externalAudience: String?
+    let internalReplyMessage: String?
+    let externalReplyMessage: String?
+}
+
+struct MailboxSettingsStatusOnly: Encodable {
+    let automaticRepliesSetting: AutomaticRepliesStatusOnly
+}
+
+struct AutomaticRepliesStatusOnly: Encodable {
+    let status: String
+}
+
+struct MailboxSettingsFull: Encodable {
+    let automaticRepliesSetting: AutomaticRepliesFull
+}
+
+struct AutomaticRepliesFull: Encodable {
+    let status: String
+    let externalAudience: String
+    let internalReplyMessage: String
+    let externalReplyMessage: String
+}

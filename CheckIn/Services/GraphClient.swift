@@ -143,6 +143,40 @@ final class GraphClient {
         try await emptyPost("/me/presence/clearUserPreferredPresence")
     }
 
+    /// Read the user's auto-reply settings. Used to drive the OOO indicator
+    /// and to preserve any existing auto-reply text when toggling.
+    func fetchAutomaticReplies() async throws -> AutomaticRepliesResponse {
+        try await get("/me/mailboxSettings/automaticRepliesSetting", query: [:])
+    }
+
+    /// Turn the user's auto-reply on. If their existing internal/external
+    /// message is empty, fills in a generic default so people don't get
+    /// blank auto-replies. Otherwise preserves whatever they already had
+    /// (likely set via Outlook web).
+    func enableAutomaticReplies(defaultMessage: String) async throws {
+        let current = try await fetchAutomaticReplies()
+        let internalMsg = current.internalReplyMessage.flatMap { $0.isEmpty ? nil : $0 } ?? defaultMessage
+        let externalMsg = current.externalReplyMessage.flatMap { $0.isEmpty ? nil : $0 } ?? defaultMessage
+        let body = MailboxSettingsFull(
+            automaticRepliesSetting: AutomaticRepliesFull(
+                status: "alwaysEnabled",
+                externalAudience: current.externalAudience ?? "all",
+                internalReplyMessage: internalMsg,
+                externalReplyMessage: externalMsg
+            )
+        )
+        try await patch("/me/mailboxSettings", body: body)
+    }
+
+    /// Turn the user's auto-reply off. PATCHes status only so existing
+    /// messages are preserved for next time.
+    func disableAutomaticReplies() async throws {
+        let body = MailboxSettingsStatusOnly(
+            automaticRepliesSetting: AutomaticRepliesStatusOnly(status: "disabled")
+        )
+        try await patch("/me/mailboxSettings", body: body)
+    }
+
     /// Accept/tentative/decline an event. Graph returns 202 with no body.
     /// `sendResponse: true` matches Outlook's default behavior — the
     /// organizer's tracking is updated.

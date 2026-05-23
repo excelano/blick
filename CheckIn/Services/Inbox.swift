@@ -23,6 +23,10 @@ final class Inbox {
     /// 8 seconds; only one is held at a time (replaced by the next bulk
     /// action). Nil when there's nothing to undo.
     private(set) var pendingUndo: UndoableBulkAction?
+    /// True when the user's Graph auto-reply status is `alwaysEnabled` or
+    /// `scheduled`. Drives the OOO indicator that replaces the presence
+    /// glyph and reroutes the tap to Settings. Refreshed on every refresh.
+    private(set) var isOutOfOffice: Bool = false
     /// Current Teams presence. Refreshed alongside the rest of the
     /// summary; `setPresence(_:)` updates it optimistically and confirms
     /// with the server. `.unknown` before the first successful fetch,
@@ -123,6 +127,7 @@ final class Inbox {
         async let emailsT = fetchEmails()
         async let chatsT = fetchChats(userIDReady: userIDReady)
         async let presenceT = fetchPresence()
+        async let oooT = fetchOutOfOffice()
         let meetingsResult = await meetingsT
         let emailsResult = await emailsT
         let (chats, chatsFailed) = await chatsT
@@ -132,10 +137,25 @@ final class Inbox {
                                  chats: chats,
                                  totalUnreadEmails: emailsResult.totalCount)
         currentPresence = await presenceT
+        isOutOfOffice = await oooT
         lastRefreshedAt = Date()
         lastRefreshFailed = anyFailed || meetingsResult.failed || emailsResult.failed || chatsFailed
         await updateAppBadge()
         await rescheduleMeetingNotificationsIfEnabled()
+    }
+
+    /// Read the auto-reply status from Graph. Treats any non-`disabled`
+    /// state (alwaysEnabled, scheduled) as "out of office is on" — we
+    /// don't model scheduled-with-dates in our UI; the user manages
+    /// dates in Outlook web and CheckIn just shows on/off.
+    private func fetchOutOfOffice() async -> Bool {
+        do {
+            let reply = try await graphClient.fetchAutomaticReplies()
+            return reply.status != "disabled"
+        } catch {
+            logger.error("fetchOutOfOffice failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
     /// Re-schedule the 1-minute-out meeting alerts from the freshly-fetched
@@ -169,6 +189,29 @@ final class Inbox {
     /// the setting off.
     func disableMeetingNotifications() async {
         await meetingNotifications.clearAll()
+    }
+
+    /// Default auto-reply text used only when Graph reports an empty
+    /// message at toggle-on time. Anything the user has previously set
+    /// (via Outlook web, for instance) is preserved.
+    private let defaultOutOfOfficeMessage =
+        "I'm currently out of the office and will respond when I return."
+
+    /// Enable auto-replies (`alwaysEnabled` with no end date). Optimistic
+    /// UI update with revert on failure, mirroring the presence pattern.
+    func setOutOfOffice(_ on: Bool) async {
+        let previous = isOutOfOffice
+        isOutOfOffice = on
+        do {
+            if on {
+                try await graphClient.enableAutomaticReplies(defaultMessage: defaultOutOfOfficeMessage)
+            } else {
+                try await graphClient.disableAutomaticReplies()
+            }
+        } catch {
+            logger.error("setOutOfOffice(\(on)) failed: \(error.localizedDescription, privacy: .public)")
+            isOutOfOffice = previous
+        }
     }
 
     /// Set the user-preferred Teams presence, or clear it back to
