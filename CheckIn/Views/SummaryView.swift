@@ -42,7 +42,7 @@ struct SummaryView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showSettings) {
-            SettingsView(authService: authService)
+            SettingsView(authService: authService, inbox: inbox)
         }
         .sheet(item: $conflictTarget) { target in
             ConflictResolutionSheet(inbox: inbox, primaryMeetingId: target.id)

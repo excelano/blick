@@ -6,6 +6,7 @@
 import BackgroundTasks
 import MSAL
 import SwiftUI
+import UserNotifications
 
 @main
 struct CheckInApp: App {
@@ -24,6 +25,7 @@ struct CheckInApp: App {
         auth.onSignOut = { [inbox] in inbox.reset() }
         _authService = State(initialValue: auth)
         self.inbox = inbox
+        UNUserNotificationCenter.current().delegate = NotificationCenterDelegate.shared
     }
 
     var body: some Scene {

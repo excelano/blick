@@ -7,12 +7,14 @@ import SwiftUI
 
 struct SettingsView: View {
     var authService: AuthService
+    var inbox: Inbox
 
     @Environment(\.dismiss) private var dismiss
     @State private var showSignOutConfirm = false
 
     @AppStorage(AppStorageKey.customClientID) private var storedClientID: String = ""
     @AppStorage(AppStorageKey.customTenantID) private var storedTenantID: String = ""
+    @AppStorage(AppStorageKey.meetingNotifications) private var meetingNotificationsEnabled: Bool = false
 
     /// Edits go into the draft fields; they only land in `@AppStorage` when
     /// the user taps Save or Reset, so dismissing without saving discards.
@@ -22,6 +24,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                notificationsSection
                 advancedSection
                 if authService.isAuthenticated {
                     signOutSection
@@ -50,6 +53,28 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var notificationsSection: some View {
+        Section {
+            Toggle("Meeting reminders", isOn: $meetingNotificationsEnabled)
+                .tint(Brand.accent)
+                .listRowBackground(Brand.bgDarker)
+                .onChange(of: meetingNotificationsEnabled) { _, newValue in
+                    if newValue {
+                        Task {
+                            let ok = await inbox.enableMeetingNotifications()
+                            if !ok { meetingNotificationsEnabled = false }
+                        }
+                    } else {
+                        Task { await inbox.disableMeetingNotifications() }
+                    }
+                }
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text("Get a notification 1 minute before each of today's meetings. Tap the notification to open the meeting in Teams.")
+        }
     }
 
     private var advancedSection: some View {

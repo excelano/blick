@@ -31,6 +31,7 @@ final class Inbox {
 
     private let graphClient: GraphClient
     private let teamsEnabled: Bool
+    private let meetingNotifications = MeetingNotifications()
     private var didFetchUserID = false
     private var lastRefreshedAt: Date?
     private var didRequestBadgeAuthorization = false
@@ -134,6 +135,40 @@ final class Inbox {
         lastRefreshedAt = Date()
         lastRefreshFailed = anyFailed || meetingsResult.failed || emailsResult.failed || chatsFailed
         await updateAppBadge()
+        await rescheduleMeetingNotificationsIfEnabled()
+    }
+
+    /// Re-schedule the 1-minute-out meeting alerts from the freshly-fetched
+    /// summary. Toggled by the `meetingNotifications` AppStorage flag, so
+    /// flipping it off in Settings and refreshing clears any pending alerts.
+    private func rescheduleMeetingNotificationsIfEnabled() async {
+        let enabled = UserDefaults.standard.bool(forKey: AppStorageKey.meetingNotifications)
+        guard enabled, let s = summary else {
+            await meetingNotifications.clearAll()
+            return
+        }
+        var meetings: [Meeting] = []
+        if let m = s.meeting { meetings.append(m) }
+        meetings.append(contentsOf: s.laterToday)
+        await meetingNotifications.scheduleAll(meetings)
+    }
+
+    /// Settings-toggle entry point. Requests notification authorization
+    /// (alert + sound). On grant, schedules alerts for the meetings we
+    /// already have. Returns the granted state so the caller can flip
+    /// the toggle back off if the user declined.
+    func enableMeetingNotifications() async -> Bool {
+        let granted = await meetingNotifications.requestAuthorization()
+        if granted {
+            await rescheduleMeetingNotificationsIfEnabled()
+        }
+        return granted
+    }
+
+    /// Drop any pending meeting alerts. Called when the user toggles
+    /// the setting off.
+    func disableMeetingNotifications() async {
+        await meetingNotifications.clearAll()
     }
 
     /// Set the user-preferred Teams presence, or clear it back to

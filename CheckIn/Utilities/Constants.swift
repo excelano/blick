@@ -64,4 +64,5 @@ enum AppStorageKey {
     static let customClientID = "customClientID"
     static let customTenantID = "customTenantID"
     static let showingAllEmails = "showingAllEmails"
+    static let meetingNotifications = "meetingNotifications"
 }

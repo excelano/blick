@@ -23,7 +23,7 @@ struct ContentView: View {
                         }
                     }
             } else {
-                SignInView(authService: authService)
+                SignInView(authService: authService, inbox: inbox)
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -36,6 +36,7 @@ struct ContentView: View {
 
 private struct SignInView: View {
     var authService: AuthService
+    var inbox: Inbox
 
     @State private var isSigningIn = false
     @State private var errorMessage: String?
@@ -96,7 +97,7 @@ private struct SignInView: View {
         .background(Brand.bg.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showSettings) {
-            SettingsView(authService: authService)
+            SettingsView(authService: authService, inbox: inbox)
         }
     }
 
