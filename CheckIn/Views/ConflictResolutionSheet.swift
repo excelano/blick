@@ -59,27 +59,37 @@ struct ConflictResolutionSheet: View {
     /// Snapshot the primary + every meeting overlapping it at open time.
     /// Subsequent renders pull live state by id, so RSVP changes flow
     /// through and deletions just drop the corresponding row.
+    /// Candidates are drawn from today's summary, the Phase-2 invite
+    /// cache, and the reference pool of plain calendar events so an
+    /// invite for a beyond-today meeting can show its overlapping
+    /// plain calendar entry.
     private func initializeTrackedIds() {
         guard trackedIds.isEmpty else { return }
         var ids = [primaryMeetingId]
         if let primary = lookupMeeting(id: primaryMeetingId) {
-            let next = inbox.summary?.meeting
-            let later = inbox.summary?.laterToday ?? []
-            let candidates = [next].compactMap { $0 } + later
-            ids += candidates
-                .filter { other in
-                    other.id != primary.id
-                        && other.start < primary.end
-                        && primary.start < other.end
-                }
-                .map(\.id)
+            let candidates = [inbox.summary?.meeting].compactMap { $0 }
+                + (inbox.summary?.laterToday ?? [])
+                + Array(inbox.inviteMeetings.values)
+                + inbox.conflictReferenceMeetings
+            // De-dup by id — an invite and the calendar event it
+            // refers to share the same Graph event id and would
+            // otherwise produce two rows for the same meeting.
+            var seen: Set<String> = [primary.id]
+            for candidate in candidates {
+                guard !seen.contains(candidate.id) else { continue }
+                guard candidate.start < primary.end, primary.start < candidate.end else { continue }
+                ids.append(candidate.id)
+                seen.insert(candidate.id)
+            }
         }
         trackedIds = ids
     }
 
     private func lookupMeeting(id: String) -> Meeting? {
         if let m = inbox.summary?.meeting, m.id == id { return m }
-        return inbox.summary?.laterToday.first(where: { $0.id == id })
+        if let m = inbox.summary?.laterToday.first(where: { $0.id == id }) { return m }
+        if let m = inbox.inviteMeetings.values.first(where: { $0.id == id }) { return m }
+        return inbox.conflictReferenceMeetings.first(where: { $0.id == id })
     }
 }
 

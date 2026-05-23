@@ -44,11 +44,13 @@ final class Inbox {
     /// RSVP-from-the-row UX as today's.
     private(set) var inviteMeetings: [String: Meeting] = [:]
     /// Reference-only pool of calendar events spanning the date range
-    /// covered by `inviteMeetings`. Not surfaced in the UI; used solely
-    /// to detect conflicts between a Phase 2 invite and a plain
-    /// calendar event the user already has on their schedule.
-    /// Refreshed alongside the invite cache; cleared on sign-out.
-    private var conflictReferenceMeetings: [Meeting] = []
+    /// covered by `inviteMeetings`. Not surfaced as a primary list in
+    /// the UI; used to detect conflicts between a Phase 2 invite and
+    /// a plain calendar event the user already has on their schedule,
+    /// and read by `ConflictResolutionSheet` so the overlapping plain
+    /// meeting shows up as a row. Refreshed alongside the invite
+    /// cache; cleared on sign-out.
+    private(set) var conflictReferenceMeetings: [Meeting] = []
 
     private let graphClient: GraphClient
     private let authService: AuthService
@@ -873,7 +875,8 @@ final class Inbox {
     private func meetingWithId(_ id: String) -> Meeting? {
         if let m = summary?.meeting, m.id == id { return m }
         if let m = summary?.laterToday.first(where: { $0.id == id }) { return m }
-        return inviteMeetings.values.first(where: { $0.id == id })
+        if let m = inviteMeetings.values.first(where: { $0.id == id }) { return m }
+        return conflictReferenceMeetings.first(where: { $0.id == id })
     }
 
     private func setMeeting(_ meeting: Meeting) {
@@ -890,6 +893,12 @@ final class Inbox {
         // the email row's responded pill shows up immediately.
         for (emailId, cached) in inviteMeetings where cached.id == meeting.id {
             inviteMeetings[emailId] = meeting
+        }
+        // Reference pool: an RSVP/edit on a plain calendar event from
+        // the conflict resolver. Update so the resolver row reflects
+        // the new state right away.
+        if let idx = conflictReferenceMeetings.firstIndex(where: { $0.id == meeting.id }) {
+            conflictReferenceMeetings[idx] = meeting
         }
     }
 
