@@ -561,26 +561,7 @@ final class Inbox {
         summary?.emails = current
     }
 
-    /// Optimistic delete. Drops the row immediately, restores it if the
-    /// Graph DELETE fails. Graph moves the message to Deleted Items rather
-    /// than purging it, so the user can recover via Outlook.
-    func deleteEmail(emailId: String) async {
-        guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
-              let removed = summary?.emails.remove(at: idx) else { return }
-        summary?.totalUnreadEmails -= 1
-        defer { Task { await updateAppBadge() } }
-        do {
-            try await graphClient.deleteEmail(id: emailId)
-        } catch {
-            logger.error("deleteEmail failed: \(error.localizedDescription, privacy: .public)")
-            let insertAt = summary?.emails.firstIndex(where: { $0.received < removed.received })
-                ?? summary?.emails.count ?? 0
-            summary?.emails.insert(removed, at: insertAt)
-            summary?.totalUnreadEmails += 1
-        }
-    }
-
-    /// Optimistic: drops the row immediately, restores it (in received-time
+/// Optimistic: drops the row immediately, restores it (in received-time
     /// order) if the Graph PATCH fails.
     func markRead(emailId: String) async {
         guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),

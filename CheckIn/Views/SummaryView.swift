@@ -212,6 +212,16 @@ struct SummaryView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            if chat.chatId != nil {
+                                Button {
+                                    Task { await inbox.markChatRead(chat) }
+                                } label: {
+                                    Label("Mark Read", systemImage: "checkmark.bubble")
+                                }
+                                .tint(.green)
+                            }
+                        }
                         .contextMenu {
                             if chat.chatId != nil {
                                 Button {
@@ -225,7 +235,16 @@ struct SummaryView: View {
                                     Label("Mark read", systemImage: "checkmark.bubble")
                                 }
                             }
-                            if chat.webUrl != nil {
+                            if let url = chat.webUrl {
+                                // Divider only when there's actual content
+                                // above it — otherwise a webUrl-only chat
+                                // would render with a leading separator.
+                                if chat.chatId != nil { Divider() }
+                                Button {
+                                    UIPasteboard.general.string = url
+                                } label: {
+                                    Label("Copy chat link", systemImage: "doc.on.doc")
+                                }
                                 Button {
                                     openChat(chat)
                                 } label: {
@@ -310,36 +329,32 @@ struct SummaryView: View {
                                 } label: {
                                     Label("Reply", systemImage: "arrowshape.turn.up.left")
                                 }
-                                Divider()
                                 Button {
                                     Task { await inbox.markRead(emailId: email.id) }
                                 } label: {
                                     Label("Mark read", systemImage: "envelope.open")
+                                }
+                                if senderCount > 1 {
+                                    Button {
+                                        Task { await inbox.markAllFromSenderRead(email.fromAddress) }
+                                    } label: {
+                                        Label("Mark read: \(senderCount) from this sender",
+                                              systemImage: "envelope.open")
+                                    }
+                                }
+                                if subjectCount > 1 {
+                                    Button {
+                                        Task { await inbox.markAllWithSubjectRead(email.subject) }
+                                    } label: {
+                                        Label("Mark read: \(subjectCount) with this subject",
+                                              systemImage: "envelope.open")
+                                    }
                                 }
                                 Button {
                                     Task { await inbox.setFlagged(!email.isFlagged, emailId: email.id) }
                                 } label: {
                                     Label(email.isFlagged ? "Unflag" : "Flag",
                                           systemImage: email.isFlagged ? "flag.slash" : "flag")
-                                }
-                                if senderCount > 1 || subjectCount > 1 {
-                                    Divider()
-                                    if senderCount > 1 {
-                                        Button {
-                                            Task { await inbox.markAllFromSenderRead(email.fromAddress) }
-                                        } label: {
-                                            Label("Mark \(senderCount) from this sender read",
-                                                  systemImage: "envelope.open")
-                                        }
-                                    }
-                                    if subjectCount > 1 {
-                                        Button {
-                                            Task { await inbox.markAllWithSubjectRead(email.subject) }
-                                        } label: {
-                                            Label("Mark \(subjectCount) with this subject read",
-                                                  systemImage: "envelope.open")
-                                        }
-                                    }
                                 }
                                 if !email.fromAddress.isEmpty {
                                     Divider()
@@ -348,12 +363,6 @@ struct SummaryView: View {
                                     } label: {
                                         Label("Copy sender address", systemImage: "doc.on.doc")
                                     }
-                                }
-                                Divider()
-                                Button(role: .destructive) {
-                                    Task { await inbox.deleteEmail(emailId: email.id) }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
                                 }
                             }
                     }

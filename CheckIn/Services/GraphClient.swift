@@ -425,15 +425,7 @@ final class GraphClient {
                         body: FlagBody(flag: FlagStatusBody(flagStatus: "notFlagged")))
     }
 
-    /// Mail.ReadWrite required. Graph moves the message to the user's
-    /// Deleted Items folder; this is the same behavior as Outlook's trash
-    /// button. Tenant retention policy controls how long it stays
-    /// recoverable.
-    func deleteEmail(id: String) async throws {
-        try await delete("/me/messages/\(id)")
-    }
-
-    /// Bulk mark-read via `/$batch`. Chunks larger inputs into 20-op
+/// Bulk mark-read via `/$batch`. Chunks larger inputs into 20-op
     /// batches (Graph's per-batch ceiling). Avoids the 429 Too Many
     /// Requests bursts we'd see firing concurrent PATCHes directly.
     /// Returns the IDs that came back non-2xx so the caller can
