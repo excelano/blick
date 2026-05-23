@@ -160,22 +160,17 @@ final class Inbox {
         Constants.effectiveClientID
     }
 
-    /// Re-up CheckIn's presence session so the user's preferred presence
-    /// keeps applying when no other Microsoft client (Teams) holds a
-    /// session. Called on every refresh so the 1-hour session never has
-    /// a chance to expire while CheckIn is in active use. For `.offline`
-    /// and `.unknown`, clears the session instead — Offline is expressed
-    /// through the preferred-presence override, and Unknown (reset) is
-    /// the user explicitly asking us to step out of the loop.
+    /// Re-up CheckIn's presence session as a pure "I'm here" heartbeat
+    /// reporting Available. The preferred (Busy / DND / etc.) is what
+    /// gets shown to others — the session just keeps Graph honoring
+    /// preferred at all, and keeps the user visible as Available when
+    /// no preferred is set (Reset to auto). 1-hour expiration; we renew
+    /// on every refresh so it never has a chance to lapse while CheckIn
+    /// is in active use.
     private func refreshPresenceSession() async {
         guard teamsEnabled else { return }
-        let sessionId = presenceSessionId
         do {
-            if currentPresence == .unknown || currentPresence == .offline {
-                try await graphClient.clearSessionPresence(sessionId: sessionId)
-            } else {
-                try await graphClient.setSessionPresence(sessionId: sessionId, presence: currentPresence)
-            }
+            try await graphClient.setSessionPresence(sessionId: presenceSessionId, presence: .available)
         } catch {
             logger.error("refreshPresenceSession failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -273,17 +268,13 @@ final class Inbox {
     func setPresence(_ presence: TeamsPresence) async {
         let previous = currentPresence
         currentPresence = presence
-        let sessionId = presenceSessionId
         do {
-            // Session goes first so Graph has CheckIn's session in place
-            // before the preferred is applied — preferred only takes
-            // effect when a session exists for the user.
+            // Keep our session alive at Available so Graph honors the
+            // preferred override and so Reset-to-auto shows Available
+            // (rather than Offline) when no other Microsoft client has
+            // a session.
             do {
-                if presence == .unknown || presence == .offline {
-                    try await graphClient.clearSessionPresence(sessionId: sessionId)
-                } else {
-                    try await graphClient.setSessionPresence(sessionId: sessionId, presence: presence)
-                }
+                try await graphClient.setSessionPresence(sessionId: presenceSessionId, presence: .available)
             } catch {
                 logger.error("setPresence session sync failed: \(error.localizedDescription, privacy: .public)")
             }

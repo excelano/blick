@@ -135,7 +135,7 @@ final class GraphClient {
             body: SetPresenceBody(
                 availability: availability,
                 activity: activity,
-                expirationDuration: "PT4H"
+                expirationDuration: "P1D"
             )
         )
     }
