@@ -861,6 +861,49 @@ final class Inbox {
     ///    handles tenant-specific prefixes like "Meeting request:" or
     ///    "Invitation:" — the two-factor (organizer + meeting-message)
     ///    keeps false positives down.
+    /// Inverse of `markMatchingInviteEmailsRead`: given an invite email,
+    /// find the meeting in our current summary that it refers to. Used
+    /// to drive the inline RSVP buttons on invite-email rows so a
+    /// chosen response from the email surface routes through the same
+    /// `respondToMeeting(_:meetingId:)` path as the calendar card — and
+    /// inherits all the downstream syncing (meeting card updates,
+    /// matching invite emails marked read, conflicts recomputed).
+    ///
+    /// Returns nil for invites whose underlying meeting isn't in
+    /// today's summary window (e.g., an invite for next week).
+    func meetingMatching(_ email: Email) -> Meeting? {
+        let emailKey = email.subject.normalizedSubjectKey
+        guard !emailKey.isEmpty else { return nil }
+
+        var meetings: [Meeting] = []
+        if let m = summary?.meeting { meetings.append(m) }
+        meetings.append(contentsOf: summary?.laterToday ?? [])
+
+        for meeting in meetings {
+            let target = meeting.subject.normalizedSubjectKey
+            guard !target.isEmpty else { continue }
+            if emailKey == target
+                || emailKey == "updated: \(target)"
+                || emailKey == "cancelled: \(target)" {
+                return meeting
+            }
+            // Two-factor contains-match (organizer + meetingMessageType)
+            // mirrors the forward direction so the same edge cases
+            // (tenant-specific "Meeting request:" / "Invitation:"
+            // prefixes) work in both directions.
+            if let organizer = meeting.organizerEmail?
+                .lowercased()
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !organizer.isEmpty,
+               email.fromAddress.lowercased() == organizer,
+               email.meetingMessageType != nil,
+               emailKey.contains(target) {
+                return meeting
+            }
+        }
+        return nil
+    }
+
     private func markMatchingInviteEmailsRead(for meeting: Meeting) async {
         let target = meeting.subject.normalizedSubjectKey
         guard !target.isEmpty else { return }

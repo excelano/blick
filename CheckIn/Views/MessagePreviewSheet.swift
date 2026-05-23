@@ -48,6 +48,11 @@ struct MessagePreviewSheet: View {
     @State private var emailBody: String?
     @State private var bodyFetchFailed = false
     @State private var didAutoMarkRead = false
+    /// Set when the user taps the orange conflict indicator on the
+    /// meeting info row. Drives a sheet-on-sheet presentation of
+    /// `ConflictResolutionSheet`. Same flow as the calendar card's
+    /// conflict button, scoped to the preview's lifetime.
+    @State private var conflictTarget: Meeting?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -67,6 +72,9 @@ struct MessagePreviewSheet: View {
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(item: $conflictTarget) { meeting in
+            ConflictResolutionSheet(inbox: inbox, primaryMeetingId: meeting.id)
+        }
         .task {
             #if DEBUG
             log.info("preview sheet task: openComposer=\(target.openComposer, privacy: .public), kind=\(targetKindString, privacy: .public)")
@@ -89,17 +97,102 @@ struct MessagePreviewSheet: View {
                 .padding(.bottom, 12)
             Divider().overlay(Brand.bgDarker)
             ScrollView {
-                bodyText
-                    .padding(.leading, 12)
-                    .padding(.trailing, 4)
-                    .padding(.vertical, 16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 12) {
+                    if let meeting = matchingMeeting {
+                        meetingInfoRow(for: meeting)
+                    }
+                    bodyText
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Divider().overlay(Brand.bgDarker)
+            if let meeting = matchingMeeting,
+               meeting.responseStatus == .notResponded {
+                rsvpRow(for: meeting)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 4)
+            }
             actionBar
                 .padding(.horizontal, 20)
                 .padding(.vertical, 14)
         }
+    }
+
+    /// Date + time on its own line, conflict warning (when applicable)
+    /// on a separate line below in orange and tappable to open the
+    /// conflict resolver — same flow as the calendar card's button.
+    @ViewBuilder
+    private func meetingInfoRow(for meeting: Meeting) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.footnote)
+                Text(formatMeetingTime(meeting.start))
+                    .font(.footnote)
+            }
+            .foregroundStyle(Brand.textMuted)
+            if meeting.hasConflict {
+                Button {
+                    conflictTarget = meeting
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                        Text("Overlaps another meeting")
+                            .font(.footnote)
+                    }
+                    .foregroundStyle(.orange)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Open conflict resolution")
+            }
+        }
+    }
+
+    /// Same Accept/Maybe/Decline triplet that lives on the meeting
+    /// card and the email row. Routing the tap through
+    /// `Inbox.respondToMeeting` keeps the meeting card, email list,
+    /// and badge in sync — same downstream path as the calendar card.
+    @ViewBuilder
+    private func rsvpRow(for meeting: Meeting) -> some View {
+        HStack(spacing: 8) {
+            RsvpButton(response: .accepted, label: "Accept", icon: "checkmark",
+                       outlineColor: Brand.accent) {
+                Task {
+                    await inbox.respondToMeeting(.accepted, meetingId: meeting.id)
+                    dismiss()
+                }
+            }
+            RsvpButton(response: .tentativelyAccepted, label: "Maybe", icon: "questionmark",
+                       outlineColor: Brand.accent) {
+                Task {
+                    await inbox.respondToMeeting(.tentativelyAccepted, meetingId: meeting.id)
+                    dismiss()
+                }
+            }
+            RsvpButton(response: .declined, label: nil, icon: "xmark",
+                       outlineColor: Brand.accent) {
+                Task {
+                    await inbox.respondToMeeting(.declined, meetingId: meeting.id)
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    /// Recomputed each render so an RSVP made elsewhere (Outlook,
+    /// another device) while the sheet is open is reflected the moment
+    /// the summary refreshes. Only set for actionable invites whose
+    /// underlying meeting is in today's summary window.
+    private var matchingMeeting: Meeting? {
+        guard case .email(let email) = target.kind,
+              email.meetingMessageType == "meetingRequest" else { return nil }
+        return inbox.meetingMatching(email)
     }
 
     @ViewBuilder
@@ -154,10 +247,15 @@ struct MessagePreviewSheet: View {
         case .email:
             if let body = emailBody {
                 if body.isEmpty {
-                    Text("(no message body)")
-                        .font(.body)
-                        .foregroundStyle(Brand.textMuted)
-                        .italic()
+                    // For invites with empty bodies (the common case)
+                    // the meeting info row above is the actual content
+                    // — skip the placeholder so the sheet stays tight.
+                    if matchingMeeting == nil {
+                        Text("(no message body)")
+                            .font(.body)
+                            .foregroundStyle(Brand.textMuted)
+                            .italic()
+                    }
                 } else {
                     Text(body)
                         .font(.body)

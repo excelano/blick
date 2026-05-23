@@ -67,6 +67,24 @@ func formatTimeOfDay(_ date: Date) -> String {
     timeOfDayFormatter.string(from: date)
 }
 
+/// Date + time-of-day with Today/Tomorrow special cases. Used on
+/// invite-email rows where the matching meeting may be today, the
+/// next day, or further out — we want a friendly relative form for
+/// the near cases and an explicit date for anything later. Examples:
+/// "Today at 3:00 PM", "Tomorrow at 9:30 AM", "May 26 at 2:00 PM".
+func formatMeetingTime(_ date: Date) -> String {
+    let cal = Calendar.current
+    let timeStr = formatTimeOfDay(date)
+    if cal.isDateInToday(date) {
+        return "Today at \(timeStr)"
+    }
+    if cal.isDateInTomorrow(date) {
+        return "Tomorrow at \(timeStr)"
+    }
+    let dateStr = date.formatted(date: .abbreviated, time: .omitted)
+    return "\(dateStr) at \(timeStr)"
+}
+
 func truncate(_ s: String, maxLen: Int) -> String {
     let cleaned = s.replacingOccurrences(of: "\n", with: " ")
         .replacingOccurrences(of: "\r", with: "")

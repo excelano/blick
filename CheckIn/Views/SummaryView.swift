@@ -297,12 +297,29 @@ struct SummaryView: View {
                             ? 0
                             : senderCounts[email.fromAddress, default: 0]
                         let subjectCount = subjectCounts[email.subject.normalizedSubjectKey, default: 0]
-                        EmailRow(email: email, onTap: {
-                            #if DEBUG
-                            log.info("email tap id=\(email.id, privacy: .public)")
-                            #endif
-                            previewTarget = .email(email)
-                        })
+                        // Look up the meeting only for actionable invites —
+                        // skips the search for the common non-invite case.
+                        let matchingMeeting = email.meetingMessageType == "meetingRequest"
+                            ? inbox.meetingMatching(email)
+                            : nil
+                        EmailRow(
+                            email: email,
+                            matchingMeeting: matchingMeeting,
+                            onTap: {
+                                #if DEBUG
+                                log.info("email tap id=\(email.id, privacy: .public)")
+                                #endif
+                                previewTarget = .email(email)
+                            },
+                            onRsvp: { response in
+                                if let id = matchingMeeting?.id {
+                                    Task { await inbox.respondToMeeting(response, meetingId: id) }
+                                }
+                            },
+                            onConflictTap: {
+                                if let m = matchingMeeting { conflictTarget = m }
+                            }
+                        )
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
