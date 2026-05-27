@@ -29,6 +29,7 @@ struct SettingsView: View {
                 if authService.isAuthenticated {
                     signOutSection
                 }
+                versionSection
             }
             .scrollContentBackground(.hidden)
             .background(Brand.bg)
@@ -117,6 +118,26 @@ struct SettingsView: View {
             }
             .listRowBackground(Brand.bgDarker)
         }
+    }
+
+    private var versionSection: some View {
+        Section {
+            HStack {
+                Spacer()
+                Text(versionString)
+                    .font(.system(.footnote, design: .monospaced))
+                    .foregroundStyle(Brand.textMuted)
+                Spacer()
+            }
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    private var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "Version \(version) (build \(build))"
     }
 
     private func save() {
