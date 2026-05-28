@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import AppIntents
 import BackgroundTasks
 import MSAL
 import SwiftUI
@@ -27,6 +28,12 @@ struct CheckInApp: App {
         _authService = State(initialValue: auth)
         self.inbox = inbox
         UNUserNotificationCenter.current().delegate = NotificationCenterDelegate.shared
+        // Expose the live services to App Intents. The system runs this
+        // init before any intent's perform() — whether the process is
+        // launched for the UI or background-launched to run a shortcut —
+        // so @Dependency resolution in the intents finds them here.
+        AppDependencyManager.shared.add(dependency: inbox)
+        AppDependencyManager.shared.add(dependency: auth)
     }
 
     var body: some Scene {

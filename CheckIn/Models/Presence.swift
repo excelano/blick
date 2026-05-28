@@ -1,15 +1,15 @@
-// TeamsPresence.swift
+// Presence.swift
 // CheckIn
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
 import Foundation
 
-/// The user's Teams presence as we model it. Mirrors the subset of
+/// The user's Microsoft 365 presence as we model it. Mirrors the subset of
 /// Graph's availability values we let the user set explicitly via
 /// `setUserPreferredPresence`, plus `.unknown` for the pre-fetch /
 /// post-reset / fetch-failure case.
-enum TeamsPresence: Hashable {
+enum Presence: Hashable {
     case available
     case busy
     case doNotDisturb

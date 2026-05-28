@@ -5,20 +5,20 @@
 
 import SwiftUI
 
-/// Top-bar pill showing the user's current Teams presence and exposing
+/// Top-bar pill showing the user's current Microsoft 365 presence and exposing
 /// the settable states plus Out of Office and Reset to auto.
 ///
-/// OOO lives in the same menu as the Teams presences (rather than in
+/// OOO lives in the same menu as the presences (rather than in
 /// Settings) because conceptually it's another "I'm not available"
 /// state. It's a peer of Offline / Away — same menu position, same
 /// selection semantics. Under the hood it's a different Graph endpoint
 /// (`mailboxSettings/automaticRepliesSetting`), which the Inbox
-/// reconciles: picking any Teams presence (or Reset) also disables
+/// reconciles: picking any presence (or Reset) also disables
 /// OOO so the two never claim to be active at once.
 struct PresenceMenu: View {
-    let presence: TeamsPresence
+    let presence: Presence
     let isOutOfOffice: Bool
-    let onSelect: (TeamsPresence) -> Void
+    let onSelect: (Presence) -> Void
     let onSelectOutOfOffice: () -> Void
 
     var body: some View {
@@ -52,7 +52,7 @@ struct PresenceMenu: View {
         }
         .accessibilityLabel(isOutOfOffice
             ? "Out of office"
-            : "Teams presence: \(presence.displayName)")
+            : "Presence: \(presence.displayName)")
         .accessibilityHint("Change your presence")
     }
 
@@ -62,8 +62,8 @@ struct PresenceMenu: View {
             .foregroundStyle(.white, .purple)
     }
 
-    private func menuButton(for state: TeamsPresence) -> some View {
-        // Only the Teams presence whose state matches the current value
+    private func menuButton(for state: Presence) -> some View {
+        // Only the presence whose state matches the current value
         // gets the checkmark, and only when OOO isn't the active state.
         let isSelected = !isOutOfOffice && presence == state
         return Button { onSelect(state) } label: {
@@ -90,7 +90,7 @@ struct PresenceMenu: View {
     /// on green, minus on red, etc.) — single-tone Menu icon styling
     /// would otherwise render everything as the menu's tint color.
     @ViewBuilder
-    private func presenceGlyph(_ state: TeamsPresence) -> some View {
+    private func presenceGlyph(_ state: Presence) -> some View {
         switch state {
         case .available:
             Image(systemName: "checkmark.circle.fill")

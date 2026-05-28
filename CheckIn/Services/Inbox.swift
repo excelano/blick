@@ -40,11 +40,11 @@ final class Inbox {
     /// user's name in Teams alongside the presence glyph. Empty when
     /// not set. Refreshed on every refresh.
     private(set) var customStatusMessage: String = ""
-    /// Current Teams presence. Refreshed alongside the rest of the
+    /// Current Microsoft 365 presence. Refreshed alongside the rest of the
     /// summary; `setPresence(_:)` updates it optimistically and confirms
     /// with the server. `.unknown` before the first successful fetch,
     /// after sign-out, or when Teams is disabled.
-    private(set) var currentPresence: TeamsPresence = .unknown
+    private(set) var currentPresence: Presence = .unknown
     // MARK: - Unified meeting store
     //
     // Every Meeting CheckIn knows about lives in `meetingsById`. The
@@ -384,7 +384,7 @@ final class Inbox {
         }
     }
 
-    /// Set the user-preferred Teams presence, or clear it back to
+    /// Set the user-preferred Microsoft 365 presence, or clear it back to
     /// auto-detection when passed `.unknown`. Optimistic UI; reverts on
     /// failure. After a Reset, re-fetches the auto-detected state.
     ///
@@ -393,7 +393,7 @@ final class Inbox {
     /// user is back, and Reset-to-auto means "drop all my overrides".
     /// The OOO toggle and Teams-presence picker live in the same menu
     /// so the mutual exclusion needs to happen here.
-    func setPresence(_ presence: TeamsPresence) async {
+    func setPresence(_ presence: Presence) async {
         let previous = currentPresence
         currentPresence = presence
         do {
@@ -1172,7 +1172,7 @@ final class Inbox {
     /// — presence is a secondary concern, not critical to the panel.
     /// Returns the presence plus the custom status message so callers
     /// can publish both in lockstep from a single Graph round-trip.
-    private func fetchPresence() async -> (TeamsPresence, String) {
+    private func fetchPresence() async -> (Presence, String) {
         guard teamsEnabled else { return (.unknown, "") }
         do {
             return try await graphClient.fetchPresence()

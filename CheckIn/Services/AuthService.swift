@@ -167,21 +167,47 @@ final class AuthService {
         }
     }
 
-    func acquireTokenSilently(enableTeams: Bool) async throws -> String {
+    /// Shared silent-acquisition core. Throws `.notAuthenticated` when no
+    /// account is cached, and propagates the raw MSAL error (including
+    /// `interactionRequired`) otherwise. Callers decide how to handle a
+    /// silent miss: the interactive path falls back to `signIn`; the
+    /// headless path (`acquireTokenSilentlyNoInteraction`) bails.
+    private func acquireTokenSilentRaw(enableTeams: Bool) async throws -> String {
         guard let msalApp, let account = currentAccount else {
             throw AuthError.notAuthenticated
         }
 
         let scopes = Constants.scopes(enableTeams: enableTeams)
         let params = MSALSilentTokenParameters(scopes: scopes, account: account)
+        let result = try await msalApp.acquireTokenSilent(with: params)
+        return result.accessToken
+    }
 
+    func acquireTokenSilently(enableTeams: Bool) async throws -> String {
         do {
-            let result = try await msalApp.acquireTokenSilent(with: params)
-            return result.accessToken
+            return try await acquireTokenSilentRaw(enableTeams: enableTeams)
         } catch let error as NSError where error.domain == MSALErrorDomain
             && error.code == MSALError.interactionRequired.rawValue {
             // Token expired and can't refresh silently — need interactive sign-in
             return try await signIn(enableTeams: enableTeams)
+        }
+    }
+
+    /// Silent token acquisition for headless callers (App Intents) that
+    /// have no view controller to present interactive sign-in. Never
+    /// shows UI: a missing account or an expired refresh token both
+    /// surface as `.signInRequired`, telling the intent to ask the user
+    /// to open the app and sign in. On success the token is freshly
+    /// cached, so the subsequent `GraphClient.authorize()` silent call
+    /// in the operation succeeds without triggering interaction.
+    func acquireTokenSilentlyNoInteraction(enableTeams: Bool) async throws -> String {
+        do {
+            return try await acquireTokenSilentRaw(enableTeams: enableTeams)
+        } catch AuthError.notAuthenticated {
+            throw AuthError.signInRequired
+        } catch let error as NSError where error.domain == MSALErrorDomain
+            && error.code == MSALError.interactionRequired.rawValue {
+            throw AuthError.signInRequired
         }
     }
 
@@ -208,6 +234,7 @@ enum AuthError: LocalizedError {
     case invalidAuthority
     case noViewController
     case notAuthenticated
+    case signInRequired
     case adminConsentRequired(code: String?)
 
     var errorDescription: String? {
@@ -220,6 +247,8 @@ enum AuthError: LocalizedError {
             return "Could not find a view controller to present sign-in."
         case .notAuthenticated:
             return "No signed-in account. Please sign in first."
+        case .signInRequired:
+            return "Open CheckIn and sign in to use this shortcut."
         case .adminConsentRequired(let code):
             var message =
                 "Your organization's Microsoft 365 settings blocked the sign-in. " +

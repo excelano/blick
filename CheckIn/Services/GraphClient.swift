@@ -158,14 +158,14 @@ final class GraphClient {
         try await delete("/me/events/\(id)")
     }
 
-    /// Current Teams presence (collapsed to our smaller enum) plus the
+    /// Current Microsoft 365 presence (collapsed to our smaller enum) plus the
     /// short custom status message that shows under the user's name in
     /// Teams. Empty string when no message is set. Presence.ReadWrite
     /// required for both.
-    func fetchPresence() async throws -> (presence: TeamsPresence, statusMessage: String) {
+    func fetchPresence() async throws -> (presence: Presence, statusMessage: String) {
         let data: PresenceResponse = try await get("/me/presence", query: [:])
         let message = data.statusMessage?.message?.content ?? ""
-        return (TeamsPresence(graphAvailability: data.availability), message)
+        return (Presence(graphAvailability: data.availability), message)
     }
 
     /// Pin the user's preferred presence — overrides Teams' own
@@ -173,7 +173,7 @@ final class GraphClient {
     /// meeting" or "Available" based on the calendar). Stays for
     /// `expirationDuration` (4 hours here, matching Graph's default)
     /// or until cleared by `clearUserPreferredPresence`.
-    func setUserPreferredPresence(_ presence: TeamsPresence) async throws {
+    func setUserPreferredPresence(_ presence: Presence) async throws {
         guard let availability = presence.graphAvailability,
               let activity = presence.graphActivity else { return }
         try await post(
@@ -209,7 +209,7 @@ final class GraphClient {
     /// `.offline` is not a valid combination for this endpoint —
     /// the caller must route .offline / .unknown through
     /// `clearSessionPresence` instead.
-    func setSessionPresence(sessionId: String, presence: TeamsPresence) async throws {
+    func setSessionPresence(sessionId: String, presence: Presence) async throws {
         guard let availability = presence.graphAvailability,
               let activity = presence.graphActivity,
               availability != "Offline" else { return }
