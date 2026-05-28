@@ -51,8 +51,9 @@ struct CheckInApp: App {
         .backgroundTask(.appRefresh(Constants.backgroundRefreshIdentifier)) {
             // Schedule the next run first — if the refresh hangs or the
             // task is killed by iOS at its time limit, we still want to
-            // be on the schedule.
-            scheduleNextBackgroundRefresh()
+            // be on the schedule. The await hops to the main actor; the
+            // closure already does the same for inbox.refresh() below.
+            await scheduleNextBackgroundRefresh()
             await inbox.refresh()
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -66,7 +67,7 @@ struct CheckInApp: App {
     /// existing pending request with the same identifier, so this is
     /// idempotent. Whether and when it actually runs is at the system's
     /// discretion (usage patterns, battery, time of day).
-    nonisolated private func scheduleNextBackgroundRefresh() {
+    private func scheduleNextBackgroundRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: Constants.backgroundRefreshIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: Constants.backgroundRefreshInterval)
         try? BGTaskScheduler.shared.submit(request)
