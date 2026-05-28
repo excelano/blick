@@ -5,6 +5,16 @@
 
 import Foundation
 
+/// A recipient on the To: or Cc: line of an email. `name` is the display
+/// name (often empty for external senders); `address` is the SMTP
+/// address. Fall back to `address` when rendering if `name` is empty.
+struct Recipient: Hashable {
+    let name: String
+    let address: String
+
+    var displayName: String { name.isEmpty ? address : name }
+}
+
 struct Email: Identifiable {
     let id: String
     let subject: String
@@ -39,6 +49,12 @@ struct Email: Identifiable {
     /// the standard signal that a message came from a mailing list.
     /// Derived in GraphClient from `internetMessageHeaders`.
     let isMailingList: Bool
+    /// `toRecipients` from Graph. Includes the signed-in user when the
+    /// message was addressed directly to them — UI filters that out
+    /// when surfacing the "also to" line so users don't see themselves.
+    let toRecipients: [Recipient]
+    /// `ccRecipients` from Graph. Same filter applies in the UI.
+    let ccRecipients: [Recipient]
 
     init(id: String,
          subject: String,
@@ -51,7 +67,9 @@ struct Email: Identifiable {
          meetingMessageType: String? = nil,
          meetingStart: Date? = nil,
          meetingEnd: Date? = nil,
-         isMailingList: Bool = false) {
+         isMailingList: Bool = false,
+         toRecipients: [Recipient] = [],
+         ccRecipients: [Recipient] = []) {
         self.id = id
         self.subject = subject
         self.from = from
@@ -64,6 +82,8 @@ struct Email: Identifiable {
         self.meetingStart = meetingStart
         self.meetingEnd = meetingEnd
         self.isMailingList = isMailingList
+        self.toRecipients = toRecipients
+        self.ccRecipients = ccRecipients
     }
 
     func with(isFlagged: Bool) -> Email {
@@ -74,7 +94,9 @@ struct Email: Identifiable {
               meetingMessageType: meetingMessageType,
               meetingStart: meetingStart,
               meetingEnd: meetingEnd,
-              isMailingList: isMailingList)
+              isMailingList: isMailingList,
+              toRecipients: toRecipients,
+              ccRecipients: ccRecipients)
     }
 }
 

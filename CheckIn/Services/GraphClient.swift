@@ -48,6 +48,11 @@ final class GraphClient {
     /// `teamworkUserIdentity` body — see `markChatRead` / `markChatUnread`.
     var currentUserID: String { userID }
 
+    /// Mail address of the signed-in account. Empty until `fetchUserID`
+    /// runs. Used to filter the user out of recipient lists in the UI
+    /// so they don't see themselves in the "also to" line.
+    var currentUserMail: String { userMail }
+
     /// Fetch today's remaining meetings using calendarView (not /events,
     /// so recurring meetings are properly expanded). Returns the next
     /// meeting plus the rest of today's attendable meetings, ordered by
@@ -325,7 +330,7 @@ final class GraphClient {
                 "$orderby": "receivedDateTime desc",
                 "$top": "\(top)",
                 "$count": "true",
-                "$select": "id,subject,from,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
+                "$select": "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
             ],
             headers: ["ConsistencyLevel": "eventual"]
         )
@@ -336,6 +341,8 @@ final class GraphClient {
             }
             let meetingStart = e.startDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
             let meetingEnd = e.endDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
+            let toRecipients = (e.toRecipients ?? []).compactMap(Self.makeRecipient)
+            let ccRecipients = (e.ccRecipients ?? []).compactMap(Self.makeRecipient)
             return Email(
                 id: e.id,
                 subject: e.subject,
@@ -348,10 +355,20 @@ final class GraphClient {
                 meetingMessageType: e.meetingMessageType,
                 meetingStart: meetingStart,
                 meetingEnd: meetingEnd,
-                isMailingList: isMailingList
+                isMailingList: isMailingList,
+                toRecipients: toRecipients,
+                ccRecipients: ccRecipients
             )
         }
         return (emails, data.count ?? emails.count)
+    }
+
+    /// Map a Graph recipient envelope into our `Recipient` model. Skips
+    /// envelopes that carry no address — those are unusable for both
+    /// reply targeting and display.
+    private static func makeRecipient(_ envelope: EmailAddressEnvelope) -> Recipient? {
+        guard let address = envelope.emailAddress.address, !address.isEmpty else { return nil }
+        return Recipient(name: envelope.emailAddress.name, address: address)
     }
 
     /// Mail.ReadWrite required. Idempotent.

@@ -120,12 +120,21 @@ struct ReplyComposerView: View {
         }
     }
 
-    /// We don't currently fetch the full To/Cc list for an email — the
-    /// summary row only carries the sender's name and address. So we
-    /// can't show an accurate participant count in the "Replying to"
-    /// line. Returning empty until we have a richer model; Graph still
-    /// does the right thing on the wire.
-    private var otherRecipientsTail: String { "" }
+    /// Count of recipients beyond the sender and the signed-in user, so
+    /// the "Replying to" line gives an accurate sense of the reply's
+    /// fan-out. Graph's `/replyAll` excludes the current user
+    /// automatically, so we filter the same way here.
+    private var otherRecipientsTail: String {
+        guard case .email(let email) = target.kind else { return "" }
+        let me = inbox.currentUserMail.lowercased()
+        let all = email.toRecipients + email.ccRecipients
+        let others = all.filter { recipient in
+            let address = recipient.address.lowercased()
+            return address != me && address != email.fromAddress.lowercased()
+        }
+        guard !others.isEmpty else { return "" }
+        return " and \(others.count) other\(others.count == 1 ? "" : "s")"
+    }
 
     private var canSend: Bool {
         guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }

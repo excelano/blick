@@ -500,6 +500,10 @@ final class Inbox {
     /// fromAddress comparison.
     var userMailDomain: String { graphClient.userMailDomain }
 
+    /// Exposes the user's full mail address so the preview sheet can
+    /// filter the signed-in user out of the "also to" recipient list.
+    var currentUserMail: String { graphClient.currentUserMail }
+
     /// Mark every visible email from the given SMTP address as read.
     /// Used by the row-level context menu.
     func markAllFromSenderRead(_ address: String) async {

@@ -81,7 +81,9 @@ struct SingleValueExtPropResponse: Decodable {
 struct EmailResponse: Decodable {
     let id: String
     let subject: String
-    let from: EmailFromResponse
+    let from: EmailAddressEnvelope
+    let toRecipients: [EmailAddressEnvelope]?
+    let ccRecipients: [EmailAddressEnvelope]?
     let bodyPreview: String
     let receivedDateTime: String
     let flag: FlagResponse?
@@ -104,7 +106,7 @@ struct FlagResponse: Decodable {
     let flagStatus: String?
 }
 
-struct EmailFromResponse: Decodable {
+struct EmailAddressEnvelope: Decodable {
     let emailAddress: EmailAddressResponse
 }
 

@@ -48,6 +48,7 @@ struct MessagePreviewSheet: View {
     @State private var emailBody: String?
     @State private var bodyFetchFailed = false
     @State private var didAutoMarkRead = false
+    @State private var recipientsExpanded = false
     /// Set when the user taps the orange conflict indicator on the
     /// meeting info row. Drives a sheet-on-sheet presentation of
     /// `ConflictResolutionSheet`. Same flow as the calendar card's
@@ -264,6 +265,7 @@ struct MessagePreviewSheet: View {
                         .font(.caption)
                         .foregroundStyle(Brand.textMuted)
                 }
+                recipientRow(for: email)
             }
         case .chat(let chat):
             VStack(alignment: .leading, spacing: 6) {
@@ -290,6 +292,89 @@ struct MessagePreviewSheet: View {
                 }
             }
         }
+    }
+
+    /// Apple Mail-style expandable recipient row. Collapsed: a one-line
+    /// summary like "also to: Alice, Bob +3". Expanded: stacked "to:"
+    /// and "cc:" lines. Hidden entirely when the email has no other
+    /// recipients beyond the sender and the signed-in user.
+    @ViewBuilder
+    private func recipientRow(for email: Email) -> some View {
+        let tos = displayedRecipients(email.toRecipients)
+        let ccs = displayedRecipients(email.ccRecipients)
+        if !tos.isEmpty || !ccs.isEmpty {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    recipientsExpanded.toggle()
+                }
+            } label: {
+                if recipientsExpanded {
+                    expandedRecipients(tos: tos, ccs: ccs)
+                } else {
+                    collapsedRecipients(tos: tos, ccs: ccs)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(recipientsExpanded ? "Hide recipients" : "Show recipients")
+        }
+    }
+
+    private func collapsedRecipients(tos: [Recipient], ccs: [Recipient]) -> some View {
+        HStack(spacing: 4) {
+            Text(compactRecipientSummary(tos: tos, ccs: ccs))
+                .font(.caption)
+                .foregroundStyle(Brand.textMuted)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(Brand.textMuted)
+        }
+    }
+
+    private func expandedRecipients(tos: [Recipient], ccs: [Recipient]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if !tos.isEmpty {
+                Text("to: \(tos.map(\.displayName).joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(Brand.textMuted)
+                    .multilineTextAlignment(.leading)
+            }
+            if !ccs.isEmpty {
+                Text("cc: \(ccs.map(\.displayName).joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(Brand.textMuted)
+                    .multilineTextAlignment(.leading)
+            }
+            Image(systemName: "chevron.up")
+                .font(.caption2)
+                .foregroundStyle(Brand.textMuted)
+        }
+    }
+
+    /// First two names of the combined To+Cc list followed by "+N" when
+    /// more remain. Kept short so the row fits on a single line in the
+    /// medium sheet detent.
+    private func compactRecipientSummary(tos: [Recipient], ccs: [Recipient]) -> String {
+        let all = tos + ccs
+        let names = all.map(\.displayName)
+        let head = names.prefix(2).joined(separator: ", ")
+        let extra = names.count - 2
+        if extra > 0 {
+            return "also to: \(head) +\(extra)"
+        }
+        return "also to: \(head)"
+    }
+
+    /// Strip the signed-in user out of a recipient list so the UI shows
+    /// only "the other people on this email." Case-insensitive on the
+    /// SMTP address. Falls through to the unfiltered list when we
+    /// haven't fetched the user's mail yet — better to show too many
+    /// than to drop everyone.
+    private func displayedRecipients(_ recipients: [Recipient]) -> [Recipient] {
+        let me = inbox.currentUserMail.lowercased()
+        guard !me.isEmpty else { return recipients }
+        return recipients.filter { $0.address.lowercased() != me }
     }
 
     @ViewBuilder
