@@ -675,7 +675,7 @@ final class GraphClient {
         for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
         request = try await authorize(request)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performRequest(request, retryOnTransient: true)
         try checkResponse(response, data: data, method: "GET", path: path)
         return try JSONDecoder().decode(T.self, from: data)
     }
@@ -687,10 +687,14 @@ final class GraphClient {
         request.httpBody = try JSONEncoder().encode(body)
         request = try await authorize(request)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performRequest(request, retryOnTransient: true)
         try checkResponse(response, data: data, method: "PATCH", path: path)
     }
 
+    /// Used for both idempotent operations (presence sets, mark-read) and
+    /// non-idempotent sends (replyAll). Retry is OFF here — see the
+    /// `performRequest` doc comment for why doubling a sent message is a
+    /// worse default than asking the user to retry manually.
     private func post(_ path: String, body: some Encodable) async throws {
         var request = URLRequest(url: try makeURL(path: path))
         request.httpMethod = "POST"
@@ -698,7 +702,7 @@ final class GraphClient {
         request.httpBody = try JSONEncoder().encode(body)
         request = try await authorize(request)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performRequest(request, retryOnTransient: false)
         try checkResponse(response, data: data, method: "POST", path: path)
     }
 
@@ -707,10 +711,11 @@ final class GraphClient {
         request.httpMethod = "POST"
         request = try await authorize(request)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performRequest(request, retryOnTransient: true)
         try checkResponse(response, data: data, method: "POST", path: path)
     }
 
+    /// Used for `sendChatMessage` — non-idempotent. Retry OFF.
     private func postDecoded<T: Decodable>(_ path: String, body: some Encodable) async throws -> T {
         var request = URLRequest(url: try makeURL(path: path))
         request.httpMethod = "POST"
@@ -718,7 +723,7 @@ final class GraphClient {
         request.httpBody = try JSONEncoder().encode(body)
         request = try await authorize(request)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performRequest(request, retryOnTransient: false)
         try checkResponse(response, data: data, method: "POST", path: path)
         return try JSONDecoder().decode(T.self, from: data)
     }
@@ -728,7 +733,7 @@ final class GraphClient {
         request.httpMethod = "DELETE"
         request = try await authorize(request)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await performRequest(request, retryOnTransient: true)
         try checkResponse(response, data: data, method: "DELETE", path: path)
     }
 
@@ -746,6 +751,41 @@ final class GraphClient {
         guard (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw GraphError.httpError(method: method, path: path, status: http.statusCode, body: body)
+        }
+    }
+
+    /// Send a request through URLSession, optionally retrying once on
+    /// transient connection failures. The common case `retryOnTransient`
+    /// solves is the iOS quirk where URLSession's connection pool holds
+    /// dead sockets across an app suspend — the first call after resume
+    /// fails with `.networkConnectionLost` even though the network is
+    /// fine, and a single retry succeeds against a fresh connection.
+    ///
+    /// Idempotent methods (GET, PATCH, DELETE, mark-read POSTs)
+    /// opt in. Non-idempotent sends (replyAll, sendChatMessage) opt
+    /// out — `.networkConnectionLost` doesn't disambiguate "request
+    /// never arrived" from "response was lost," and double-sending a
+    /// message is worse than asking the user to tap Send again.
+    private func performRequest(_ request: URLRequest,
+                                retryOnTransient: Bool) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(for: request)
+        } catch let error as URLError where retryOnTransient && Self.isTransient(error.code) {
+            try await Task.sleep(for: .milliseconds(250))
+            return try await session.data(for: request)
+        }
+    }
+
+    /// URLError codes that indicate a dropped or stale connection where
+    /// a single retry is the standard remedy. `.notConnectedToInternet`
+    /// is intentionally omitted — that's a real user-offline state and
+    /// hiding it would just delay the same error.
+    private static func isTransient(_ code: URLError.Code) -> Bool {
+        switch code {
+        case .networkConnectionLost, .timedOut, .cannotConnectToHost, .dnsLookupFailed:
+            return true
+        default:
+            return false
         }
     }
 }
