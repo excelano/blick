@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInKit
 import SwiftUI
 
 /// Detail column for the iPad (regular-width) split layout. Renders the

@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInKit
 import SwiftUI
 
 /// Top-bar pill showing the user's current Microsoft 365 presence and exposing

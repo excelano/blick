@@ -1,5 +1,5 @@
 // Presence.swift
-// CheckIn
+// CheckInKit
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
@@ -9,7 +9,10 @@ import Foundation
 /// Graph's availability values we let the user set explicitly via
 /// `setUserPreferredPresence`, plus `.unknown` for the pre-fetch /
 /// post-reset / fetch-failure case.
-enum Presence: Hashable {
+///
+/// `String`-backed so it encodes cleanly into `CheckInSnapshot` for the
+/// widget and Control Center controls to read.
+public enum Presence: String, Codable, Hashable {
     case available
     case busy
     case doNotDisturb
@@ -18,7 +21,7 @@ enum Presence: Hashable {
     case offline
     case unknown
 
-    var displayName: String {
+    public var displayName: String {
         switch self {
         case .available: return "Available"
         case .busy: return "Busy"
@@ -33,7 +36,7 @@ enum Presence: Hashable {
     /// Map a Graph availability string to one of our enum cases. Graph
     /// includes idle variants ("AvailableIdle", "BusyIdle") and several
     /// activity-based states that we collapse into our simpler model.
-    init(graphAvailability: String) {
+    public init(graphAvailability: String) {
         switch graphAvailability {
         case "Available", "AvailableIdle": self = .available
         case "Busy", "BusyIdle": self = .busy
@@ -48,7 +51,7 @@ enum Presence: Hashable {
     /// Availability string for Graph's `setUserPreferredPresence` body.
     /// Nil for `.unknown`, which is "no preference" rather than a real
     /// state to set.
-    var graphAvailability: String? {
+    public var graphAvailability: String? {
         switch self {
         case .available: return "Available"
         case .busy: return "Busy"
@@ -63,7 +66,7 @@ enum Presence: Hashable {
     /// Activity string paired with the availability for Graph's setter.
     /// Graph requires Offline + OffWork as the only legal pairing for
     /// the offline case; everything else mirrors availability.
-    var graphActivity: String? {
+    public var graphActivity: String? {
         switch self {
         case .offline: return "OffWork"
         default: return graphAvailability

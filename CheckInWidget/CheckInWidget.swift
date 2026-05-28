@@ -5,15 +5,7 @@
 
 import WidgetKit
 import SwiftUI
-
-// Brand colors mirrored from the main app's Brand.swift. Kept in sync
-// manually because the widget extension is a separate target.
-private enum WidgetBrand {
-    static let bg        = Color(red: 0x0D / 255, green: 0x2D / 255, blue: 0x5B / 255)
-    static let bgDarker  = Color(red: 0x06 / 255, green: 0x14 / 255, blue: 0x2A / 255)
-    static let accent    = Color(red: 0x00 / 255, green: 0xAD / 255, blue: 0xEE / 255)
-    static let textMuted = Color(red: 0x6A / 255, green: 0x88 / 255, blue: 0x99 / 255)
-}
+import CheckInKit
 
 struct CheckInEntry: TimelineEntry {
     let date: Date
@@ -61,7 +53,9 @@ struct CheckInProvider: TimelineProvider {
             nextMeetingOrganizer: "David Anderson",
             nextMeetingJoinUrl: "https://teams.microsoft.com/l/meetup-join/preview",
             unreadEmailCount: 5,
-            chatCount: 2
+            chatCount: 2,
+            presence: .available,
+            isOutOfOffice: false
         )
     }
 }
@@ -118,10 +112,10 @@ struct CheckInWidgetEntryView: View {
             HStack(spacing: 6) {
                 Text("NEXT MEETING")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(WidgetBrand.accent)
+                    .foregroundStyle(Brand.accent)
                 Text(start, style: .time)
                     .font(.subheadline)
-                    .foregroundStyle(WidgetBrand.textMuted)
+                    .foregroundStyle(Brand.textMuted)
             }
             Text(subject)
                 .font(.title3.weight(.semibold))
@@ -132,7 +126,7 @@ struct CheckInWidgetEntryView: View {
         } else if entry.snapshot != nil {
             Text("CALENDAR")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(WidgetBrand.accent)
+                .foregroundStyle(Brand.accent)
             Text("No more meetings today.")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
@@ -142,7 +136,7 @@ struct CheckInWidgetEntryView: View {
                 .foregroundStyle(.white)
             Text("Open CheckIn to refresh.")
                 .font(.subheadline)
-                .foregroundStyle(WidgetBrand.textMuted)
+                .foregroundStyle(Brand.textMuted)
         }
     }
 
@@ -151,11 +145,11 @@ struct CheckInWidgetEntryView: View {
         return HStack(spacing: 8) {
             Text(untilTime(start, referenceDate: entry.date))
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(imminent ? .orange : WidgetBrand.accent)
+                .foregroundStyle(imminent ? .orange : Brand.accent)
             if let organizer, !organizer.isEmpty {
                 Text("with \(organizer)")
                     .font(.subheadline)
-                    .foregroundStyle(WidgetBrand.textMuted)
+                    .foregroundStyle(Brand.textMuted)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -188,7 +182,7 @@ struct CheckInWidgetEntryView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(WidgetBrand.accent)
+            .background(Brand.accent)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
@@ -211,10 +205,10 @@ struct CheckInWidgetEntryView: View {
             Text("\(count)")
                 .font(.title2.weight(.semibold))
         }
-        .foregroundStyle(WidgetBrand.accent)
+        .foregroundStyle(Brand.accent)
         .padding(.horizontal, 14)
         .frame(maxHeight: .infinity)
-        .background(WidgetBrand.bgDarker)
+        .background(Brand.bgDarker)
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
@@ -225,7 +219,7 @@ struct CheckInWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CheckInProvider()) { entry in
             CheckInWidgetEntryView(entry: entry)
-                .containerBackground(WidgetBrand.bg, for: .widget)
+                .containerBackground(Brand.bg, for: .widget)
         }
         .configurationDisplayName("CheckIn")
         .description("Your next meeting and unread counts at a glance.")
@@ -245,7 +239,9 @@ struct CheckInWidget: Widget {
             nextMeetingOrganizer: "David Anderson",
             nextMeetingJoinUrl: "https://teams.microsoft.com/l/meetup-join/preview",
             unreadEmailCount: 5,
-            chatCount: 2
+            chatCount: 2,
+            presence: .busy,
+            isOutOfOffice: false
         )
     )
     CheckInEntry(
@@ -257,7 +253,9 @@ struct CheckInWidget: Widget {
             nextMeetingOrganizer: nil,
             nextMeetingJoinUrl: nil,
             unreadEmailCount: 0,
-            chatCount: 0
+            chatCount: 0,
+            presence: .unknown,
+            isOutOfOffice: true
         )
     )
     CheckInEntry(date: .now, snapshot: nil)

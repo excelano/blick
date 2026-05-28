@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInKit
 import Foundation
 import UserNotifications
 import WidgetKit
@@ -294,7 +295,9 @@ final class Inbox {
             nextMeetingOrganizer: next?.organizer,
             nextMeetingJoinUrl: next?.joinUrl,
             unreadEmailCount: summary.totalUnreadEmails,
-            chatCount: summary.chats.count
+            chatCount: summary.chats.count,
+            presence: currentPresence,
+            isOutOfOffice: isOutOfOffice
         )
         guard let data = try? JSONEncoder().encode(snapshot),
               let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier) else {

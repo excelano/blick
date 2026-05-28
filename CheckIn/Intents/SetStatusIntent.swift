@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInKit
 import AppIntents
 
 /// Set the user's preferred Microsoft 365 presence (or reset to automatic) from

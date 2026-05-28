@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInKit
 import AppIntents
 
 /// The Microsoft 365 presence states a user can set from a shortcut. A narrowed

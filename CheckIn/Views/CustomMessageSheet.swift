@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInKit
 import SwiftUI
 
 /// Edit the Teams custom status message — short text that shows under
