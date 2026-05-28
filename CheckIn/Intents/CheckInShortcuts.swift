@@ -47,5 +47,41 @@ struct CheckInShortcuts: AppShortcutsProvider {
             shortTitle: "Turn Off Out of Office",
             systemImageName: "envelope.open"
         )
+        AppShortcut(
+            intent: CheckInCountIntent(metric: .unreadEmails),
+            phrases: [
+                "How many unread emails do I have in the \(.applicationName) app",
+                "How many unread emails in the \(.applicationName) app",
+            ],
+            shortTitle: "Unread Emails",
+            systemImageName: "envelope.badge"
+        )
+        AppShortcut(
+            intent: CheckInCountIntent(metric: .unreadChats),
+            phrases: [
+                "How many unread chats do I have in the \(.applicationName) app",
+                "How many unread chats in the \(.applicationName) app",
+            ],
+            shortTitle: "Unread Chats",
+            systemImageName: "message.badge"
+        )
+        AppShortcut(
+            intent: CheckInCountIntent(metric: .remainingMeetings),
+            phrases: [
+                "How many more meetings today in the \(.applicationName) app",
+                "How many meetings do I have left in the \(.applicationName) app",
+            ],
+            shortTitle: "Remaining Meetings",
+            systemImageName: "calendar"
+        )
+        AppShortcut(
+            intent: CheckInCountIntent(metric: .unreadMessages),
+            phrases: [
+                "How many unread messages do I have in the \(.applicationName) app",
+                "How many unread messages in the \(.applicationName) app",
+            ],
+            shortTitle: "Unread Messages",
+            systemImageName: "tray.full"
+        )
     }
 }

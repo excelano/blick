@@ -103,6 +103,28 @@ final class Inbox {
     /// regardless of which bucket they came from.
     func meeting(withId id: String) -> Meeting? { meetingsById[id] }
 
+    // MARK: - Intent read accessors
+    //
+    // The counts the App Intents speak back. Each reads CheckIn's
+    // in-memory summary after a refresh, so the spoken number matches the
+    // panel. `unreadEmailCount` is the server-side total, not the capped
+    // visible list.
+    var unreadEmailCount: Int { summary?.totalUnreadEmails ?? 0 }
+    var unreadChatCount: Int { summary?.chats.count ?? 0 }
+    var remainingMeetingCount: Int { todayMeetingIds.count }
+
+    /// Unread emails whose sender name or address contains `query`,
+    /// case-insensitively. Accurate only over the loaded set, so callers
+    /// refresh with `fetchAllEmails: true` before reading this.
+    func unreadCount(fromSenderMatching query: String) -> Int {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return 0 }
+        return (summary?.emails ?? []).filter {
+            $0.from.localizedCaseInsensitiveContains(q)
+                || $0.fromAddress.localizedCaseInsensitiveContains(q)
+        }.count
+    }
+
     private let graphClient: GraphClient
     private let authService: AuthService
     private let teamsEnabled: Bool
@@ -113,7 +135,11 @@ final class Inbox {
     @ObservationIgnored private var undoExpiryTask: Task<Void, Never>?
     @ObservationIgnored private var transientErrorExpiryTask: Task<Void, Never>?
 
-    private var emailTop: Int { showingAllEmails ? 999 : 20 }
+    /// Graph caps `$top` at 1000; 999 stays just under. Shared by the
+    /// "show all" mode and by intent refreshes that need the full unread
+    /// set to filter accurately.
+    private static let fullEmailCap = 999
+    private var emailTop: Int { showingAllEmails ? Self.fullEmailCap : 20 }
 
     @ObservationIgnored private let logger = Logger(subsystem: "com.excelano.checkin", category: "inbox")
 
@@ -207,7 +233,11 @@ final class Inbox {
         if result.failed { lastRefreshFailed = true }
     }
 
-    func refresh() async {
+    /// `fetchAllEmails` lifts the email fetch to the full unread set for
+    /// this refresh only, without touching the persisted "show all"
+    /// preference. Intents that filter `summary.emails` (e.g. by sender)
+    /// pass `true` so the match isn't limited to the visible window.
+    func refresh(fetchAllEmails: Bool = false) async {
         var anyFailed = false
         // `fetchUserID` powers two features now: Teams pending-chat
         // filtering (only when teamsEnabled) and external-sender
@@ -227,7 +257,7 @@ final class Inbox {
         await refreshPresenceSession()
 
         async let meetingsT = fetchMeetings()
-        async let emailsT = fetchEmails()
+        async let emailsT = fetchEmails(top: fetchAllEmails ? Self.fullEmailCap : nil)
         async let chatsT = fetchChats(userIDReady: userIDReady)
         async let presenceT = fetchPresence()
         async let oooT = fetchOutOfOffice()
@@ -1128,9 +1158,9 @@ final class Inbox {
         return result
     }
 
-    private func fetchEmails() async -> (emails: [Email], totalCount: Int, failed: Bool) {
+    private func fetchEmails(top: Int? = nil) async -> (emails: [Email], totalCount: Int, failed: Bool) {
         do {
-            let r = try await graphClient.unreadEmails(top: emailTop)
+            let r = try await graphClient.unreadEmails(top: top ?? emailTop)
             return (r.emails, r.totalCount, false)
         } catch {
             logger.error("unreadEmails failed: \(error.localizedDescription, privacy: .public)")
