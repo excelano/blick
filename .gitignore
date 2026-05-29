@@ -2,6 +2,10 @@
 development-environment-setup.txt
 Azure-Application-ID.txt
 
+# Protected deliverable docs (never commit)
+app-store-connect-metadata.md
+excelano-com-handoff-it-approval.md
+
 # Xcode
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/

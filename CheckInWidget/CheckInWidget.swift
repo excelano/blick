@@ -6,6 +6,7 @@
 import WidgetKit
 import SwiftUI
 import AppIntents
+import CheckInGraph
 import CheckInKit
 
 struct CheckInEntry: TimelineEntry {
@@ -24,17 +25,33 @@ struct CheckInProvider: TimelineProvider {
 
     /// Generate one entry per minute up to 60 minutes out so the
     /// "in X min" countdown stays accurate without requiring a widget
-    /// refresh. After 60 entries, iOS reloads — the main app also
-    /// reloads us proactively on every refresh.
+    /// refresh. After 60 entries, iOS reloads; the main app also reloads
+    /// us proactively on every refresh. On each reload we fetch a fresh
+    /// snapshot (next meeting, counts, presence, OOO) straight from Graph,
+    /// so the widget stays current between app launches.
     func getTimeline(in context: Context, completion: @escaping (Timeline<CheckInEntry>) -> Void) {
-        let snapshot = readSnapshot()
-        let now = Date()
-        var entries: [CheckInEntry] = []
-        for minute in 0...60 {
-            let date = now.addingTimeInterval(TimeInterval(minute * 60))
-            entries.append(CheckInEntry(date: date, snapshot: snapshot))
+        Task {
+            let snapshot = await liveSnapshot()
+            let now = Date()
+            var entries: [CheckInEntry] = []
+            for minute in 0...60 {
+                let date = now.addingTimeInterval(TimeInterval(minute * 60))
+                entries.append(CheckInEntry(date: date, snapshot: snapshot))
+            }
+            completion(Timeline(entries: entries, policy: .atEnd))
         }
-        completion(Timeline(entries: entries, policy: .atEnd))
+    }
+
+    /// A snapshot fetched directly from Graph in the extension. On any failure
+    /// (no token, offline, Graph error) we fall back to the last snapshot the
+    /// app wrote to the App Group, so the widget never blocks or blanks on the
+    /// network.
+    private func liveSnapshot() async -> CheckInSnapshot? {
+        let core = GraphCore(tokenProvider: WidgetTokenProvider())
+        if let fresh = try? await core.fetchSnapshot() {
+            return fresh
+        }
+        return readSnapshot()
     }
 
     private func readSnapshot() -> CheckInSnapshot? {

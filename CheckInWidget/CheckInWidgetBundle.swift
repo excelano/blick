@@ -17,8 +17,8 @@ struct CheckInWidgetBundle: WidgetBundle {
         // The app registers its own StatusActions (→ Inbox) for Siri/Shortcuts.
         AppDependencyManager.shared.add(
             dependency: StatusActions(
-                presence: { try await WidgetStatusClient.shared.applyPresence($0) },
-                outOfOffice: { try await WidgetStatusClient.shared.applyOutOfOffice($0) }
+                presence: { try await WidgetStatusActions().applyPresence($0) },
+                outOfOffice: { try await WidgetStatusActions().applyOutOfOffice($0) }
             )
         )
     }

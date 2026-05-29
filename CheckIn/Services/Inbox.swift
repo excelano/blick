@@ -333,14 +333,12 @@ final class Inbox {
         }
     }
 
-    /// Read the auto-reply status from Graph. Treats any non-`disabled`
-    /// state (alwaysEnabled, scheduled) as "out of office is on" — we
-    /// don't model scheduled-with-dates in our UI; the user manages
-    /// dates in Outlook web and CheckIn just shows on/off.
+    /// Whether Out-of-Office is on. The "any non-disabled state counts"
+    /// rule lives in `GraphCore`; CheckIn just shows on/off (the user
+    /// manages scheduled-with-dates in Outlook web).
     private func fetchOutOfOffice() async -> Bool {
         do {
-            let reply = try await graphClient.fetchAutomaticReplies()
-            return reply.status != "disabled"
+            return try await graphClient.fetchOutOfOfficeEnabled()
         } catch {
             logger.error("fetchOutOfOffice failed: \(error.localizedDescription, privacy: .public)")
             return false

@@ -3,20 +3,35 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInGraph
 import CheckInKit
 import Foundation
 import os
 
+/// Bridges the app's `AuthService` to `GraphCore`'s token-provider seam.
+/// Keeps Graph's HTTP layer free of any MSAL dependency: `GraphCore` asks for
+/// a token, this hands back whatever the app's auth flow produces.
+private struct AppTokenProvider: GraphTokenProvider {
+    let authService: AuthService
+    let enableTeams: Bool
+
+    func graphAccessToken() async throws -> String {
+        try await authService.acquireTokenSilently(enableTeams: enableTeams)
+    }
+}
+
 final class GraphClient {
-    private let authService: AuthService
-    private let session = URLSession.shared
-    private let enableTeams: Bool
+    /// Shared Graph access layer (HTTP plumbing, auth-header injection,
+    /// transient-retry, presence/OOO writes). The app's rich reads ride its
+    /// HTTP primitives; the presence/OOO methods below forward to it.
+    private let core: GraphCore
     private var userID = ""
     private var userMail = ""
 
     init(authService: AuthService, enableTeams: Bool) {
-        self.authService = authService
-        self.enableTeams = enableTeams
+        self.core = GraphCore(
+            tokenProvider: AppTokenProvider(authService: authService, enableTeams: enableTeams)
+        )
     }
 
     /// Fetch the signed-in user's ID and mail address. ID powers the Teams
@@ -24,7 +39,7 @@ final class GraphClient {
     /// Some accounts (personal/MSA, occasionally) don't populate `mail`,
     /// so we fall back to `userPrincipalName`.
     func fetchUserID() async throws {
-        let data: UserResponse = try await get("/me", query: ["$select": "id,mail,userPrincipalName"])
+        let data: UserResponse = try await core.get("/me", query: ["$select": "id,mail,userPrincipalName"])
         userID = data.id
         userMail = data.mail ?? data.userPrincipalName ?? ""
     }
@@ -65,7 +80,7 @@ final class GraphClient {
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
         let formatter = ISO8601DateFormatter()
 
-        let data: GraphList<CalendarEventResponse> = try await get("/me/calendarView", query: [
+        let data: GraphList<CalendarEventResponse> = try await core.get("/me/calendarView", query: [
             "startDateTime": formatter.string(from: now),
             "endDateTime": formatter.string(from: endOfDay),
             "$top": "10",
@@ -125,7 +140,7 @@ final class GraphClient {
     /// calendars.
     func eventsInRange(start: Date, end: Date) async throws -> [Meeting] {
         let formatter = ISO8601DateFormatter()
-        let data: GraphList<CalendarEventResponse> = try await get("/me/calendarView", query: [
+        let data: GraphList<CalendarEventResponse> = try await core.get("/me/calendarView", query: [
             "startDateTime": formatter.string(from: start),
             "endDateTime": formatter.string(from: end),
             "$top": "100",
@@ -156,119 +171,50 @@ final class GraphClient {
     /// also sends cancellations to attendees — the caller is expected to
     /// gate that case.
     func deleteEvent(id: String) async throws {
-        try await delete("/me/events/\(id)")
+        try await core.delete("/me/events/\(id)")
     }
 
-    /// Current Microsoft 365 presence (collapsed to our smaller enum) plus the
-    /// short custom status message that shows under the user's name in
-    /// Teams. Empty string when no message is set. Presence.ReadWrite
-    /// required for both.
+    /// Current Microsoft 365 presence plus the custom status message.
+    /// Forwards to `GraphCore`.
     func fetchPresence() async throws -> (presence: Presence, statusMessage: String) {
-        let data: PresenceResponse = try await get("/me/presence", query: [:])
-        let message = data.statusMessage?.message?.content ?? ""
-        return (Presence(graphAvailability: data.availability), message)
+        try await core.fetchPresence()
     }
 
-    /// Pin the user's preferred presence, overriding Teams' own
-    /// auto-detection (which would otherwise flip the user to "In a
-    /// meeting" or "Available" based on the calendar). Set for one day
-    /// (`P1D`); Graph's default when omitted is 7 days for Available, 1 day
-    /// for Busy/DoNotDisturb. Either way it shows only while a presence
-    /// session exists (see `setSessionPresence`); with no session the user
-    /// shows Offline, not this value. Cleared by `clearUserPreferredPresence`.
+    /// Pin the user's preferred presence (pass `.unknown` plus
+    /// `clearUserPreferredPresence` to drop it). Forwards to `GraphCore`.
     func setUserPreferredPresence(_ presence: Presence) async throws {
-        guard let availability = presence.graphAvailability,
-              let activity = presence.graphActivity else { return }
-        try await post(
-            "/me/presence/setUserPreferredPresence",
-            body: SetPresenceBody(
-                availability: availability,
-                activity: activity,
-                expirationDuration: "P1D"
-            )
-        )
+        try await core.setUserPreferredPresence(presence)
     }
 
     /// Drop the user-preferred presence so Teams resumes auto-detection.
-    /// POSTs an empty body.
     func clearUserPreferredPresence() async throws {
-        try await emptyPost("/me/presence/clearUserPreferredPresence")
+        try await core.clearUserPreferredPresence()
     }
 
-    /// Set (or clear) the user's Teams status message — the short text
-    /// shown under the user's name in Teams, independent of presence.
-    /// Passing an empty string clears it.
+    /// Set (or clear, with an empty string) the user's Teams status message.
     func setStatusMessage(_ content: String) async throws {
-        try await post(
-            "/me/presence/setStatusMessage",
-            body: SetStatusMessageBody(content: content)
-        )
+        try await core.setStatusMessage(content)
     }
 
-    /// Register CheckIn as an active presence-session source so the
-    /// user's preferred presence keeps applying even when no other
-    /// Microsoft client (Teams) holds a session. Max expiration is
-    /// `PT1H`; callers re-up on every refresh.
-    /// `.offline` is not a valid combination for this endpoint —
-    /// the caller must route .offline / .unknown through
-    /// `clearSessionPresence` instead.
+    /// Re-up CheckIn's presence session so Graph keeps honoring the
+    /// preferred-presence override. Offline is skipped inside `GraphCore`.
     func setSessionPresence(sessionId: String, presence: Presence) async throws {
-        guard let availability = presence.graphAvailability,
-              let activity = presence.graphActivity,
-              availability != "Offline" else { return }
-        try await post(
-            "/me/presence/setPresence",
-            body: SetSessionPresenceBody(
-                sessionId: sessionId,
-                availability: availability,
-                activity: activity,
-                expirationDuration: "PT1H"
-            )
-        )
+        try await core.setSessionPresence(sessionId: sessionId, presence: presence)
     }
 
-    /// Drop CheckIn's presence session. Used when the user resets to
-    /// auto or chooses Offline (which we want to express via the
-    /// preferred-presence override, not a session).
-    func clearSessionPresence(sessionId: String) async throws {
-        try await post(
-            "/me/presence/clearPresence",
-            body: ClearSessionPresenceBody(sessionId: sessionId)
-        )
+    /// Whether Out-of-Office (Outlook automatic replies) is currently on.
+    func fetchOutOfOfficeEnabled() async throws -> Bool {
+        try await core.fetchAutomaticRepliesEnabled()
     }
 
-    /// Read the user's auto-reply settings. Used to drive the OOO indicator
-    /// and to preserve any existing auto-reply text when toggling.
-    func fetchAutomaticReplies() async throws -> AutomaticRepliesResponse {
-        try await get("/me/mailboxSettings/automaticRepliesSetting", query: [:])
-    }
-
-    /// Turn the user's auto-reply on. If their existing internal/external
-    /// message is empty, fills in a generic default so people don't get
-    /// blank auto-replies. Otherwise preserves whatever they already had
-    /// (likely set via Outlook web).
+    /// Turn auto-replies on, preserving any existing reply text.
     func enableAutomaticReplies(defaultMessage: String) async throws {
-        let current = try await fetchAutomaticReplies()
-        let internalMsg = current.internalReplyMessage.flatMap { $0.isEmpty ? nil : $0 } ?? defaultMessage
-        let externalMsg = current.externalReplyMessage.flatMap { $0.isEmpty ? nil : $0 } ?? defaultMessage
-        let body = MailboxSettingsFull(
-            automaticRepliesSetting: AutomaticRepliesFull(
-                status: "alwaysEnabled",
-                externalAudience: current.externalAudience ?? "all",
-                internalReplyMessage: internalMsg,
-                externalReplyMessage: externalMsg
-            )
-        )
-        try await patch("/me/mailboxSettings", body: body)
+        try await core.enableAutomaticReplies(defaultMessage: defaultMessage)
     }
 
-    /// Turn the user's auto-reply off. PATCHes status only so existing
-    /// messages are preserved for next time.
+    /// Turn auto-replies off.
     func disableAutomaticReplies() async throws {
-        let body = MailboxSettingsStatusOnly(
-            automaticRepliesSetting: AutomaticRepliesStatusOnly(status: "disabled")
-        )
-        try await patch("/me/mailboxSettings", body: body)
+        try await core.disableAutomaticReplies()
     }
 
     /// Accept/tentative/decline an event. Graph returns 202 with no body.
@@ -283,7 +229,7 @@ final class GraphClient {
         case .none, .notResponded, .organizer:
             return
         }
-        try await post("/me/events/\(id)/\(action)", body: RsvpBody(sendResponse: true))
+        try await core.post("/me/events/\(id)/\(action)", body: RsvpBody(sendResponse: true))
     }
 
     /// Pull the iCalUId of the meeting referenced by an invite email.
@@ -296,7 +242,7 @@ final class GraphClient {
     /// Returns nil on any failure or when Graph omits the property.
     func fetchInviteICalUId(messageId: String) async -> String? {
         do {
-            let response: MessageSingleValueExtPropResponse = try await get(
+            let response: MessageSingleValueExtPropResponse = try await core.get(
                 "/me/messages/\(messageId)",
                 query: [
                     "$expand": "singleValueExtendedProperties($filter=id eq 'Binary {6ED8DA90-450B-101B-98DA-00AA003F1305} Id 0x3')"
@@ -326,7 +272,7 @@ final class GraphClient {
     /// resulting `meetingStart` against `calendarView` recovers the real
     /// event id.
     func unreadEmails(top: Int = 20) async throws -> (emails: [Email], totalCount: Int) {
-        let data: GraphList<EmailResponse> = try await get(
+        let data: GraphList<EmailResponse> = try await core.get(
             "/me/mailFolders/inbox/messages",
             query: [
                 "$filter": "isRead eq false",
@@ -376,7 +322,7 @@ final class GraphClient {
 
     /// Mail.ReadWrite required. Idempotent.
     func markEmailRead(id: String) async throws {
-        try await patch("/me/messages/\(id)", body: MarkReadBody(isRead: true))
+        try await core.patch("/me/messages/\(id)", body: MarkReadBody(isRead: true))
     }
 
     /// IDs of Inbox messages already marked read whose `receivedDateTime`
@@ -396,7 +342,7 @@ final class GraphClient {
         let start = formatter.string(from: todayStart)
         let end = formatter.string(from: tomorrowStart)
 
-        let data: GraphList<EmailIdResponse> = try await get(
+        let data: GraphList<EmailIdResponse> = try await core.get(
             "/me/mailFolders/inbox/messages",
             query: [
                 "$filter": "isRead eq true and receivedDateTime ge \(start) and receivedDateTime lt \(end)",
@@ -413,7 +359,7 @@ final class GraphClient {
     /// in CheckIn's unread list. Same Inbox scoping and 200-item cap as
     /// `idsOfReadEmailsReceivedToday`.
     func idsOfReadFlaggedEmails() async throws -> [String] {
-        let data: GraphList<EmailIdResponse> = try await get(
+        let data: GraphList<EmailIdResponse> = try await core.get(
             "/me/mailFolders/inbox/messages",
             query: [
                 "$filter": "isRead eq true and flag/flagStatus eq 'flagged'",
@@ -427,7 +373,7 @@ final class GraphClient {
     /// Mail.ReadWrite required. Used to undo an accidental Mark Read or
     /// to drive the explicit Mark Unread button on the preview sheet.
     func markEmailUnread(id: String) async throws {
-        try await patch("/me/messages/\(id)", body: MarkReadBody(isRead: false))
+        try await core.patch("/me/messages/\(id)", body: MarkReadBody(isRead: false))
     }
 
     /// Fetch the full plain-text body of a message for the preview sheet.
@@ -436,7 +382,7 @@ final class GraphClient {
     /// to render HTML for the preview. Mail.Read or Mail.ReadWrite
     /// covers this.
     func fetchEmailBody(id: String) async throws -> String {
-        let data: EmailBodyResponse = try await get(
+        let data: EmailBodyResponse = try await core.get(
             "/me/messages/\(id)",
             query: ["$select": "body"],
             headers: ["Prefer": "outlook.body-content-type=\"text\""]
@@ -450,14 +396,14 @@ final class GraphClient {
     /// single-recipient messages this degrades gracefully to reply-to-
     /// sender. Mail.Send required.
     func replyAllToEmail(id: String, comment: String) async throws {
-        try await post("/me/messages/\(id)/replyAll", body: ReplyCommentBody(comment: comment))
+        try await core.post("/me/messages/\(id)/replyAll", body: ReplyCommentBody(comment: comment))
     }
 
     /// Post a new message into an existing chat thread. Chat.ReadWrite
     /// covers this — `ChatMessage.Send` is a more granular scope but
     /// the broader one we already request is a superset.
     func sendChatMessage(chatId: String, content: String) async throws {
-        try await post(
+        try await core.post(
             "/me/chats/\(chatId)/messages",
             body: ChatMessageSendBody(
                 body: ChatMessageSendContent(contentType: "text", content: content)
@@ -469,7 +415,7 @@ final class GraphClient {
     /// per-user `viewpoint.lastMessageReadDateTime`, which is what we
     /// now key the chat-list filter off. Chat.ReadWrite required.
     func markChatRead(chatId: String, userId: String, tenantId: String) async throws {
-        try await post(
+        try await core.post(
             "/chats/\(chatId)/markChatReadForUser",
             body: MarkChatReadBody(
                 user: TeamworkUserIdentityBody(id: userId, tenantId: tenantId)
@@ -482,7 +428,7 @@ final class GraphClient {
     /// whole chat unread (Graph's filter then treats the latest message
     /// as newer than the read mark). Chat.ReadWrite required.
     func markChatUnread(chatId: String, userId: String, tenantId: String) async throws {
-        try await post(
+        try await core.post(
             "/chats/\(chatId)/markChatUnreadForUser",
             body: MarkChatUnreadBody(
                 user: TeamworkUserIdentityBody(id: userId, tenantId: tenantId)
@@ -500,7 +446,7 @@ final class GraphClient {
         let todayStart = calendar.startOfDay(for: Date())
         let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? Date()
 
-        let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
+        let data: GraphList<ChatResponse> = try await core.get("/me/chats", query: [
             "$select": "id,lastMessagePreview,viewpoint",
             "$expand": "lastMessagePreview",
             "$top": "50"
@@ -525,13 +471,13 @@ final class GraphClient {
 
     /// Mail.ReadWrite required. Idempotent.
     func flagEmail(id: String) async throws {
-        try await patch("/me/messages/\(id)",
+        try await core.patch("/me/messages/\(id)",
                         body: FlagBody(flag: FlagStatusBody(flagStatus: "flagged")))
     }
 
     /// Mail.ReadWrite required. Idempotent.
     func unflagEmail(id: String) async throws {
-        try await patch("/me/messages/\(id)",
+        try await core.patch("/me/messages/\(id)",
                         body: FlagBody(flag: FlagStatusBody(flagStatus: "notFlagged")))
     }
 
@@ -562,7 +508,7 @@ final class GraphClient {
                     body: MarkReadBody(isRead: isRead)
                 )
             }
-            let response: BatchResponse = try await postDecoded(
+            let response: BatchResponse = try await core.postDecoded(
                 "/$batch",
                 body: BatchEnvelope(requests: requests)
             )
@@ -586,7 +532,7 @@ final class GraphClient {
                     body: FlagBody(flag: FlagStatusBody(flagStatus: status))
                 )
             }
-            let response: BatchResponse = try await postDecoded(
+            let response: BatchResponse = try await core.postDecoded(
                 "/$batch",
                 body: BatchEnvelope(requests: requests)
             )
@@ -627,7 +573,7 @@ final class GraphClient {
     /// action (which flips viewpoint back to unread; the explicit
     /// skip would re-hide those chats).
     func pendingChats() async throws -> [ChatMessage] {
-        let data: GraphList<ChatResponse> = try await get("/me/chats", query: [
+        let data: GraphList<ChatResponse> = try await core.get("/me/chats", query: [
             "$select": "id,topic,webUrl,lastMessagePreview,viewpoint",
             "$expand": "lastMessagePreview,members",
             "$top": "50"
@@ -672,184 +618,6 @@ final class GraphClient {
         }
 
         return messages
-    }
-
-    private func makeURL(path: String, query: [String: String] = [:]) throws -> URL {
-        guard var components = URLComponents(string: Constants.graphBaseURL + path) else {
-            throw GraphError.invalidURL(path: path)
-        }
-        if !query.isEmpty {
-            components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
-        }
-        guard let url = components.url else {
-            throw GraphError.invalidURL(path: path)
-        }
-        return url
-    }
-
-    private func get<T: Decodable>(_ path: String,
-                                   query: [String: String],
-                                   headers: [String: String] = [:]) async throws -> T {
-        var request = URLRequest(url: try makeURL(path: path, query: query))
-        request.httpMethod = "GET"
-        for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
-        request = try await authorize(request)
-
-        let (data, response) = try await performRequest(request, retryOnTransient: true)
-        try checkResponse(response, data: data, method: "GET", path: path)
-        return try JSONDecoder().decode(T.self, from: data)
-    }
-
-    private func patch(_ path: String, body: some Encodable) async throws {
-        var request = URLRequest(url: try makeURL(path: path))
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        request = try await authorize(request)
-
-        let (data, response) = try await performRequest(request, retryOnTransient: true)
-        try checkResponse(response, data: data, method: "PATCH", path: path)
-    }
-
-    /// Used for both idempotent operations (presence sets, mark-read) and
-    /// non-idempotent sends (replyAll). Retry is OFF here — see the
-    /// `performRequest` doc comment for why doubling a sent message is a
-    /// worse default than asking the user to retry manually.
-    private func post(_ path: String, body: some Encodable) async throws {
-        var request = URLRequest(url: try makeURL(path: path))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        request = try await authorize(request)
-
-        let (data, response) = try await performRequest(request, retryOnTransient: false)
-        try checkResponse(response, data: data, method: "POST", path: path)
-    }
-
-    private func emptyPost(_ path: String) async throws {
-        var request = URLRequest(url: try makeURL(path: path))
-        request.httpMethod = "POST"
-        request = try await authorize(request)
-
-        let (data, response) = try await performRequest(request, retryOnTransient: true)
-        try checkResponse(response, data: data, method: "POST", path: path)
-    }
-
-    /// Used for `sendChatMessage` — non-idempotent. Retry OFF.
-    private func postDecoded<T: Decodable>(_ path: String, body: some Encodable) async throws -> T {
-        var request = URLRequest(url: try makeURL(path: path))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-        request = try await authorize(request)
-
-        let (data, response) = try await performRequest(request, retryOnTransient: false)
-        try checkResponse(response, data: data, method: "POST", path: path)
-        return try JSONDecoder().decode(T.self, from: data)
-    }
-
-    private func delete(_ path: String) async throws {
-        var request = URLRequest(url: try makeURL(path: path))
-        request.httpMethod = "DELETE"
-        request = try await authorize(request)
-
-        let (data, response) = try await performRequest(request, retryOnTransient: true)
-        try checkResponse(response, data: data, method: "DELETE", path: path)
-    }
-
-    private func authorize(_ request: URLRequest) async throws -> URLRequest {
-        let token = try await authService.acquireTokenSilently(enableTeams: enableTeams)
-        var req = request
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        return req
-    }
-
-    private func checkResponse(_ response: URLResponse, data: Data, method: String, path: String) throws {
-        guard let http = response as? HTTPURLResponse else {
-            throw GraphError.invalidResponse
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw GraphError.httpError(method: method, path: path, status: http.statusCode, body: body)
-        }
-    }
-
-    /// Send a request through URLSession, optionally retrying once on
-    /// transient connection failures. The common case `retryOnTransient`
-    /// solves is the iOS quirk where URLSession's connection pool holds
-    /// dead sockets across an app suspend — the first call after resume
-    /// fails with `.networkConnectionLost` even though the network is
-    /// fine, and a single retry succeeds against a fresh connection.
-    ///
-    /// Idempotent methods (GET, PATCH, DELETE, mark-read POSTs)
-    /// opt in. Non-idempotent sends (replyAll, sendChatMessage) opt
-    /// out — `.networkConnectionLost` doesn't disambiguate "request
-    /// never arrived" from "response was lost," and double-sending a
-    /// message is worse than asking the user to tap Send again.
-    private func performRequest(_ request: URLRequest,
-                                retryOnTransient: Bool) async throws -> (Data, URLResponse) {
-        do {
-            return try await session.data(for: request)
-        } catch let error as URLError where retryOnTransient && Self.isTransient(error.code) {
-            try await Task.sleep(for: .milliseconds(250))
-            return try await session.data(for: request)
-        }
-    }
-
-    /// URLError codes that indicate a dropped or stale connection where
-    /// a single retry is the standard remedy. `.notConnectedToInternet`
-    /// is intentionally omitted — that's a real user-offline state and
-    /// hiding it would just delay the same error.
-    private static func isTransient(_ code: URLError.Code) -> Bool {
-        switch code {
-        case .networkConnectionLost, .timedOut, .cannotConnectToHost, .dnsLookupFailed:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
-/// Parse ISO8601 dates from Graph API, handling fractional seconds.
-/// Graph returns varying formats like "2026-04-08T18:55:28.844Z" or "2026-04-08T16:54:51.17Z".
-/// The default ISO8601DateFormatter doesn't handle fractional seconds.
-private func parseISO8601(_ dateString: String) -> Date? {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let date = formatter.date(from: dateString) { return date }
-    // Fallback without fractional seconds
-    formatter.formatOptions = [.withInternetDateTime]
-    return formatter.date(from: dateString)
-}
-
-/// Graph API returns datetimes as a naive string plus a separate timezone string.
-private func parseGraphDate(_ dateString: String, timeZone: String) -> Date {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSS"
-    formatter.timeZone = TimeZone(identifier: timeZone) ?? .current
-    if let date = formatter.date(from: dateString) { return date }
-    // Falling back to `Date()` here used to be silent; logging so a
-    // bad date string is debuggable when a meeting renders at the
-    // wrong time.
-    Logger(subsystem: "com.excelano.checkin", category: "graph")
-        .error("parseGraphDate failed: '\(dateString, privacy: .public)' tz='\(timeZone, privacy: .public)'")
-    return Date()
-}
-
-enum GraphError: LocalizedError {
-    case invalidURL(path: String)
-    case invalidResponse
-    case httpError(method: String, path: String, status: Int, body: String)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL(let path):
-            return "Could not construct Graph URL for path \(path)."
-        case .invalidResponse:
-            return "Invalid response from Microsoft Graph."
-        case .httpError(let method, let path, let status, let body):
-            return "Graph API \(method) \(path) returned \(status): \(body)"
-        }
     }
 }
 

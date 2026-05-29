@@ -8,15 +8,19 @@ When you ask for your summary, CheckIn fetches calendar events, unread emails, a
 
 ## What leaves your device
 
-**Microsoft Graph API calls.** When you ask for your summary, CheckIn issues HTTPS requests to your Microsoft 365 service. These calls go to `graph.microsoft.com` (and regional equivalents) and `login.microsoftonline.com`. They carry your access token, which Microsoft uses to identify you, and they return the calendar, mail, and chat data your account has access to. When you swipe to mark read or flag, CheckIn issues the corresponding write to the same destinations. This is the same traffic that any Microsoft Graph client makes; CheckIn does not add headers, identifiers, or analytics to it.
+**Microsoft Graph API calls.** When you ask for your summary, CheckIn issues HTTPS requests to your Microsoft 365 service. These calls go to `graph.microsoft.com` (and regional equivalents) and `login.microsoftonline.com`. They carry your access token, which Microsoft uses to identify you, and they return the calendar, mail, and chat data your account has access to. When you act on something, CheckIn issues the corresponding write to the same destinations. CheckIn's Home Screen widget is a second first-party process on the same device; when you tap its controls it makes the same kinds of calls to the same destinations, using the same token from the device's keychain. Nothing new leaves the device. This is the same traffic that any Microsoft Graph client makes; CheckIn does not add headers, identifiers, or analytics to it.
 
 **Nothing else.** CheckIn makes no other network requests. No analytics, no crash reporting, no telemetry, no usage logging that leaves the device, no third-party SDKs that would. The Xcode project deliberately imports nothing of the sort, which is the point: this is enforced by the absence of code, not by a policy that depends on the developer behaving well.
 
 ## Writes
 
-CheckIn can mark email as read and toggle the follow-up flag on email. Both happen by swipe gesture in the inbox list. The optimistic update is reverted if the Graph call fails.
+CheckIn writes back to your Microsoft 365 account only in response to an action you take. From email you can mark messages read or unread, toggle the follow-up flag, and send a reply. From the calendar you can RSVP to an invitation (accept, tentative, decline) and remove an event. You can set your Teams presence and status message, turn Out-of-Office automatic replies on or off, and send or mark Teams chat messages. Each write is the direct result of a gesture or tap, and an optimistic update is reverted if the Graph call fails. CheckIn performs no writes on its own.
 
-The Microsoft 365 scopes CheckIn requests reflect what it does: `Mail.ReadWrite` for the email mutations, `Chat.ReadWrite` for Teams reads, and `Calendars.Read` because no calendar mutations are planned.
+The Microsoft 365 scopes CheckIn requests reflect exactly that surface: `Mail.ReadWrite` and `Mail.Send` for reading and acting on email, `Calendars.ReadWrite` for the next-meeting view and RSVP, `MailboxSettings.ReadWrite` for the Out-of-Office toggle, `Chat.ReadWrite` for Teams chats, and `Presence.ReadWrite` for showing and setting your Teams status. Sign-in also uses `User.Read` and the standard `openid`, `profile`, and `offline_access`.
+
+## Across your devices
+
+Your Microsoft sign-in token is never moved, copied, or synced off the device that obtained it. The app and its Home Screen widget share one token only because they run on the same device. If CheckIn ever runs on a companion device such as an Apple Watch, that device either shows status data relayed from your phone over Apple's device-to-device connection (which carries no token), or it signs you in on its own and keeps its own token on that device. A token is never handed from one device to another, never placed on a server, and never synced through iCloud Keychain. This is enforced by how the code is built, not by a policy that depends on the developer behaving well.
 
 ## What CheckIn does not collect
 

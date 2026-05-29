@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInGraph
 import CheckInKit
 import SwiftUI
 #if DEBUG

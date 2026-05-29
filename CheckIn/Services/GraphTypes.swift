@@ -16,16 +16,6 @@ struct UserResponse: Decodable {
     let userPrincipalName: String?
 }
 
-struct GraphList<T: Decodable>: Decodable {
-    let value: [T]
-    let count: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case value
-        case count = "@odata.count"
-    }
-}
-
 struct CalendarEventResponse: Decodable {
     let id: String
     let subject: String
@@ -246,91 +236,4 @@ struct BatchResponse: Decodable {
 struct BatchResponseItem: Decodable {
     let id: String
     let status: Int
-}
-
-struct PresenceResponse: Decodable {
-    let availability: String
-    let activity: String
-    let statusMessage: StatusMessageEnvelope?
-}
-
-struct StatusMessageEnvelope: Decodable {
-    let message: StatusMessageContent?
-}
-
-struct StatusMessageContent: Decodable {
-    let content: String?
-    let contentType: String?
-}
-
-struct SetStatusMessageBody: Encodable {
-    let statusMessage: StatusMessagePayload
-
-    init(content: String) {
-        statusMessage = StatusMessagePayload(
-            message: StatusMessagePayloadContent(content: content, contentType: "text")
-        )
-    }
-}
-
-struct StatusMessagePayload: Encodable {
-    let message: StatusMessagePayloadContent
-}
-
-struct StatusMessagePayloadContent: Encodable {
-    let content: String
-    let contentType: String
-}
-
-struct SetPresenceBody: Encodable {
-    let availability: String
-    let activity: String
-    let expirationDuration: String  // ISO 8601 duration, e.g., "PT4H"
-}
-
-/// Body for `/me/presence/setPresence` — the app-session endpoint that
-/// registers CheckIn as an active presence source. Distinct from the
-/// user-preferred body above: this one requires a `sessionId` and keeps
-/// Graph from treating the user as having "no session" (which would
-/// otherwise stop the preferred from being honored).
-struct SetSessionPresenceBody: Encodable {
-    let sessionId: String
-    let availability: String
-    let activity: String
-    let expirationDuration: String  // ISO 8601, max "PT1H"
-}
-
-struct ClearSessionPresenceBody: Encodable {
-    let sessionId: String
-}
-
-/// Subset of `/me/mailboxSettings/automaticRepliesSetting` we care about
-/// for the OOO toggle. `status` drives the indicator and the toggle;
-/// the messages are kept so we can preserve a user's existing
-/// auto-reply text when toggling, rather than overwriting it with our
-/// canned default every time.
-struct AutomaticRepliesResponse: Decodable {
-    let status: String  // disabled | alwaysEnabled | scheduled
-    let externalAudience: String?
-    let internalReplyMessage: String?
-    let externalReplyMessage: String?
-}
-
-struct MailboxSettingsStatusOnly: Encodable {
-    let automaticRepliesSetting: AutomaticRepliesStatusOnly
-}
-
-struct AutomaticRepliesStatusOnly: Encodable {
-    let status: String
-}
-
-struct MailboxSettingsFull: Encodable {
-    let automaticRepliesSetting: AutomaticRepliesFull
-}
-
-struct AutomaticRepliesFull: Encodable {
-    let status: String
-    let externalAudience: String
-    let internalReplyMessage: String
-    let externalReplyMessage: String
 }

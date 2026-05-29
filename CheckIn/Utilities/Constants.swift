@@ -10,7 +10,6 @@ enum Constants {
 
     static let authority = "https://login.microsoftonline.com/organizations"
     static let redirectURI = "msauth.com.excelano.checkin://auth"
-    static let graphBaseURL = "https://graph.microsoft.com/v1.0"
 
     // MSAL for iOS automatically requests openid, profile, and offline_access.
     // Mail.ReadWrite drives the email mutation surface (mark read, flag).
