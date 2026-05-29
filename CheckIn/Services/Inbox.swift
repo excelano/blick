@@ -404,7 +404,11 @@ final class Inbox {
 
     /// Enable auto-replies (`alwaysEnabled` with no end date). Optimistic
     /// UI update with revert on failure, mirroring the presence pattern.
-    func setOutOfOffice(_ on: Bool) async {
+    /// Returns `true` on success so intent-driven callers can detect a
+    /// silent Graph failure and propagate it instead of speaking a success
+    /// dialog after nothing changed.
+    @discardableResult
+    func setOutOfOffice(_ on: Bool) async -> Bool {
         let previous = isOutOfOffice
         isOutOfOffice = on
         do {
@@ -413,10 +417,12 @@ final class Inbox {
             } else {
                 try await graphClient.disableAutomaticReplies()
             }
+            return true
         } catch {
             logger.error("setOutOfOffice(\(on)) failed: \(error.localizedDescription, privacy: .public)")
             isOutOfOffice = previous
             showTransientError("Couldn't update Out of Office. Try again.")
+            return false
         }
     }
 
@@ -429,7 +435,8 @@ final class Inbox {
     /// user is back, and Reset-to-auto means "drop all my overrides".
     /// The OOO toggle and Teams-presence picker live in the same menu
     /// so the mutual exclusion needs to happen here.
-    func setPresence(_ presence: Presence) async {
+    @discardableResult
+    func setPresence(_ presence: Presence) async -> Bool {
         let previous = currentPresence
         currentPresence = presence
         do {
@@ -453,10 +460,17 @@ final class Inbox {
         } catch {
             logger.error("setPresence(\(presence.displayName, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
             currentPresence = previous
+            return false
         }
+        // OOO disable lives outside the do/catch but only runs when the
+        // presence write succeeded — Graph failures above return early.
+        // The whole call only reports success if the OOO disable also
+        // succeeded, so an intent-driven set won't speak success when
+        // OOO is still on.
         if isOutOfOffice {
-            await setOutOfOffice(false)
+            return await setOutOfOffice(false)
         }
+        return true
     }
 
     /// Sets the iOS app-icon badge to `unread emails + pending chats`. The
@@ -1260,16 +1274,22 @@ final class Inbox {
 extension Inbox {
     /// Pre-flight a silent token refresh so a headless launch fails fast
     /// with a sign-in prompt rather than a half-applied change, then set
-    /// the preferred presence and refresh the status surfaces.
+    /// the preferred presence and refresh the status surfaces. Throws if
+    /// the underlying Graph write fails so the intent's success dialog
+    /// doesn't speak after nothing changed.
     func applyPresence(_ presence: Presence) async throws {
         _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: teamsEnabled)
-        await setPresence(presence)
+        guard await setPresence(presence) else {
+            throw StatusActionError.applyFailed
+        }
         reloadStatusSurfaces()
     }
 
     func applyOutOfOffice(_ on: Bool) async throws {
         _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: teamsEnabled)
-        await setOutOfOffice(on)
+        guard await setOutOfOffice(on) else {
+            throw StatusActionError.applyFailed
+        }
         reloadStatusSurfaces()
     }
 

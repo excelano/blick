@@ -88,6 +88,6 @@ struct WidgetStatusActions: Sendable {
             return
         }
         defaults.set(data, forKey: CheckInSnapshot.userDefaultsKey)
-        WidgetCenter.shared.reloadAllTimelines()
+        reloadSurfaces()
     }
 }

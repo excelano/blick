@@ -5,6 +5,21 @@
 
 import Foundation
 
+/// Surfaces a silent failure to the intent layer so a Siri/Shortcut/widget
+/// invocation doesn't speak a success dialog after Graph rejected the
+/// write. The underlying error is already logged at the call site; the
+/// intent only needs to know the change didn't take effect.
+public enum StatusActionError: LocalizedError {
+    case applyFailed
+
+    public var errorDescription: String? {
+        switch self {
+        case .applyFailed:
+            return "Couldn't update your Microsoft 365 status. Try again."
+        }
+    }
+}
+
 /// The concrete dependency the status intents resolve through
 /// `AppDependencyManager`. "Status" here spans both the Microsoft 365
 /// presence and Outlook Out-of-Office auto-replies — the two things a
