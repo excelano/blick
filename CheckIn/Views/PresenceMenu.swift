@@ -46,7 +46,7 @@ struct PresenceMenu: View {
                 if isOutOfOffice {
                     outOfOfficeGlyph
                 } else {
-                    presenceGlyph(presence)
+                    PresenceGlyph(presence)
                 }
             }
             .font(.subheadline.weight(.semibold))
@@ -71,7 +71,7 @@ struct PresenceMenu: View {
             Label {
                 Text(state.displayName + (isSelected ? "  ✓" : ""))
             } icon: {
-                presenceGlyph(state)
+                PresenceGlyph(state)
             }
         }
     }
@@ -86,40 +86,4 @@ struct PresenceMenu: View {
         }
     }
 
-    /// SF-Symbol icon styled to match Teams' presence palette. Uses
-    /// `.symbolRenderingMode(.palette)` to set two-tone glyphs (checkmark
-    /// on green, minus on red, etc.) — single-tone Menu icon styling
-    /// would otherwise render everything as the menu's tint color.
-    @ViewBuilder
-    private func presenceGlyph(_ state: Presence) -> some View {
-        switch state {
-        case .available:
-            Image(systemName: "checkmark.circle.fill")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, .green)
-        case .busy:
-            // Both palette slots set to .red so the red value renders
-            // through the same pipeline as DND's white-on-red palette,
-            // keeping the two reds visually identical.
-            Image(systemName: "circle.fill")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.red, .red)
-        case .doNotDisturb:
-            Image(systemName: "minus.circle.fill")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, .red)
-        case .beRightBack, .away:
-            Image(systemName: "clock.fill")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.yellow)
-        case .offline:
-            Image(systemName: "xmark.circle.fill")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, .gray)
-        case .unknown:
-            Image(systemName: "questionmark.circle")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.gray)
-        }
-    }
 }

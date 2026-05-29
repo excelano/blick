@@ -81,4 +81,10 @@ public struct CheckInSnapshot: Codable {
     /// Key inside the App Group's UserDefaults where the encoded
     /// snapshot is stored.
     public static let userDefaultsKey = "snapshot"
+    /// App Group keys for the MSAL config the widget needs to build an
+    /// instance matching the app's, so it can read the shared token cache.
+    /// The app writes these; a custom Azure registration set in the app's
+    /// private UserDefaults wouldn't otherwise be visible to the extension.
+    public static let effectiveClientIDKey = "effectiveClientID"
+    public static let effectiveAuthorityKey = "effectiveAuthority"
 }

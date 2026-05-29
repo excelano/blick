@@ -6,6 +6,7 @@
 import Foundation
 import MSAL
 import os
+import CheckInKit
 
 @MainActor @Observable
 final class AuthService {
@@ -34,6 +35,15 @@ final class AuthService {
     }
 
     private func configureMSAL() {
+        // Publish the effective client ID and authority to the App Group so
+        // the widget extension can build an MSAL instance matching this
+        // one and read the shared token cache. The widget can't see the
+        // app's private UserDefaults where a custom registration lives.
+        if let shared = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier) {
+            shared.set(Constants.effectiveClientID, forKey: CheckInSnapshot.effectiveClientIDKey)
+            shared.set(Constants.effectiveAuthority, forKey: CheckInSnapshot.effectiveAuthorityKey)
+        }
+
         guard let authorityURL = URL(string: Constants.effectiveAuthority) else {
             configurationError = AuthError.invalidAuthority
             return

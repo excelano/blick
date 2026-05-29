@@ -16,6 +16,7 @@
 		6BD125162FC8E42300B6B85F /* CheckInKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		6BD125202FC8E64700B6B85F /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
 		6BD125212FC8E64700B6B85F /* CheckInKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		6BD126232FC9413A00B6B85F /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 6BD126222FC9413A00B6B85F /* MSAL */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -168,6 +169,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6B78BD942FC15197008CF821 /* SwiftUI.framework in Frameworks */,
+				6BD126232FC9413A00B6B85F /* MSAL in Frameworks */,
 				6BD125202FC8E64700B6B85F /* CheckInKit.framework in Frameworks */,
 				6B78BD922FC15197008CF821 /* WidgetKit.framework in Frameworks */,
 			);
@@ -286,6 +288,7 @@
 			);
 			name = CheckInWidgetExtension;
 			packageProductDependencies = (
+				6BD126222FC9413A00B6B85F /* MSAL */,
 			);
 			productName = CheckInWidgetExtension;
 			productReference = 6B78BD8F2FC15197008CF821 /* CheckInWidgetExtension.appex */;
@@ -924,6 +927,11 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		194F4CCC2FAD3EA70019A39C /* MSAL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
+			productName = MSAL;
+		};
+		6BD126222FC9413A00B6B85F /* MSAL */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
 			productName = MSAL;

@@ -5,6 +5,7 @@
 
 import WidgetKit
 import SwiftUI
+import AppIntents
 import CheckInKit
 
 struct CheckInEntry: TimelineEntry {
@@ -85,15 +86,20 @@ struct CheckInWidgetEntryView: View {
     var entry: CheckInProvider.Entry
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                meetingBlock
+        VStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    meetingBlock
+                    Spacer(minLength: 0)
+                    joinPillIfAvailable
+                }
+                .frame(maxHeight: .infinity)
                 Spacer(minLength: 0)
-                joinPillIfAvailable
+                countsColumn
             }
-            .frame(maxHeight: .infinity)
-            Spacer(minLength: 0)
-            countsColumn
+            if entry.snapshot != nil {
+                actionBar
+            }
         }
     }
 
@@ -210,6 +216,45 @@ struct CheckInWidgetEntryView: View {
         .frame(maxHeight: .infinity)
         .background(Brand.bgDarker)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// Interactive row of presence quick-sets. Each pill fires
+    /// `SetStatusIntent`; the system background-launches the app to run
+    /// it, then the app patches the snapshot and reloads the timeline so
+    /// the active pill re-renders.
+    private var actionBar: some View {
+        VStack(spacing: 6) {
+            Rectangle()
+                .fill(Brand.textMuted.opacity(0.25))
+                .frame(height: 1)
+            HStack(spacing: 6) {
+                presenceButton(.available, "Available")
+                presenceButton(.busy, "Busy")
+                presenceButton(.away, "Away")
+            }
+        }
+    }
+
+    /// A presence quick-set pill, highlighted when it matches the live
+    /// presence (and OOO isn't active, since OOO supersedes presence).
+    private func presenceButton(_ status: StatusAppEnum, _ label: String) -> some View {
+        let presence = status.asPresence
+        let isActive = entry.snapshot.map { $0.presence == presence && !$0.isOutOfOffice } ?? false
+        return Button(intent: SetStatusIntent(status: status)) {
+            HStack(spacing: 4) {
+                PresenceGlyph(presence)
+                Text(label)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(isActive ? Brand.accent.opacity(0.35) : Brand.bgDarker)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 
