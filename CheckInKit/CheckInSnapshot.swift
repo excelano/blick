@@ -57,6 +57,24 @@ public struct CheckInSnapshot: Codable {
         self.isOutOfOffice = isOutOfOffice
     }
 
+    /// A copy with only the presence and Out-of-Office fields replaced.
+    /// Lets the app patch the last-written snapshot after an intent
+    /// mutation — including when it was background-launched and has no
+    /// fresh summary to build a full snapshot from.
+    public func settingStatus(presence: Presence, isOutOfOffice: Bool) -> CheckInSnapshot {
+        CheckInSnapshot(
+            updatedAt: updatedAt,
+            nextMeetingSubject: nextMeetingSubject,
+            nextMeetingStart: nextMeetingStart,
+            nextMeetingOrganizer: nextMeetingOrganizer,
+            nextMeetingJoinUrl: nextMeetingJoinUrl,
+            unreadEmailCount: unreadEmailCount,
+            chatCount: chatCount,
+            presence: presence,
+            isOutOfOffice: isOutOfOffice
+        )
+    }
+
     /// Identifier shared between the main app and the widget extension
     /// for the App Group container both can read/write.
     public static let appGroupIdentifier = "group.com.excelano.checkin"

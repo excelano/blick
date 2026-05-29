@@ -4,10 +4,17 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import AppIntents
+import CheckInKit
 
 /// Turn Outlook automatic replies (Out of Office) on or off from Siri,
-/// Shortcuts, or Spotlight. Uses the app's default Out of Office message
-/// when enabling; an existing message set elsewhere is preserved.
+/// Shortcuts, an interactive widget button, or a Control Center control.
+/// Uses the app's default Out of Office message when enabling; an existing
+/// message set elsewhere is preserved.
+///
+/// Source file shared (dual target membership) between the app and the
+/// widget extension so Siri/Shortcuts and the widget's buttons both have
+/// the type. The system background-launches the app to run `perform()`,
+/// where the `StatusActions` dependency resolves to the live `Inbox`.
 struct SetOutOfOfficeIntent: AppIntent {
     static var title: LocalizedStringResource = "Set Out of Office"
     static var description = IntentDescription(
@@ -18,8 +25,7 @@ struct SetOutOfOfficeIntent: AppIntent {
     @Parameter(title: "Turn On", default: true)
     var turnOn: Bool
 
-    @Dependency var inbox: Inbox
-    @Dependency var authService: AuthService
+    @Dependency var actions: StatusActions
 
     init() {}
 
@@ -33,8 +39,7 @@ struct SetOutOfOfficeIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
-        await inbox.setOutOfOffice(turnOn)
+        try await actions.applyOutOfOffice(turnOn)
         let dialog: IntentDialog = turnOn
             ? "Out of Office is now on."
             : "Out of Office is now off."

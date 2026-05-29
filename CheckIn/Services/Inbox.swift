@@ -1253,3 +1253,40 @@ final class Inbox {
         }
     }
 }
+
+// MARK: - Intent-driven status actions
+
+extension Inbox {
+    /// Pre-flight a silent token refresh so a headless launch fails fast
+    /// with a sign-in prompt rather than a half-applied change, then set
+    /// the preferred presence and refresh the status surfaces.
+    func applyPresence(_ presence: Presence) async throws {
+        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: teamsEnabled)
+        await setPresence(presence)
+        reloadStatusSurfaces()
+    }
+
+    func applyOutOfOffice(_ on: Bool) async throws {
+        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: teamsEnabled)
+        await setOutOfOffice(on)
+        reloadStatusSurfaces()
+    }
+
+    /// Patch the App Group snapshot's presence/OOO fields from current
+    /// in-memory state and reload widget timelines, so an intent-driven
+    /// change shows on the widget (and, on iOS 18, Control Center) without
+    /// waiting for the next full refresh. Works when the app was
+    /// background-launched to run the intent and so has no `summary` to
+    /// build a complete snapshot — it patches the last one on disk.
+    private func reloadStatusSurfaces() {
+        if let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
+           let data = defaults.data(forKey: CheckInSnapshot.userDefaultsKey),
+           let existing = try? JSONDecoder().decode(CheckInSnapshot.self, from: data),
+           let patched = try? JSONEncoder().encode(
+               existing.settingStatus(presence: currentPresence, isOutOfOffice: isOutOfOffice)
+           ) {
+            defaults.set(patched, forKey: CheckInSnapshot.userDefaultsKey)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+}

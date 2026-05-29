@@ -5,6 +5,7 @@
 
 import AppIntents
 import BackgroundTasks
+import CheckInKit
 import MSAL
 import SwiftUI
 import UIKit
@@ -34,6 +35,17 @@ struct CheckInApp: App {
         // so @Dependency resolution in the intents finds them here.
         AppDependencyManager.shared.add(dependency: inbox)
         AppDependencyManager.shared.add(dependency: auth)
+        // The status-mutating intents (Set Status / Set Out of Office)
+        // live in CheckInKit so the widget extension can reference them.
+        // They can't name `Inbox`, and AppIntents keys @Dependency by
+        // concrete type (not protocol), so they resolve this StatusActions
+        // box wired to the live Inbox here.
+        AppDependencyManager.shared.add(
+            dependency: StatusActions(
+                presence: { [inbox] in try await inbox.applyPresence($0) },
+                outOfOffice: { [inbox] in try await inbox.applyOutOfOffice($0) }
+            )
+        )
     }
 
     var body: some Scene {

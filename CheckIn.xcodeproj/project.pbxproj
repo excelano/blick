@@ -146,6 +146,11 @@
 			path = CheckInKitTests;
 			sourceTree = "<group>";
 		};
+		6BFACE0000000000000000A1 /* SharedIntents */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SharedIntents;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,6 +199,7 @@
 				6B78BD952FC15197008CF821 /* CheckInWidget */,
 				6BD125012FC8E42300B6B85F /* CheckInKit */,
 				6BD125102FC8E42300B6B85F /* CheckInKitTests */,
+				6BFACE0000000000000000A1 /* SharedIntents */,
 				6B78BD902FC15197008CF821 /* Frameworks */,
 				19C6DDC22FAD391B008DDDF0 /* Products */,
 			);
@@ -250,6 +256,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				19C6DDC32FAD391B008DDDF0 /* CheckIn */,
+				6BFACE0000000000000000A1 /* SharedIntents */,
 			);
 			name = CheckIn;
 			packageProductDependencies = (
@@ -275,6 +282,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				6B78BD952FC15197008CF821 /* CheckInWidget */,
+				6BFACE0000000000000000A1 /* SharedIntents */,
 			);
 			name = CheckInWidgetExtension;
 			packageProductDependencies = (

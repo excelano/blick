@@ -3,11 +3,18 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
-import CheckInKit
 import AppIntents
+import CheckInKit
 
 /// Set the user's preferred Microsoft 365 presence (or reset to automatic) from
-/// Siri, Shortcuts, or Spotlight. Runs headless — no app UI.
+/// Siri, Shortcuts, an interactive widget button, or a Control Center
+/// control. Runs headless — no app UI.
+///
+/// Source file shared (dual target membership) between the app and the
+/// widget extension so Siri/Shortcuts (app target) and the widget's
+/// buttons (extension target) both have the type. The system
+/// background-launches the app to run `perform()`, where the
+/// `StatusActions` dependency resolves to the live `Inbox`.
 ///
 /// Known limitation, carried honestly from the app: a preferred presence
 /// only takes visible effect when a Teams desktop session exists. Graph
@@ -23,8 +30,13 @@ struct SetStatusIntent: AppIntent {
     @Parameter(title: "Status")
     var status: StatusAppEnum
 
-    @Dependency var inbox: Inbox
-    @Dependency var authService: AuthService
+    @Dependency var actions: StatusActions
+
+    init() {}
+
+    init(status: StatusAppEnum) {
+        self.status = status
+    }
 
     static var parameterSummary: some ParameterSummary {
         Summary("Set my status to \(\.$status)")
@@ -32,11 +44,7 @@ struct SetStatusIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        // Pre-flight a silent token refresh. On a headless launch this is
-        // the only sign-in check we can make, and it primes the cache so
-        // the operation's own GraphClient.authorize() silent call lands.
-        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
-        await inbox.setPresence(status.asPresence)
+        try await actions.applyPresence(status.asPresence)
 
         let dialog: IntentDialog
         if status == .resetToAuto {
