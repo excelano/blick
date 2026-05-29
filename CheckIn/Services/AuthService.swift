@@ -94,7 +94,7 @@ final class AuthService {
             throw configurationError ?? AuthError.notConfigured
         }
 
-        let scopes = Constants.scopes(enableTeams: enableTeams)
+        let scopes = GraphScopes.scopes(enableTeams: enableTeams)
 
         let viewController: UIViewController = try await MainActor.run {
             guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -187,7 +187,7 @@ final class AuthService {
             throw AuthError.notAuthenticated
         }
 
-        let scopes = Constants.scopes(enableTeams: enableTeams)
+        let scopes = GraphScopes.scopes(enableTeams: enableTeams)
         let params = MSALSilentTokenParameters(scopes: scopes, account: account)
         let result = try await msalApp.acquireTokenSilent(with: params)
         return result.accessToken

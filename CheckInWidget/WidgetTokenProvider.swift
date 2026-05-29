@@ -18,11 +18,6 @@ import MSAL
 /// operation (e.g. `fetchSnapshot`, which issues several Graph requests)
 /// builds one MSAL client and acquires once rather than per request.
 final class WidgetTokenProvider: GraphTokenProvider {
-    private let scopes = [
-        "User.Read", "Mail.ReadWrite", "Mail.Send",
-        "Calendars.ReadWrite", "MailboxSettings.ReadWrite",
-        "Chat.ReadWrite", "Presence.ReadWrite",
-    ]
     private var cachedToken: String?
 
     func graphAccessToken() async throws -> String {
@@ -53,7 +48,7 @@ final class WidgetTokenProvider: GraphTokenProvider {
         guard let account = try app.allAccounts().first else {
             throw WidgetTokenError.notAuthenticated
         }
-        let params = MSALSilentTokenParameters(scopes: scopes, account: account)
+        let params = MSALSilentTokenParameters(scopes: GraphScopes.all, account: account)
         return try await app.acquireTokenSilent(with: params).accessToken
     }
 }

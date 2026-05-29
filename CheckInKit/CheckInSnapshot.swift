@@ -4,6 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import Foundation
+import WidgetKit
 
 /// Snapshot of CheckIn state written to the App Group on every refresh,
 /// for the widget and Control Center controls to read. Trimmed to just
@@ -84,6 +85,51 @@ public struct CheckInSnapshot: Codable {
               let data = defaults.data(forKey: userDefaultsKey) else { return nil }
         return try? JSONDecoder().decode(CheckInSnapshot.self, from: data)
     }
+
+    /// Encode and write the snapshot to the App Group. Returns `true` on
+    /// success so callers can log a failure with their own logger. The
+    /// single write path shared by the app's refresh, the app's
+    /// intent-driven patch, and the widget's status actions.
+    @discardableResult
+    public func saveToAppGroup() -> Bool {
+        guard let data = try? JSONEncoder().encode(self),
+              let defaults = UserDefaults(suiteName: Self.appGroupIdentifier) else {
+            return false
+        }
+        defaults.set(data, forKey: Self.userDefaultsKey)
+        return true
+    }
+
+    /// Reload the widget timelines and (iOS 18+) the Out-of-Office Control
+    /// Center toggle. Surfaces drive themselves from the App Group snapshot,
+    /// so a reload after a write is what makes a change visible.
+    public static func reloadStatusSurfaces() {
+        WidgetCenter.shared.reloadAllTimelines()
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
+        }
+    }
+
+    /// Patch the last-written snapshot's presence/OOO fields and reload
+    /// surfaces. Used after an intent-driven mutation when the caller
+    /// doesn't have a full summary to rebuild the snapshot from — it
+    /// updates the fields the surfaces care about and leaves the rest
+    /// alone. Reloads even if no snapshot was found, so an empty App
+    /// Group at least nudges the surfaces to refetch.
+    public static func patchAndReload(presence: Presence, isOutOfOffice: Bool) {
+        if let existing = loadFromAppGroup() {
+            existing
+                .settingStatus(presence: presence, isOutOfOffice: isOutOfOffice)
+                .saveToAppGroup()
+        }
+        reloadStatusSurfaces()
+    }
+
+    /// Default auto-reply text used only when Graph reports an empty
+    /// message at OOO toggle-on time. Anything the user previously set
+    /// (via Outlook web, for instance) is preserved.
+    public static let defaultOutOfOfficeMessage =
+        "I'm currently out of the office and will respond when I return."
 
     /// Identifier shared between the main app and the widget extension
     /// for the App Group container both can read/write.

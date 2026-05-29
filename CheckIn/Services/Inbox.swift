@@ -6,7 +6,6 @@
 import CheckInKit
 import Foundation
 import UserNotifications
-import WidgetKit
 import os
 
 @MainActor @Observable
@@ -299,16 +298,11 @@ final class Inbox {
             presence: currentPresence,
             isOutOfOffice: isOutOfOffice
         )
-        guard let data = try? JSONEncoder().encode(snapshot),
-              let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier) else {
+        if !snapshot.saveToAppGroup() {
             logger.error("writeWidgetSnapshot: couldn't encode or open App Group defaults")
             return
         }
-        defaults.set(data, forKey: CheckInSnapshot.userDefaultsKey)
-        WidgetCenter.shared.reloadAllTimelines()
-        if #available(iOS 18.0, *) {
-            ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
-        }
+        CheckInSnapshot.reloadStatusSurfaces()
     }
 
     /// sessionId for `/me/presence/setPresence`. Microsoft constrains
@@ -381,12 +375,6 @@ final class Inbox {
         await meetingNotifications.clearAll()
     }
 
-    /// Default auto-reply text used only when Graph reports an empty
-    /// message at toggle-on time. Anything the user has previously set
-    /// (via Outlook web, for instance) is preserved.
-    private let defaultOutOfOfficeMessage =
-        "I'm currently out of the office and will respond when I return."
-
     /// Set (or clear) the Teams custom status message. Optimistic update
     /// with revert on failure, mirroring the presence pattern.
     func setCustomStatusMessage(_ message: String) async {
@@ -413,7 +401,7 @@ final class Inbox {
         isOutOfOffice = on
         do {
             if on {
-                try await graphClient.enableAutomaticReplies(defaultMessage: defaultOutOfOfficeMessage)
+                try await graphClient.enableAutomaticReplies(defaultMessage: CheckInSnapshot.defaultOutOfOfficeMessage)
             } else {
                 try await graphClient.disableAutomaticReplies()
             }
@@ -1282,7 +1270,7 @@ extension Inbox {
         guard await setPresence(presence) else {
             throw StatusActionError.applyFailed
         }
-        reloadStatusSurfaces()
+        CheckInSnapshot.patchAndReload(presence: currentPresence, isOutOfOffice: isOutOfOffice)
     }
 
     func applyOutOfOffice(_ on: Bool) async throws {
@@ -1290,26 +1278,6 @@ extension Inbox {
         guard await setOutOfOffice(on) else {
             throw StatusActionError.applyFailed
         }
-        reloadStatusSurfaces()
-    }
-
-    /// Patch the App Group snapshot's presence/OOO fields from current
-    /// in-memory state and reload widget timelines, so an intent-driven
-    /// change shows on the widget (and, on iOS 18, Control Center) without
-    /// waiting for the next full refresh. Works when the app was
-    /// background-launched to run the intent and so has no `summary` to
-    /// build a complete snapshot — it patches the last one on disk.
-    private func reloadStatusSurfaces() {
-        if let existing = CheckInSnapshot.loadFromAppGroup(),
-           let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
-           let patched = try? JSONEncoder().encode(
-               existing.settingStatus(presence: currentPresence, isOutOfOffice: isOutOfOffice)
-           ) {
-            defaults.set(patched, forKey: CheckInSnapshot.userDefaultsKey)
-        }
-        WidgetCenter.shared.reloadAllTimelines()
-        if #available(iOS 18.0, *) {
-            ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
-        }
+        CheckInSnapshot.patchAndReload(presence: currentPresence, isOutOfOffice: isOutOfOffice)
     }
 }

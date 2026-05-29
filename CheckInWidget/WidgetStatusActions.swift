@@ -6,7 +6,6 @@
 import CheckInGraph
 import CheckInKit
 import Foundation
-import WidgetKit
 
 /// Backs the `StatusActions` the widget extension registers for its
 /// interactive presence / Out-of-Office controls. Each action builds a
@@ -15,9 +14,6 @@ import WidgetKit
 /// the widget reflects the change. On failure the prior snapshot is left
 /// untouched and a reload lets the toggle settle back to it.
 struct WidgetStatusActions: Sendable {
-    private let defaultOutOfOfficeMessage =
-        "I'm currently out of the office and will respond when I return."
-
     /// Set the user's preferred presence (or clear to auto for `.unknown`),
     /// keeping CheckIn's presence session alive so Graph honors the override.
     /// Mirrors `Inbox.setPresence`, including turning Out of Office off when a
@@ -42,9 +38,9 @@ struct WidgetStatusActions: Sendable {
             if wasOutOfOffice {
                 try? await core.disableAutomaticReplies()
             }
-            patchSnapshot(presence: presence, isOutOfOffice: false)
+            CheckInSnapshot.patchAndReload(presence: presence, isOutOfOffice: false)
         } catch {
-            reloadSurfaces()
+            CheckInSnapshot.reloadStatusSurfaces()
             throw error
         }
     }
@@ -55,39 +51,17 @@ struct WidgetStatusActions: Sendable {
         let core = GraphCore(tokenProvider: WidgetTokenProvider())
         do {
             if on {
-                try await core.enableAutomaticReplies(defaultMessage: defaultOutOfOfficeMessage)
+                try await core.enableAutomaticReplies(
+                    defaultMessage: CheckInSnapshot.defaultOutOfOfficeMessage
+                )
             } else {
                 try await core.disableAutomaticReplies()
             }
             let presence = CheckInSnapshot.loadFromAppGroup()?.presence ?? .unknown
-            patchSnapshot(presence: presence, isOutOfOffice: on)
+            CheckInSnapshot.patchAndReload(presence: presence, isOutOfOffice: on)
         } catch {
-            reloadSurfaces()
+            CheckInSnapshot.reloadStatusSurfaces()
             throw error
         }
-    }
-
-    /// Reload the widget timelines and (iOS 18+) the Out-of-Office control so
-    /// both surfaces reflect the current snapshot. Used after a successful
-    /// mutation and after a failure, where it settles an optimistically
-    /// flipped control back to the snapshot's actual state.
-    private func reloadSurfaces() {
-        WidgetCenter.shared.reloadAllTimelines()
-        if #available(iOS 18.0, *) {
-            ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
-        }
-    }
-
-    private func patchSnapshot(presence: Presence, isOutOfOffice: Bool) {
-        guard let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
-              let existing = CheckInSnapshot.loadFromAppGroup(),
-              let data = try? JSONEncoder().encode(
-                  existing.settingStatus(presence: presence, isOutOfOffice: isOutOfOffice)
-              ) else {
-            reloadSurfaces()
-            return
-        }
-        defaults.set(data, forKey: CheckInSnapshot.userDefaultsKey)
-        reloadSurfaces()
     }
 }

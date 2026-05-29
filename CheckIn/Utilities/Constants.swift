@@ -11,25 +11,6 @@ enum Constants {
     static let authority = "https://login.microsoftonline.com/organizations"
     static let redirectURI = "msauth.com.excelano.checkin://auth"
 
-    // MSAL for iOS automatically requests openid, profile, and offline_access.
-    // Mail.ReadWrite drives the email mutation surface (mark read, flag).
-    // Mail.Send drives the in-app reply-all action. Calendars.ReadWrite
-    // drives the next-meeting fetch and the RSVP (accept/tentative/
-    // decline) calls. Chat.ReadWrite drives the Teams pending-chat surface
-    // including posting replies into existing threads.
-    static let baseScopes = [
-        "User.Read",
-        "Mail.ReadWrite",
-        "Mail.Send",
-        "Calendars.ReadWrite",
-        "MailboxSettings.ReadWrite"
-    ]
-
-    static let teamsScopes = [
-        "Chat.ReadWrite",
-        "Presence.ReadWrite"
-    ]
-
     static let teamsEnabled: Bool = true
 
     /// Identifier the OS uses for our background refresh task. Must match
@@ -40,10 +21,6 @@ enum Constants {
     /// Actual run time is at the system's discretion and can be much
     /// later (or never, on a quiet day or after a force-quit).
     static let backgroundRefreshInterval: TimeInterval = 30 * 60
-
-    static func scopes(enableTeams: Bool) -> [String] {
-        enableTeams ? baseScopes + teamsScopes : baseScopes
-    }
 
     /// User-supplied client ID if set, otherwise the published default.
     static var effectiveClientID: String {
