@@ -133,8 +133,8 @@ final class GraphClient {
 
     /// Calendar events overlapping the given range, plain mapping (no
     /// conflict computation). Used purely as a reference pool for
-    /// conflict detection on Phase 2 invite-email RSVP — so a plain
-    /// calendar event that overlaps an invite can flag the invite as
+    /// conflict detection on invite-email RSVP — so a plain calendar
+    /// event that overlaps an invite can flag the invite as
     /// conflicting. Not displayed anywhere in the UI. Caps at 100
     /// events as a guard against multi-week ranges with very dense
     /// calendars.

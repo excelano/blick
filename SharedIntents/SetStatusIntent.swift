@@ -1,5 +1,5 @@
 // SetStatusIntent.swift
-// CheckIn
+// SharedIntents
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
@@ -12,9 +12,11 @@ import CheckInKit
 ///
 /// Source file shared (dual target membership) between the app and the
 /// widget extension so Siri/Shortcuts (app target) and the widget's
-/// buttons (extension target) both have the type. The system
-/// background-launches the app to run `perform()`, where the
-/// `StatusActions` dependency resolves to the live `Inbox`.
+/// buttons (extension target) both have the type. On iOS 18+ a widget
+/// `Button(intent:)` runs `perform()` in the extension process, not the
+/// app, so `StatusActions` is registered in both — app-side wired to
+/// `Inbox`, extension-side wired to a lean presence client — and the
+/// `@Dependency` resolves to whichever process the intent fires in.
 ///
 /// Known limitation, carried honestly from the app: a preferred presence
 /// only takes visible effect when a Teams desktop session exists. Graph

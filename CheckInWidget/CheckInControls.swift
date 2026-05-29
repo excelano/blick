@@ -145,8 +145,8 @@ struct ResetStatusControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         statusControl(
             kind: ControlKind.resetStatus, status: .resetToAuto,
-            label: "Reset", systemImage: "arrow.triangle.2.circlepath", tint: .cyan,
-            displayName: "Reset Status",
+            label: "Reset to auto", systemImage: "arrow.counterclockwise", tint: .cyan,
+            displayName: "Reset to auto",
             description: "Clear your status and let Microsoft 365 detect it automatically."
         )
     }

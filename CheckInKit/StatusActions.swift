@@ -31,8 +31,9 @@ public enum StatusActionError: LocalizedError {
 /// access). The box lives in CheckInKit so `SetStatusIntent` /
 /// `SetOutOfOfficeIntent` can reference it without importing the app's
 /// `Inbox`. The app builds one from its `Inbox` and registers it in
-/// `CheckInApp.init`; the system background-launches the app to run an
-/// intent, where the dependency resolves.
+/// `CheckInApp.init`; the widget extension registers its own (wired to a
+/// lean presence client) for intents fired in-widget on iOS 18+, where
+/// `perform()` runs in the extension rather than the app.
 ///
 /// A nonisolated `Sendable` box (so registration and resolution cross
 /// concurrency domains freely) whose handlers run on the main actor,

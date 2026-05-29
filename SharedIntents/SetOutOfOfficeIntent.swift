@@ -1,5 +1,5 @@
 // SetOutOfOfficeIntent.swift
-// CheckIn
+// SharedIntents
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
@@ -13,8 +13,11 @@ import CheckInKit
 ///
 /// Source file shared (dual target membership) between the app and the
 /// widget extension so Siri/Shortcuts and the widget's buttons both have
-/// the type. The system background-launches the app to run `perform()`,
-/// where the `StatusActions` dependency resolves to the live `Inbox`.
+/// the type. On iOS 18+ a widget `Toggle(intent:)` runs `perform()` in
+/// the extension process, not the app, so `StatusActions` is registered
+/// in both — app-side wired to `Inbox`, extension-side wired to a lean
+/// presence client — and the `@Dependency` resolves to whichever process
+/// the intent fires in.
 struct SetOutOfOfficeIntent: SetValueIntent {
     static var title: LocalizedStringResource = "Set Out of Office"
     static var description = IntentDescription(

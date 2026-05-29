@@ -66,7 +66,7 @@ struct ConflictResolutionSheet: View {
     /// Snapshot the primary + every meeting overlapping it at open time.
     /// Subsequent renders pull live state by id, so RSVP changes flow
     /// through and deletions just drop the corresponding row.
-    /// Candidates are drawn from today's summary, the Phase-2 invite
+    /// Candidates are drawn from today's summary, the invite-email
     /// cache, and the reference pool of plain calendar events so an
     /// invite for a beyond-today meeting can show its overlapping
     /// plain calendar entry.

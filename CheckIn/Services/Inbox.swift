@@ -972,7 +972,7 @@ final class Inbox {
     /// the overlap check — they don't trigger a warning on themselves
     /// (the user isn't going) and they don't count as conflicts for
     /// other meetings. Pool is the union of today's summary meetings,
-    /// the Phase-2 invite cache, and the reference pool of plain
+    /// the invite-email cache, and the reference pool of plain
     /// calendar events covering the invite date range — so an invite
     /// can flag a conflict against a meeting the user already has on
     /// their schedule even when that meeting isn't an invitation.
@@ -1028,6 +1028,27 @@ final class Inbox {
         todayMeetingIds = ids
     }
 
+    /// Inverse of `markMatchingInviteEmailsRead`: given an invite email,
+    /// find the meeting in our current summary that it refers to. Used
+    /// to drive the inline RSVP buttons on invite-email rows so a
+    /// chosen response from the email surface routes through the same
+    /// `respondToMeeting(_:meetingId:)` path as the calendar card — and
+    /// inherits all the downstream syncing (meeting card updates,
+    /// matching invite emails marked read, conflicts recomputed).
+    ///
+    /// Falls back to the `inviteEmailMeetingIds` cache when no
+    /// today-window meeting matches — that cache is populated by the
+    /// `$expand=event` ride-along on `unreadEmails` and covers invites
+    /// for meetings beyond today's calendar window.
+    func meetingMatching(_ email: Email) -> Meeting? {
+        var todays: [Meeting] = []
+        if let m = nextMeeting { todays.append(m) }
+        todays.append(contentsOf: laterToday)
+        if let match = todays.first(where: { $0.matches(email) }) { return match }
+        if let meetingId = inviteEmailMeetingIds[email.id] { return meetingsById[meetingId] }
+        return nil
+    }
+
     /// Find invitation/update/cancellation emails for this meeting and
     /// mark them read. Bounded to the local unread list, so it can't
     /// reach beyond what we already have cached.
@@ -1041,27 +1062,6 @@ final class Inbox {
     ///    handles tenant-specific prefixes like "Meeting request:" or
     ///    "Invitation:" — the two-factor (organizer + meeting-message)
     ///    keeps false positives down.
-    /// Inverse of `markMatchingInviteEmailsRead`: given an invite email,
-    /// find the meeting in our current summary that it refers to. Used
-    /// to drive the inline RSVP buttons on invite-email rows so a
-    /// chosen response from the email surface routes through the same
-    /// `respondToMeeting(_:meetingId:)` path as the calendar card — and
-    /// inherits all the downstream syncing (meeting card updates,
-    /// matching invite emails marked read, conflicts recomputed).
-    ///
-    /// Falls back to the `inviteMeetings` cache (Phase 2) when no
-    /// today-window meeting matches — that cache is populated by the
-    /// `$expand=event` ride-along on `unreadEmails` and covers invites
-    /// for meetings beyond today's calendar window.
-    func meetingMatching(_ email: Email) -> Meeting? {
-        var todays: [Meeting] = []
-        if let m = nextMeeting { todays.append(m) }
-        todays.append(contentsOf: laterToday)
-        if let match = todays.first(where: { $0.matches(email) }) { return match }
-        if let meetingId = inviteEmailMeetingIds[email.id] { return meetingsById[meetingId] }
-        return nil
-    }
-
     private func markMatchingInviteEmailsRead(for meeting: Meeting) async {
         let matchIds = (summary?.emails ?? [])
             .filter { meeting.matches($0) }
