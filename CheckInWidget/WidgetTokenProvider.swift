@@ -14,20 +14,11 @@ import MSAL
 /// keychain cache. The token never leaves the device — this is the same cache
 /// the app filled when the user signed in there.
 ///
-/// Caches the acquired token for the provider's lifetime so a multi-call
-/// operation (e.g. `fetchSnapshot`, which issues several Graph requests)
-/// builds one MSAL client and acquires once rather than per request.
+/// MSAL caches the access token until expiry, so each `graphAccessToken()`
+/// call hits that cache rather than the network. Holding no mutable state
+/// ourselves keeps the provider trivially Sendable.
 final class WidgetTokenProvider: GraphTokenProvider {
-    private var cachedToken: String?
-
     func graphAccessToken() async throws -> String {
-        if let cachedToken { return cachedToken }
-        let token = try await acquire()
-        cachedToken = token
-        return token
-    }
-
-    private func acquire() async throws -> String {
         let config = widgetEffectiveConfig()
         guard let authorityURL = URL(string: config.authority) else {
             throw WidgetTokenError.notConfigured
@@ -65,8 +56,8 @@ enum WidgetTokenError: Error {
 func widgetEffectiveConfig() -> (clientID: String, authority: String) {
     let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier)
     let clientID = defaults?.string(forKey: CheckInSnapshot.effectiveClientIDKey)
-        ?? "0ce3820d-db53-4b2e-9621-6c4ccc086d5a"
+        ?? PublishedConfig.clientID
     let authority = defaults?.string(forKey: CheckInSnapshot.effectiveAuthorityKey)
-        ?? "https://login.microsoftonline.com/organizations"
+        ?? PublishedConfig.authority
     return (clientID, authority)
 }

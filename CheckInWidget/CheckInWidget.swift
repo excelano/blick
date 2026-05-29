@@ -74,27 +74,6 @@ struct CheckInProvider: TimelineProvider {
 /// it the button takes the row.
 private let joinPillLeadTime: TimeInterval = 5 * 60
 
-/// Mirrors `untilTime` in the main app's RelativeTime.swift — formats
-/// the gap to a future date as "now", "Starting soon", "in N min",
-/// "in N hour(s)", or "in Nh Mm". `referenceDate` is the entry's
-/// timeline date so the result stays correct across timeline entries.
-private func untilTime(_ date: Date, referenceDate: Date) -> String {
-    let seconds = date.timeIntervalSince(referenceDate)
-    if seconds < 0 { return "now" }
-    if seconds <= 180 { return "Starting soon" }
-    let totalMinutes = Int(seconds / 60)
-    let hours = totalMinutes / 60
-    let minutes = totalMinutes % 60
-    if hours == 0 { return minutes == 1 ? "in 1 min" : "in \(minutes) min" }
-    if minutes == 0 { return hours == 1 ? "in 1 hour" : "in \(hours) hours" }
-    return "in \(hours)h \(minutes)m"
-}
-
-private func isMeetingImminent(_ date: Date, referenceDate: Date) -> Bool {
-    let seconds = date.timeIntervalSince(referenceDate)
-    return seconds >= 0 && seconds <= 180
-}
-
 struct CheckInWidgetEntryView: View {
     var entry: CheckInProvider.Entry
 

@@ -29,10 +29,10 @@ struct MeetingCard: View {
                         // TimelineView re-renders this label every 15s so
                         // "in 5 min" naturally counts down and flips to
                         // "Starting soon" without needing a refresh.
-                        TimelineView(.periodic(from: .now, by: 15)) { _ in
-                            Text(untilTime(meeting.start))
+                        TimelineView(.periodic(from: .now, by: 15)) { context in
+                            Text(untilTime(meeting.start, referenceDate: context.date))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(isMeetingImminent(meeting.start) ? .orange : Brand.accent)
+                                .foregroundStyle(isMeetingImminent(meeting.start, referenceDate: context.date) ? .orange : Brand.accent)
                         }
                         if !meeting.organizer.isEmpty {
                             Text("with \(meeting.organizer)")
@@ -120,7 +120,7 @@ struct MeetingCard: View {
     }
 
     private var accessibilityLabel: String {
-        var parts = ["Next meeting", meeting.subject, untilTime(meeting.start)]
+        var parts = ["Next meeting", meeting.subject, untilTime(meeting.start, referenceDate: .now)]
         if !meeting.organizer.isEmpty { parts.append("with \(meeting.organizer)") }
         return parts.joined(separator: ", ")
     }

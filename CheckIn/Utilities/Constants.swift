@@ -4,11 +4,9 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import Foundation
+import CheckInKit
 
 enum Constants {
-    static let clientID = "0ce3820d-db53-4b2e-9621-6c4ccc086d5a"
-
-    static let authority = "https://login.microsoftonline.com/organizations"
     static let redirectURI = "msauth.com.excelano.checkin://auth"
 
     static let teamsEnabled: Bool = true
@@ -26,15 +24,16 @@ enum Constants {
     static var effectiveClientID: String {
         let custom = (UserDefaults.standard.string(forKey: AppStorageKey.customClientID) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return custom.isEmpty ? clientID : custom
+        return custom.isEmpty ? PublishedConfig.clientID : custom
     }
 
     /// `https://login.microsoftonline.com/<tenant>` where `<tenant>` is the
-    /// user-supplied Directory (tenant) ID, or `common` when none is set.
+    /// user-supplied Directory (tenant) ID, or the published `organizations`
+    /// authority when none is set.
     static var effectiveAuthority: String {
         let tenant = (UserDefaults.standard.string(forKey: AppStorageKey.customTenantID) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if tenant.isEmpty { return authority }
+        if tenant.isEmpty { return PublishedConfig.authority }
         return "https://login.microsoftonline.com/\(tenant)"
     }
 }
