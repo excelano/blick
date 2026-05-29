@@ -124,18 +124,17 @@ struct CheckInWidgetEntryView: View {
                     .foregroundStyle(Brand.textMuted)
             }
             Text(subject)
-                .font(.title3.weight(.semibold))
+                .font(.headline)
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .truncationMode(.tail)
             organizerLine(start: start, organizer: entry.snapshot?.nextMeetingOrganizer)
         } else if entry.snapshot != nil {
-            Text("CALENDAR")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Brand.accent)
             Text("No more meetings today.")
-                .font(.title3.weight(.semibold))
+                .font(.headline)
                 .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         } else {
             Text("CheckIn")
                 .font(.title3.weight(.semibold))
@@ -205,56 +204,71 @@ struct CheckInWidgetEntryView: View {
     }
 
     private func countPill(systemImage: String, count: Int) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 5) {
             Image(systemName: systemImage)
-                .font(.title3)
+                .font(.subheadline)
             Text("\(count)")
-                .font(.title2.weight(.semibold))
+                .font(.headline)
         }
         .foregroundStyle(Brand.accent)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 10)
         .frame(maxHeight: .infinity)
         .background(Brand.bgDarker)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    /// Interactive row of presence quick-sets. Each pill fires
-    /// `SetStatusIntent`; the system background-launches the app to run
-    /// it, then the app patches the snapshot and reloads the timeline so
-    /// the active pill re-renders.
+    /// Interactive availability toggle. WidgetKit gives `Toggle(intent:)` a
+    /// built-in optimistic flip: the knob moves the instant you tap, before
+    /// the Graph call returns, which a plain `Button` can't do and which is
+    /// not gated by the timeline reload budget. On sets Available; off sets
+    /// Busy. The label shows the live status, so any other state (Away, DND,
+    /// Out of Office) reads as off.
     private var actionBar: some View {
-        VStack(spacing: 6) {
+        let presence = entry.snapshot?.presence ?? .unknown
+        let isOutOfOffice = entry.snapshot?.isOutOfOffice ?? false
+        let isAvailable = presence == .available && !isOutOfOffice
+        return VStack(spacing: 6) {
             Rectangle()
                 .fill(Brand.textMuted.opacity(0.25))
                 .frame(height: 1)
-            HStack(spacing: 6) {
-                presenceButton(.available, "Available")
-                presenceButton(.busy, "Busy")
-                presenceButton(.away, "Away")
+            Toggle(
+                isOn: isAvailable,
+                intent: SetStatusIntent(status: isAvailable ? .busy : .available)
+            ) {
+                HStack(spacing: 6) {
+                    PresenceGlyph(presence)
+                        .font(.subheadline)
+                    Text(isOutOfOffice ? "Out of Office" : presence.displayName)
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
+            .toggleStyle(AvailabilityToggleStyle())
         }
     }
+}
 
-    /// A presence quick-set pill, highlighted when it matches the live
-    /// presence (and OOO isn't active, since OOO supersedes presence).
-    private func presenceButton(_ status: StatusAppEnum, _ label: String) -> some View {
-        let presence = status.asPresence
-        let isActive = entry.snapshot.map { $0.presence == presence && !$0.isOutOfOffice } ?? false
-        return Button(intent: SetStatusIntent(status: status)) {
-            HStack(spacing: 4) {
-                PresenceGlyph(presence)
-                Text(label)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+/// A switch-style toggle drawn entirely with shapes, so it renders inside a
+/// widget (the native `.switch` style shows iOS's "unsupported view"
+/// placeholder there). The knob position follows `configuration.isOn`, which
+/// WidgetKit flips optimistically the instant the toggle is tapped.
+struct AvailabilityToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 8) {
+            configuration.label
+            Spacer(minLength: 8)
+            ZStack {
+                Capsule()
+                    .fill(configuration.isOn ? Brand.accent : Brand.textMuted.opacity(0.4))
+                    .frame(width: 46, height: 28)
+                Circle()
+                    .fill(.white)
+                    .frame(width: 22, height: 22)
+                    .offset(x: configuration.isOn ? 9 : -9)
             }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(isActive ? Brand.accent.opacity(0.35) : Brand.bgDarker)
-            .clipShape(Capsule())
         }
-        .buttonStyle(.plain)
     }
 }
 

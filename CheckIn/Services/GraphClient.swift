@@ -169,11 +169,13 @@ final class GraphClient {
         return (Presence(graphAvailability: data.availability), message)
     }
 
-    /// Pin the user's preferred presence — overrides Teams' own
+    /// Pin the user's preferred presence, overriding Teams' own
     /// auto-detection (which would otherwise flip the user to "In a
-    /// meeting" or "Available" based on the calendar). Stays for
-    /// `expirationDuration` (4 hours here, matching Graph's default)
-    /// or until cleared by `clearUserPreferredPresence`.
+    /// meeting" or "Available" based on the calendar). Set for one day
+    /// (`P1D`); Graph's default when omitted is 7 days for Available, 1 day
+    /// for Busy/DoNotDisturb. Either way it shows only while a presence
+    /// session exists (see `setSessionPresence`); with no session the user
+    /// shows Offline, not this value. Cleared by `clearUserPreferredPresence`.
     func setUserPreferredPresence(_ presence: Presence) async throws {
         guard let availability = presence.graphAvailability,
               let activity = presence.graphActivity else { return }
