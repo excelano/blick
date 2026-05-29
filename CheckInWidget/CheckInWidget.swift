@@ -42,16 +42,30 @@ struct CheckInProvider: TimelineProvider {
         }
     }
 
-    /// A snapshot fetched directly from Graph in the extension. On any failure
-    /// (no token, offline, Graph error) we fall back to the last snapshot the
-    /// app wrote to the App Group, so the widget never blocks or blanks on the
-    /// network.
+    /// Lead time inside which a cached snapshot still counts as "fresh enough"
+    /// to skip a Graph round-trip. iOS may call `getTimeline` more often than
+    /// the app refreshes — when the app just wrote a snapshot, that cached
+    /// copy beats an immediate refetch that would otherwise burn battery and
+    /// Graph quota for the same data.
+    private static let cachedSnapshotMaxAge: TimeInterval = 60
+
+    /// A snapshot for the widget timeline. Prefers the cached App Group copy
+    /// when it's recent enough; otherwise fetches directly from Graph in the
+    /// extension and persists the result so future reads share the same
+    /// "last refresh" view as the app. On any Graph failure (no token,
+    /// offline, server error) we fall back to whatever cached copy exists,
+    /// so the widget never blocks or blanks on the network.
     private func liveSnapshot() async -> CheckInSnapshot? {
+        let cached = CheckInSnapshot.loadFromAppGroup()
+        if let cached, Date().timeIntervalSince(cached.updatedAt) < Self.cachedSnapshotMaxAge {
+            return cached
+        }
         let core = GraphCore(tokenProvider: WidgetTokenProvider())
         if let fresh = try? await core.fetchSnapshot() {
+            fresh.saveToAppGroup()
             return fresh
         }
-        return CheckInSnapshot.loadFromAppGroup()
+        return cached
     }
 
     private var previewSnapshot: CheckInSnapshot {

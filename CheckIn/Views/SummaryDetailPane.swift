@@ -15,12 +15,17 @@ import SwiftUI
 struct SummaryDetailPane: View {
     var inbox: Inbox
     let target: MessagePreviewTarget?
+    /// Forwarded to `MessagePreviewSheet` so RSVP / Mark Unread / Reply Sent
+    /// clear the selection back to the placeholder. SwiftUI's
+    /// `@Environment(\.dismiss)` is a no-op in this split-view detail
+    /// context, which is why the parent has to thread the action through.
+    let onClose: () -> Void
 
     var body: some View {
         ZStack {
             Brand.bg.ignoresSafeArea()
             if let target {
-                MessagePreviewSheet(inbox: inbox, target: target)
+                MessagePreviewSheet(inbox: inbox, target: target, onClose: onClose)
                     .id(target.id)
             } else {
                 placeholder

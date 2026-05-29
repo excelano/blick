@@ -44,6 +44,12 @@ struct MessagePreviewTarget: Identifiable {
 struct MessagePreviewSheet: View {
     var inbox: Inbox
     let target: MessagePreviewTarget
+    /// Parent-supplied close action. iPhone presents this view in a
+    /// `.sheet(item:)` and the iPad split view renders it as the detail
+    /// pane; both bind the same `previewTarget` and pass
+    /// `{ previewTarget = nil }`. The previous `@Environment(\.dismiss)`
+    /// silently did nothing in the split-view detail context.
+    let onClose: () -> Void
 
     @State private var showingComposer = false
     @State private var emailBody: String?
@@ -55,7 +61,6 @@ struct MessagePreviewSheet: View {
     /// `ConflictResolutionSheet`. Same flow as the calendar card's
     /// conflict button, scoped to the preview's lifetime.
     @State private var conflictTarget: Meeting?
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
@@ -65,7 +70,7 @@ struct MessagePreviewSheet: View {
                     inbox: inbox,
                     target: target,
                     onBack: { showingComposer = false },
-                    onSent: { dismiss() }
+                    onSent: { onClose() }
                 )
             } else {
                 previewBody
@@ -219,21 +224,21 @@ struct MessagePreviewSheet: View {
                        outlineColor: Brand.accent) {
                 Task {
                     await inbox.respondToMeeting(.accepted, meetingId: meeting.id)
-                    dismiss()
+                    onClose()
                 }
             }
             RsvpButton(response: .tentativelyAccepted, label: "Maybe", icon: "questionmark",
                        outlineColor: Brand.accent) {
                 Task {
                     await inbox.respondToMeeting(.tentativelyAccepted, meetingId: meeting.id)
-                    dismiss()
+                    onClose()
                 }
             }
             RsvpButton(response: .declined, label: nil, icon: "xmark",
                        outlineColor: Brand.accent) {
                 Task {
                     await inbox.respondToMeeting(.declined, meetingId: meeting.id)
-                    dismiss()
+                    onClose()
                 }
             }
         }
@@ -549,6 +554,6 @@ struct MessagePreviewSheet: View {
         case .chat(let chat):
             await inbox.markChatUnread(chat)
         }
-        dismiss()
+        onClose()
     }
 }

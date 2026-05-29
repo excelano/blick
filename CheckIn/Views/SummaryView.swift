@@ -39,13 +39,21 @@ struct SummaryView: View {
                     panel
                         .toolbar(.hidden, for: .navigationBar)
                 } detail: {
-                    SummaryDetailPane(inbox: inbox, target: previewTarget)
+                    SummaryDetailPane(
+                        inbox: inbox,
+                        target: previewTarget,
+                        onClose: { previewTarget = nil }
+                    )
                 }
                 .navigationSplitViewStyle(.balanced)
             } else {
                 panel
                     .sheet(item: $previewTarget) { target in
-                        MessagePreviewSheet(inbox: inbox, target: target)
+                        MessagePreviewSheet(
+                            inbox: inbox,
+                            target: target,
+                            onClose: { previewTarget = nil }
+                        )
                     }
             }
         }
