@@ -306,6 +306,9 @@ final class Inbox {
         }
         defaults.set(data, forKey: CheckInSnapshot.userDefaultsKey)
         WidgetCenter.shared.reloadAllTimelines()
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
+        }
     }
 
     /// sessionId for `/me/presence/setPresence`. Microsoft constrains
@@ -1277,14 +1280,16 @@ extension Inbox {
     /// background-launched to run the intent and so has no `summary` to
     /// build a complete snapshot — it patches the last one on disk.
     private func reloadStatusSurfaces() {
-        if let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
-           let data = defaults.data(forKey: CheckInSnapshot.userDefaultsKey),
-           let existing = try? JSONDecoder().decode(CheckInSnapshot.self, from: data),
+        if let existing = CheckInSnapshot.loadFromAppGroup(),
+           let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
            let patched = try? JSONEncoder().encode(
                existing.settingStatus(presence: currentPresence, isOutOfOffice: isOutOfOffice)
            ) {
             defaults.set(patched, forKey: CheckInSnapshot.userDefaultsKey)
         }
         WidgetCenter.shared.reloadAllTimelines()
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
+        }
     }
 }

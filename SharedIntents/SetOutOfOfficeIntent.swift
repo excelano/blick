@@ -15,7 +15,7 @@ import CheckInKit
 /// widget extension so Siri/Shortcuts and the widget's buttons both have
 /// the type. The system background-launches the app to run `perform()`,
 /// where the `StatusActions` dependency resolves to the live `Inbox`.
-struct SetOutOfOfficeIntent: AppIntent {
+struct SetOutOfOfficeIntent: SetValueIntent {
     static var title: LocalizedStringResource = "Set Out of Office"
     static var description = IntentDescription(
         "Turn your Outlook automatic replies (Out of Office) on or off."
@@ -23,24 +23,24 @@ struct SetOutOfOfficeIntent: AppIntent {
     static var openAppWhenRun = false
 
     @Parameter(title: "Turn On", default: true)
-    var turnOn: Bool
+    var value: Bool
 
     @Dependency var actions: StatusActions
 
     init() {}
 
-    init(turnOn: Bool) {
-        self.turnOn = turnOn
+    init(value: Bool) {
+        self.value = value
     }
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Set Out of Office \(\.$turnOn)")
+        Summary("Set Out of Office \(\.$value)")
     }
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        try await actions.applyOutOfOffice(turnOn)
-        let dialog: IntentDialog = turnOn
+        try await actions.applyOutOfOffice(value)
+        let dialog: IntentDialog = value
             ? "Out of Office is now on."
             : "Out of Office is now off."
         return .result(dialog: dialog)

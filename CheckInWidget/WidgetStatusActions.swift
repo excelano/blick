@@ -23,7 +23,7 @@ struct WidgetStatusActions: Sendable {
     /// Mirrors `Inbox.setPresence`, including turning Out of Office off when a
     /// presence is explicitly chosen.
     func applyPresence(_ presence: Presence) async throws {
-        let wasOutOfOffice = currentSnapshot()?.isOutOfOffice == true
+        let wasOutOfOffice = CheckInSnapshot.loadFromAppGroup()?.isOutOfOffice == true
         let core = GraphCore(tokenProvider: WidgetTokenProvider())
         do {
             // Best-effort session heartbeat (Available); failure here
@@ -44,7 +44,7 @@ struct WidgetStatusActions: Sendable {
             }
             patchSnapshot(presence: presence, isOutOfOffice: false)
         } catch {
-            WidgetCenter.shared.reloadAllTimelines()
+            reloadSurfaces()
             throw error
         }
     }
@@ -59,27 +59,32 @@ struct WidgetStatusActions: Sendable {
             } else {
                 try await core.disableAutomaticReplies()
             }
-            let presence = currentSnapshot()?.presence ?? .unknown
+            let presence = CheckInSnapshot.loadFromAppGroup()?.presence ?? .unknown
             patchSnapshot(presence: presence, isOutOfOffice: on)
         } catch {
-            WidgetCenter.shared.reloadAllTimelines()
+            reloadSurfaces()
             throw error
         }
     }
 
-    private func currentSnapshot() -> CheckInSnapshot? {
-        guard let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
-              let data = defaults.data(forKey: CheckInSnapshot.userDefaultsKey) else { return nil }
-        return try? JSONDecoder().decode(CheckInSnapshot.self, from: data)
+    /// Reload the widget timelines and (iOS 18+) the Out-of-Office control so
+    /// both surfaces reflect the current snapshot. Used after a successful
+    /// mutation and after a failure, where it settles an optimistically
+    /// flipped control back to the snapshot's actual state.
+    private func reloadSurfaces() {
+        WidgetCenter.shared.reloadAllTimelines()
+        if #available(iOS 18.0, *) {
+            ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
+        }
     }
 
     private func patchSnapshot(presence: Presence, isOutOfOffice: Bool) {
         guard let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
-              let existing = currentSnapshot(),
+              let existing = CheckInSnapshot.loadFromAppGroup(),
               let data = try? JSONEncoder().encode(
                   existing.settingStatus(presence: presence, isOutOfOffice: isOutOfOffice)
               ) else {
-            WidgetCenter.shared.reloadAllTimelines()
+            reloadSurfaces()
             return
         }
         defaults.set(data, forKey: CheckInSnapshot.userDefaultsKey)

@@ -75,6 +75,16 @@ public struct CheckInSnapshot: Codable {
         )
     }
 
+    /// Decode the snapshot the app last wrote to the App Group, or nil if
+    /// none is stored yet (or it can't be opened/decoded). The single read
+    /// path shared by the widget timeline, the widget's status actions, the
+    /// Control Center value providers, and the app's intent-driven patch.
+    public static func loadFromAppGroup() -> CheckInSnapshot? {
+        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+              let data = defaults.data(forKey: userDefaultsKey) else { return nil }
+        return try? JSONDecoder().decode(CheckInSnapshot.self, from: data)
+    }
+
     /// Identifier shared between the main app and the widget extension
     /// for the App Group container both can read/write.
     public static let appGroupIdentifier = "group.com.excelano.checkin"

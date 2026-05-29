@@ -20,7 +20,7 @@ struct CheckInProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CheckInEntry) -> Void) {
-        completion(CheckInEntry(date: Date(), snapshot: readSnapshot() ?? previewSnapshot))
+        completion(CheckInEntry(date: Date(), snapshot: CheckInSnapshot.loadFromAppGroup() ?? previewSnapshot))
     }
 
     /// Generate one entry per minute up to 60 minutes out so the
@@ -51,16 +51,7 @@ struct CheckInProvider: TimelineProvider {
         if let fresh = try? await core.fetchSnapshot() {
             return fresh
         }
-        return readSnapshot()
-    }
-
-    private func readSnapshot() -> CheckInSnapshot? {
-        guard let defaults = UserDefaults(suiteName: CheckInSnapshot.appGroupIdentifier),
-              let data = defaults.data(forKey: CheckInSnapshot.userDefaultsKey),
-              let snapshot = try? JSONDecoder().decode(CheckInSnapshot.self, from: data) else {
-            return nil
-        }
-        return snapshot
+        return CheckInSnapshot.loadFromAppGroup()
     }
 
     private var previewSnapshot: CheckInSnapshot {
@@ -276,8 +267,13 @@ struct CheckInWidgetEntryView: View {
                 intent: SetStatusIntent(status: isAvailable ? .busy : .available)
             ) {
                 HStack(spacing: 6) {
-                    PresenceGlyph(presence)
-                        .font(.subheadline)
+                    if isOutOfOffice {
+                        OutOfOfficeGlyph()
+                            .font(.subheadline)
+                    } else {
+                        PresenceGlyph(presence)
+                            .font(.subheadline)
+                    }
                     Text(isOutOfOffice ? "Out of Office" : presence.displayName)
                         .font(.subheadline)
                         .foregroundStyle(.white)

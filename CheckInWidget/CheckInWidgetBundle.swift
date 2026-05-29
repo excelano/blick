@@ -25,5 +25,15 @@ struct CheckInWidgetBundle: WidgetBundle {
 
     var body: some Widget {
         CheckInWidget()
+        if #available(iOS 18.0, *) {
+            OutOfOfficeControl()
+            SetAvailableControl()
+            SetBusyControl()
+            SetDoNotDisturbControl()
+            SetBeRightBackControl()
+            SetAwayControl()
+            SetOfflineControl()
+            ResetStatusControl()
+        }
     }
 }

@@ -44,7 +44,7 @@ struct PresenceMenu: View {
                 // taller than the email section header.
                 Text("0").opacity(0)
                 if isOutOfOffice {
-                    outOfOfficeGlyph
+                    OutOfOfficeGlyph()
                 } else {
                     PresenceGlyph(presence)
                 }
@@ -55,12 +55,6 @@ struct PresenceMenu: View {
             ? "Out of office"
             : "Presence: \(presence.displayName)")
         .accessibilityHint("Change your presence")
-    }
-
-    private var outOfOfficeGlyph: some View {
-        Image(systemName: "arrow.up.forward.circle.fill")
-            .symbolRenderingMode(.palette)
-            .foregroundStyle(.white, .purple)
     }
 
     private func menuButton(for state: Presence) -> some View {
@@ -81,7 +75,7 @@ struct PresenceMenu: View {
             Label {
                 Text("Out of office" + (isOutOfOffice ? "  ✓" : ""))
             } icon: {
-                outOfOfficeGlyph
+                OutOfOfficeGlyph()
             }
         }
     }

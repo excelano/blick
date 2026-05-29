@@ -30,7 +30,7 @@ struct CheckInShortcuts: AppShortcutsProvider {
             systemImageName: "calendar"
         )
         AppShortcut(
-            intent: SetOutOfOfficeIntent(turnOn: true),
+            intent: SetOutOfOfficeIntent(value: true),
             phrases: [
                 "Turn on my Out of Office in the \(.applicationName) app",
                 "Set my Out of Office on in the \(.applicationName) app",
@@ -39,7 +39,7 @@ struct CheckInShortcuts: AppShortcutsProvider {
             systemImageName: "envelope.badge"
         )
         AppShortcut(
-            intent: SetOutOfOfficeIntent(turnOn: false),
+            intent: SetOutOfOfficeIntent(value: false),
             phrases: [
                 "Turn off my Out of Office in the \(.applicationName) app",
                 "Set my Out of Office off in the \(.applicationName) app",
