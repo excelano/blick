@@ -302,6 +302,9 @@ final class Inbox {
     private func publishStatusSnapshot() {
         guard let summary else { return }
         let next = nextMeeting
+        let laterSnapshot = laterToday.map {
+            SnapshotMeeting(subject: $0.subject, start: $0.start)
+        }
         let snapshot = CheckInSnapshot(
             updatedAt: Date(),
             nextMeetingSubject: next?.subject,
@@ -311,7 +314,8 @@ final class Inbox {
             unreadEmailCount: summary.totalUnreadEmails,
             chatCount: summary.chats.count,
             presence: currentPresence,
-            isOutOfOffice: isOutOfOffice
+            isOutOfOffice: isOutOfOffice,
+            laterMeetings: laterSnapshot
         )
         if !snapshot.saveToAppGroup() {
             logger.error("publishStatusSnapshot: couldn't encode or open App Group defaults")

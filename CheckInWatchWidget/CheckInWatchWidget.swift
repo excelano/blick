@@ -49,19 +49,25 @@ struct WatchCornerView: View {
     let entry: WatchStatusEntry
 
     var body: some View {
-        if let start = entry.snapshot?.nextMeetingStart {
-            Image(systemName: "calendar.badge.clock")
-                .widgetLabel {
-                    Text(untilTime(start, referenceDate: entry.date))
-                }
-        } else {
-            // No upcoming meeting — fall back to a presence dot so the
-            // corner still says something useful.
-            PresenceGlyph(entry.snapshot?.presence ?? .unknown)
-                .widgetLabel {
-                    Text(entry.snapshot?.presence.displayName ?? "—")
-                }
+        Group {
+            if let start = entry.snapshot?.nextMeetingStart {
+                Image(systemName: "calendar.badge.clock")
+                    .widgetLabel {
+                        Text(untilTime(start, referenceDate: entry.date))
+                    }
+            } else if let snapshot = entry.snapshot, snapshot.isOutOfOffice {
+                OutOfOfficeGlyph()
+                    .widgetLabel {
+                        Text("Out of office")
+                    }
+            } else {
+                PresenceGlyph(entry.snapshot?.presence ?? .unknown)
+                    .widgetLabel {
+                        Text(entry.snapshot?.presence.displayName ?? "—")
+                    }
+            }
         }
+        .font(.system(size: 24, weight: .semibold))
     }
 }
 
@@ -86,57 +92,95 @@ struct WatchRectangularView: View {
     let entry: WatchStatusEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            presenceLine
-            meetingLine
-            countsLine
-        }
-    }
-
-    @ViewBuilder
-    private var presenceLine: some View {
-        HStack(spacing: 4) {
-            if let snapshot = entry.snapshot, snapshot.isOutOfOffice {
-                OutOfOfficeGlyph()
-                Text("Out of office")
-                    .font(.caption2.weight(.semibold))
-            } else {
-                PresenceGlyph(entry.snapshot?.presence ?? .unknown)
-                Text(entry.snapshot?.presence.displayName ?? "—")
-                    .font(.caption2.weight(.semibold))
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    @ViewBuilder
-    private var meetingLine: some View {
         if let start = entry.snapshot?.nextMeetingStart,
-           let subject = entry.snapshot?.nextMeetingSubject {
+           let subject = entry.snapshot?.nextMeetingSubject,
+           let snapshot = entry.snapshot {
+            meetingLayout(start: start, subject: subject, snapshot: snapshot)
+        } else if let snapshot = entry.snapshot {
+            noMeetingLayout(snapshot: snapshot)
+        }
+    }
+
+    private func meetingLayout(start: Date, subject: String, snapshot: CheckInSnapshot) -> some View {
+        let inProgress = start <= entry.date
+        let imminent = isMeetingImminent(start, referenceDate: entry.date)
+        return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
-                Text(untilTime(start, referenceDate: entry.date))
-                    .foregroundStyle(Brand.accent)
+                Image(systemName: "calendar")
+                    .foregroundStyle(inProgress ? .orange : Brand.accent)
                 Text(subject)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 0)
+                presenceGlyph(for: snapshot)
             }
-            .font(.caption2)
-        } else if entry.snapshot != nil {
-            Text("No more meetings")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            .font(.caption2.weight(.semibold))
+            .imageScale(.small)
+            HStack(spacing: 6) {
+                Text(untilTime(start, referenceDate: entry.date))
+                    .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                Spacer(minLength: 4)
+                Label {
+                    Text("\(snapshot.unreadEmailCount)")
+                } icon: {
+                    Image(systemName: "envelope.fill")
+                        .foregroundStyle(Brand.accent)
+                }
+                Label {
+                    Text("\(snapshot.chatCount)")
+                } icon: {
+                    Image(systemName: "bubble.left.fill")
+                        .foregroundStyle(Brand.accent)
+                }
+            }
+            .font(.caption2.weight(.semibold))
+            .imageScale(.small)
+            .monospacedDigit()
+        }
+    }
+
+    private func noMeetingLayout(snapshot: CheckInSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                    .foregroundStyle(Brand.accent)
+                Text("No more meetings")
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                presenceGlyph(for: snapshot)
+            }
+            .font(.caption2.weight(.semibold))
+            .imageScale(.small)
+            HStack(spacing: 6) {
+                Label {
+                    Text("\(snapshot.unreadEmailCount)")
+                } icon: {
+                    Image(systemName: "envelope.fill")
+                        .foregroundStyle(Brand.accent)
+                }
+                Label {
+                    Text("\(snapshot.chatCount)")
+                } icon: {
+                    Image(systemName: "bubble.left.fill")
+                        .foregroundStyle(Brand.accent)
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.caption2.weight(.semibold))
+            .imageScale(.small)
+            .monospacedDigit()
         }
     }
 
     @ViewBuilder
-    private var countsLine: some View {
-        if let snapshot = entry.snapshot {
-            HStack(spacing: 8) {
-                Label("\(snapshot.unreadEmailCount)", systemImage: "envelope.fill")
-                Label("\(snapshot.chatCount)", systemImage: "bubble.left.fill")
-                Spacer(minLength: 0)
-            }
-            .font(.caption2)
-            .monospacedDigit()
+    private func presenceGlyph(for snapshot: CheckInSnapshot) -> some View {
+        if snapshot.isOutOfOffice {
+            OutOfOfficeGlyph()
+        } else {
+            PresenceGlyph(snapshot.presence)
         }
     }
 }

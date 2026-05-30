@@ -13,6 +13,19 @@ import WidgetKit
 ///
 /// Lives in CheckInKit so the app, the widget extension, and any future
 /// surface share one definition instead of byte-identical copies.
+/// A subordinate "later today" meeting carried alongside the next
+/// meeting in the snapshot. Just enough to render a tight list row —
+/// no organizer, no join URL.
+public struct SnapshotMeeting: Codable, Hashable {
+    public let subject: String
+    public let start: Date
+
+    public init(subject: String, start: Date) {
+        self.subject = subject
+        self.start = start
+    }
+}
+
 public struct CheckInSnapshot: Codable {
     /// When the main app last refreshed and wrote this snapshot.
     public let updatedAt: Date
@@ -35,6 +48,10 @@ public struct CheckInSnapshot: Codable {
     /// Whether Outlook automatic replies (Out of Office) are on, so the
     /// OOO control can reflect live state.
     public let isOutOfOffice: Bool
+    /// The remaining meetings today after `nextMeeting*`, in chronological
+    /// order. Empty when none remain or when an older publisher wrote the
+    /// snapshot before this field existed.
+    public let laterMeetings: [SnapshotMeeting]
 
     public init(
         updatedAt: Date,
@@ -45,7 +62,8 @@ public struct CheckInSnapshot: Codable {
         unreadEmailCount: Int,
         chatCount: Int,
         presence: Presence,
-        isOutOfOffice: Bool
+        isOutOfOffice: Bool,
+        laterMeetings: [SnapshotMeeting] = []
     ) {
         self.updatedAt = updatedAt
         self.nextMeetingSubject = nextMeetingSubject
@@ -56,6 +74,38 @@ public struct CheckInSnapshot: Codable {
         self.chatCount = chatCount
         self.presence = presence
         self.isOutOfOffice = isOutOfOffice
+        self.laterMeetings = laterMeetings
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case updatedAt
+        case nextMeetingSubject
+        case nextMeetingStart
+        case nextMeetingOrganizer
+        case nextMeetingJoinUrl
+        case unreadEmailCount
+        case chatCount
+        case presence
+        case isOutOfOffice
+        case laterMeetings
+    }
+
+    /// Custom decode so a snapshot written before `laterMeetings` existed
+    /// still decodes — the field falls back to an empty array. Without
+    /// this, the watch (or any consumer) sitting on an older cached
+    /// payload would fail to load on the first launch after the upgrade.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        nextMeetingSubject = try c.decodeIfPresent(String.self, forKey: .nextMeetingSubject)
+        nextMeetingStart = try c.decodeIfPresent(Date.self, forKey: .nextMeetingStart)
+        nextMeetingOrganizer = try c.decodeIfPresent(String.self, forKey: .nextMeetingOrganizer)
+        nextMeetingJoinUrl = try c.decodeIfPresent(String.self, forKey: .nextMeetingJoinUrl)
+        unreadEmailCount = try c.decode(Int.self, forKey: .unreadEmailCount)
+        chatCount = try c.decode(Int.self, forKey: .chatCount)
+        presence = try c.decode(Presence.self, forKey: .presence)
+        isOutOfOffice = try c.decode(Bool.self, forKey: .isOutOfOffice)
+        laterMeetings = try c.decodeIfPresent([SnapshotMeeting].self, forKey: .laterMeetings) ?? []
     }
 
     /// A copy with only the presence and Out-of-Office fields replaced.
@@ -72,7 +122,8 @@ public struct CheckInSnapshot: Codable {
             unreadEmailCount: unreadEmailCount,
             chatCount: chatCount,
             presence: presence,
-            isOutOfOffice: isOutOfOffice
+            isOutOfOffice: isOutOfOffice,
+            laterMeetings: laterMeetings
         )
     }
 
