@@ -26,19 +26,11 @@ hardware UDID.
 
 ## Build
 
-The iOS scheme does NOT auto-schedule `CheckInKit` for watchOS even
-though the watch app + widget extension depend on it. Build it
-explicitly first, into the same DerivedData; the iOS scheme build
-then finds it. (Tracked under [[checkin-watch-cross-platform-build]]
-— investigated 2026-05-29, no pbxproj-level fix found.)
+CheckInKit and CheckInGraph are local Swift Packages, so the iOS
+scheme builds them per-consumer-platform in one pass. No pre-build
+step is needed.
 
 ```bash
-xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
-  -scheme CheckInKit -configuration Debug \
-  -destination "generic/platform=watchOS" \
-  -derivedDataPath ~/Library/Developer/Xcode/DerivedData/CheckIn-ewmjhsyasdunbehkhbdmdpyizbed \
-  -allowProvisioningUpdates build
-
 xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
   -scheme CheckIn -configuration Debug \
   -destination "platform=iOS,id=00008120-001019EA18834032" \
@@ -49,9 +41,7 @@ xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
 if needed. Without it you'll hit signing errors after profile renewals.
 
 The DerivedData hash `CheckIn-ewmjhsyasdunbehkhbdmdpyizbed` is stable
-per-project on this Mac. Skip the first command on warm DerivedData
-(the watchOS CheckInKit slice persists across iOS scheme builds — it
-just isn't rebuilt by them).
+per-project on this Mac.
 
 ## Install
 
@@ -158,11 +148,6 @@ For the common "build, install, launch, get out" pattern:
 
 ```bash
 xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
-  -scheme CheckInKit -configuration Debug \
-  -destination "generic/platform=watchOS" \
-  -derivedDataPath ~/Library/Developer/Xcode/DerivedData/CheckIn-ewmjhsyasdunbehkhbdmdpyizbed \
-  -allowProvisioningUpdates build 2>&1 | tail -3 \
-&& xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
   -scheme CheckIn -configuration Debug \
   -destination "platform=iOS,id=00008120-001019EA18834032" \
   -allowProvisioningUpdates build 2>&1 | tail -3 \
@@ -174,8 +159,7 @@ xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
      com.excelano.checkin 2>&1 | tail -2
 ```
 
-About 30 seconds end-to-end on a warm DerivedData cache (the watchOS
-CheckInKit pre-build is a no-op when up-to-date).
+About 30 seconds end-to-end on a warm DerivedData cache.
 
 ## Test target
 

@@ -8,13 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		194F4CCD2FAD3EA70019A39C /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 194F4CCC2FAD3EA70019A39C /* MSAL */; };
-		6B6B55632FCA061D00EDE43B /* CheckInGraph.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */; };
-		6B6B556D2FCA061D00EDE43B /* CheckInGraph.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */; };
-		6B6B556E2FCA061D00EDE43B /* CheckInGraph.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		6B6B55752FCA065000EDE43B /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
-		6B6B557D2FCA06B500EDE43B /* CheckInGraph.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */; };
-		6B6B557E2FCA06B500EDE43B /* CheckInGraph.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		6B6B55812FCA085D00EDE43B /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
 		6B78BD922FC15197008CF821 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD912FC15197008CF821 /* WidgetKit.framework */; };
 		6B78BD942FC15197008CF821 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD932FC15197008CF821 /* SwiftUI.framework */; };
 		6B78BDA32FC15199008CF821 /* CheckInWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6B78BD8F2FC15197008CF821 /* CheckInWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -22,67 +15,16 @@
 		6B88F4262FCA6C7100D002A5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD912FC15197008CF821 /* WidgetKit.framework */; };
 		6B88F4272FCA6C7100D002A5 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD932FC15197008CF821 /* SwiftUI.framework */; };
 		6B88F4342FCA6C7300D002A5 /* CheckInWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		6B88F43C2FCA6D8000D002A5 /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
-		6B88F43D2FCA6D8000D002A5 /* CheckInKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		6B88F4412FCA6E4E00D002A5 /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
-		6BD1250B2FC8E42300B6B85F /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
-		6BD125152FC8E42300B6B85F /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; platformFilter = ios; };
-		6BD125162FC8E42300B6B85F /* CheckInKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		6BD125202FC8E64700B6B85F /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
-		6BD125212FC8E64700B6B85F /* CheckInKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		6BD126232FC9413A00B6B85F /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 6BD126222FC9413A00B6B85F /* MSAL */; };
+		7A0000000000000000000020 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000010 /* CheckInKit */; };
+		7A0000000000000000000021 /* CheckInGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000011 /* CheckInGraph */; };
+		7A0000000000000000000022 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000012 /* CheckInKit */; };
+		7A0000000000000000000023 /* CheckInGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000013 /* CheckInGraph */; };
+		7A0000000000000000000024 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000014 /* CheckInKit */; };
+		7A0000000000000000000025 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000015 /* CheckInKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		6B6B55642FCA061D00EDE43B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6B6B55572FCA061C00EDE43B;
-			remoteInfo = CheckInGraph;
-		};
-		6B6B55662FCA061D00EDE43B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 19C6DDC02FAD391B008DDDF0;
-			remoteInfo = CheckIn;
-		};
-		6B6B556B2FCA061D00EDE43B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6B6B55572FCA061C00EDE43B;
-			remoteInfo = CheckInGraph;
-		};
-		6B6B55772FCA065000EDE43B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
-			remoteInfo = CheckInKit;
-		};
-		6B6B557B2FCA069A00EDE43B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6B6B55572FCA061C00EDE43B;
-			remoteInfo = CheckInGraph;
-		};
-		6B6B557F2FCA06B500EDE43B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6B6B55572FCA061C00EDE43B;
-			remoteInfo = CheckInGraph;
-		};
-		6B6B55832FCA085D00EDE43B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
-			remoteInfo = CheckInKit;
-		};
 		6B78BDA12FC15199008CF821 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
@@ -103,48 +45,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = 6B88F4242FCA6C7100D002A5;
 			remoteInfo = CheckInWatchWidgetExtension;
-		};
-		6B88F43E2FCA6D8000D002A5 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
-			remoteInfo = CheckInKit;
-		};
-		6B88F4432FCA6E4E00D002A5 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
-			remoteInfo = CheckInKit;
-		};
-		6BD1250C2FC8E42300B6B85F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
-			remoteInfo = CheckInKit;
-		};
-		6BD1250E2FC8E42300B6B85F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 19C6DDC02FAD391B008DDDF0;
-			remoteInfo = CheckIn;
-		};
-		6BD125132FC8E42300B6B85F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
-			remoteInfo = CheckInKit;
-		};
-		6BD125222FC8E64700B6B85F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
-			remoteInfo = CheckInKit;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -182,47 +82,10 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6B88F4402FCA6D8000D002A5 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				6B88F43D2FCA6D8000D002A5 /* CheckInKit.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6BD125172FC8E42300B6B85F /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				6BD125162FC8E42300B6B85F /* CheckInKit.framework in Embed Frameworks */,
-				6B6B556E2FCA061D00EDE43B /* CheckInGraph.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6BD125242FC8E64700B6B85F /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				6BD125212FC8E64700B6B85F /* CheckInKit.framework in Embed Frameworks */,
-				6B6B557E2FCA06B500EDE43B /* CheckInGraph.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		19C6DDC12FAD391B008DDDF0 /* CheckIn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CheckIn.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CheckInGraph.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		6B6B55622FCA061D00EDE43B /* CheckInGraphTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CheckInGraphTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B78BD8F2FC15197008CF821 /* CheckInWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CheckInWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B78BD912FC15197008CF821 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		6B78BD932FC15197008CF821 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -230,8 +93,6 @@
 		6B88F3F62FCA6BDF00D002A5 /* CheckInWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CheckInWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CheckInWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B88F43B2FCA6D2A00D002A5 /* CheckInWatchWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CheckInWatchWidgetExtension.entitlements; sourceTree = "<group>"; };
-		6BD125002FC8E42300B6B85F /* CheckInKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CheckInKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		6BD1250A2FC8E42300B6B85F /* CheckInKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CheckInKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -267,16 +128,6 @@
 			path = CheckIn;
 			sourceTree = "<group>";
 		};
-		6B6B55592FCA061C00EDE43B /* CheckInGraph */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CheckInGraph;
-			sourceTree = "<group>";
-		};
-		6B6B55682FCA061D00EDE43B /* CheckInGraphTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CheckInGraphTests;
-			sourceTree = "<group>";
-		};
 		6B78BD952FC15197008CF821 /* CheckInWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -308,16 +159,6 @@
 			path = CheckInWatchWidget;
 			sourceTree = "<group>";
 		};
-		6BD125012FC8E42300B6B85F /* CheckInKit */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CheckInKit;
-			sourceTree = "<group>";
-		};
-		6BD125102FC8E42300B6B85F /* CheckInKitTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CheckInKitTests;
-			sourceTree = "<group>";
-		};
 		6BFACE0000000000000000A1 /* SharedIntents */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = SharedIntents;
@@ -331,25 +172,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				194F4CCD2FAD3EA70019A39C /* MSAL in Frameworks */,
-				6BD125152FC8E42300B6B85F /* CheckInKit.framework in Frameworks */,
-				6B6B556D2FCA061D00EDE43B /* CheckInGraph.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6B6B55552FCA061C00EDE43B /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				6B6B55812FCA085D00EDE43B /* CheckInKit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6B6B555F2FCA061D00EDE43B /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				6B6B55632FCA061D00EDE43B /* CheckInGraph.framework in Frameworks */,
-				6B6B55752FCA065000EDE43B /* CheckInKit.framework in Frameworks */,
+				7A0000000000000000000020 /* CheckInKit in Frameworks */,
+				7A0000000000000000000021 /* CheckInGraph in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -359,9 +183,9 @@
 			files = (
 				6B78BD942FC15197008CF821 /* SwiftUI.framework in Frameworks */,
 				6BD126232FC9413A00B6B85F /* MSAL in Frameworks */,
-				6B6B557D2FCA06B500EDE43B /* CheckInGraph.framework in Frameworks */,
-				6BD125202FC8E64700B6B85F /* CheckInKit.framework in Frameworks */,
 				6B78BD922FC15197008CF821 /* WidgetKit.framework in Frameworks */,
+				7A0000000000000000000022 /* CheckInKit in Frameworks */,
+				7A0000000000000000000023 /* CheckInGraph in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -369,7 +193,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6B88F43C2FCA6D8000D002A5 /* CheckInKit.framework in Frameworks */,
+				7A0000000000000000000024 /* CheckInKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -378,23 +202,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				6B88F4272FCA6C7100D002A5 /* SwiftUI.framework in Frameworks */,
-				6B88F4412FCA6E4E00D002A5 /* CheckInKit.framework in Frameworks */,
 				6B88F4262FCA6C7100D002A5 /* WidgetKit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6BD124FD2FC8E42300B6B85F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6BD125072FC8E42300B6B85F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				6BD1250B2FC8E42300B6B85F /* CheckInKit.framework in Frameworks */,
+				7A0000000000000000000025 /* CheckInKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -408,11 +217,7 @@
 				6B78BDA92FC1540B008CF821 /* CheckInWidgetExtension.entitlements */,
 				19C6DDC32FAD391B008DDDF0 /* CheckIn */,
 				6B78BD952FC15197008CF821 /* CheckInWidget */,
-				6BD125012FC8E42300B6B85F /* CheckInKit */,
-				6BD125102FC8E42300B6B85F /* CheckInKitTests */,
 				6BFACE0000000000000000A1 /* SharedIntents */,
-				6B6B55592FCA061C00EDE43B /* CheckInGraph */,
-				6B6B55682FCA061D00EDE43B /* CheckInGraphTests */,
 				6B88F3F72FCA6BDF00D002A5 /* CheckInWatch Watch App */,
 				6B88F4052FCA6BE100D002A5 /* CheckInWatch Watch AppTests */,
 				6B88F40F2FCA6BE100D002A5 /* CheckInWatch Watch AppUITests */,
@@ -427,10 +232,6 @@
 			children = (
 				19C6DDC12FAD391B008DDDF0 /* CheckIn.app */,
 				6B78BD8F2FC15197008CF821 /* CheckInWidgetExtension.appex */,
-				6BD125002FC8E42300B6B85F /* CheckInKit.framework */,
-				6BD1250A2FC8E42300B6B85F /* CheckInKitTests.xctest */,
-				6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */,
-				6B6B55622FCA061D00EDE43B /* CheckInGraphTests.xctest */,
 				6B88F3F62FCA6BDF00D002A5 /* CheckInWatch Watch App.app */,
 				6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */,
 			);
@@ -449,20 +250,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
-		6B6B55532FCA061C00EDE43B /* Headers */ = {
-			isa = PBXHeadersBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6BD124FB2FC8E42300B6B85F /* Headers */ = {
-			isa = PBXHeadersBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
@@ -474,16 +261,12 @@
 				19C6DDBE2FAD391B008DDDF0 /* Frameworks */,
 				19C6DDBF2FAD391B008DDDF0 /* Resources */,
 				6B78BDA42FC15199008CF821 /* Embed Foundation Extensions */,
-				6BD125172FC8E42300B6B85F /* Embed Frameworks */,
 				6B88F4172FCA6BE100D002A5 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				6B78BDA22FC15199008CF821 /* PBXTargetDependency */,
-				6BD125142FC8E42300B6B85F /* PBXTargetDependency */,
-				6B6B556C2FCA061D00EDE43B /* PBXTargetDependency */,
-				6B6B557C2FCA069A00EDE43B /* PBXTargetDependency */,
 				6B88F4152FCA6BE100D002A5 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
@@ -492,60 +275,13 @@
 			);
 			name = CheckIn;
 			packageProductDependencies = (
+				7A0000000000000000000010 /* CheckInKit */,
+				7A0000000000000000000011 /* CheckInGraph */,
 				194F4CCC2FAD3EA70019A39C /* MSAL */,
 			);
 			productName = CheckIn;
 			productReference = 19C6DDC12FAD391B008DDDF0 /* CheckIn.app */;
 			productType = "com.apple.product-type.application";
-		};
-		6B6B55572FCA061C00EDE43B /* CheckInGraph */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 6B6B556F2FCA061D00EDE43B /* Build configuration list for PBXNativeTarget "CheckInGraph" */;
-			buildPhases = (
-				6B6B55532FCA061C00EDE43B /* Headers */,
-				6B6B55542FCA061C00EDE43B /* Sources */,
-				6B6B55552FCA061C00EDE43B /* Frameworks */,
-				6B6B55562FCA061C00EDE43B /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				6B6B55842FCA085D00EDE43B /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				6B6B55592FCA061C00EDE43B /* CheckInGraph */,
-			);
-			name = CheckInGraph;
-			packageProductDependencies = (
-			);
-			productName = CheckInGraph;
-			productReference = 6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */;
-			productType = "com.apple.product-type.framework";
-		};
-		6B6B55612FCA061D00EDE43B /* CheckInGraphTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 6B6B55722FCA061D00EDE43B /* Build configuration list for PBXNativeTarget "CheckInGraphTests" */;
-			buildPhases = (
-				6B6B555E2FCA061D00EDE43B /* Sources */,
-				6B6B555F2FCA061D00EDE43B /* Frameworks */,
-				6B6B55602FCA061D00EDE43B /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				6B6B55652FCA061D00EDE43B /* PBXTargetDependency */,
-				6B6B55672FCA061D00EDE43B /* PBXTargetDependency */,
-				6B6B55782FCA065000EDE43B /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				6B6B55682FCA061D00EDE43B /* CheckInGraphTests */,
-			);
-			name = CheckInGraphTests;
-			packageProductDependencies = (
-			);
-			productName = CheckInGraphTests;
-			productReference = 6B6B55622FCA061D00EDE43B /* CheckInGraphTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		6B78BD8E2FC15197008CF821 /* CheckInWidgetExtension */ = {
 			isa = PBXNativeTarget;
@@ -554,13 +290,10 @@
 				6B78BD8B2FC15197008CF821 /* Sources */,
 				6B78BD8C2FC15197008CF821 /* Frameworks */,
 				6B78BD8D2FC15197008CF821 /* Resources */,
-				6BD125242FC8E64700B6B85F /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				6BD125232FC8E64700B6B85F /* PBXTargetDependency */,
-				6B6B55802FCA06B500EDE43B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6B78BD952FC15197008CF821 /* CheckInWidget */,
@@ -568,6 +301,8 @@
 			);
 			name = CheckInWidgetExtension;
 			packageProductDependencies = (
+				7A0000000000000000000012 /* CheckInKit */,
+				7A0000000000000000000013 /* CheckInGraph */,
 				6BD126222FC9413A00B6B85F /* MSAL */,
 			);
 			productName = CheckInWidgetExtension;
@@ -582,19 +317,18 @@
 				6B88F3F32FCA6BDF00D002A5 /* Frameworks */,
 				6B88F3F42FCA6BDF00D002A5 /* Resources */,
 				6B88F4392FCA6C7300D002A5 /* Embed Foundation Extensions */,
-				6B88F4402FCA6D8000D002A5 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				6B88F4332FCA6C7300D002A5 /* PBXTargetDependency */,
-				6B88F43F2FCA6D8000D002A5 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6B88F3F72FCA6BDF00D002A5 /* CheckInWatch Watch App */,
 			);
 			name = "CheckInWatch Watch App";
 			packageProductDependencies = (
+				7A0000000000000000000014 /* CheckInKit */,
 			);
 			productName = "CheckInWatch Watch App";
 			productReference = 6B88F3F62FCA6BDF00D002A5 /* CheckInWatch Watch App.app */;
@@ -611,64 +345,17 @@
 			buildRules = (
 			);
 			dependencies = (
-				6B88F4442FCA6E4E00D002A5 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6B88F4282FCA6C7100D002A5 /* CheckInWatchWidget */,
 			);
 			name = CheckInWatchWidgetExtension;
 			packageProductDependencies = (
+				7A0000000000000000000015 /* CheckInKit */,
 			);
 			productName = CheckInWatchWidgetExtension;
 			productReference = 6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
-		};
-		6BD124FF2FC8E42300B6B85F /* CheckInKit */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 6BD1251C2FC8E42300B6B85F /* Build configuration list for PBXNativeTarget "CheckInKit" */;
-			buildPhases = (
-				6BD124FB2FC8E42300B6B85F /* Headers */,
-				6BD124FC2FC8E42300B6B85F /* Sources */,
-				6BD124FD2FC8E42300B6B85F /* Frameworks */,
-				6BD124FE2FC8E42300B6B85F /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				6BD125012FC8E42300B6B85F /* CheckInKit */,
-			);
-			name = CheckInKit;
-			packageProductDependencies = (
-			);
-			productName = CheckInKit;
-			productReference = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */;
-			productType = "com.apple.product-type.framework";
-		};
-		6BD125092FC8E42300B6B85F /* CheckInKitTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 6BD1251D2FC8E42300B6B85F /* Build configuration list for PBXNativeTarget "CheckInKitTests" */;
-			buildPhases = (
-				6BD125062FC8E42300B6B85F /* Sources */,
-				6BD125072FC8E42300B6B85F /* Frameworks */,
-				6BD125082FC8E42300B6B85F /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				6BD1250D2FC8E42300B6B85F /* PBXTargetDependency */,
-				6BD1250F2FC8E42300B6B85F /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				6BD125102FC8E42300B6B85F /* CheckInKitTests */,
-			);
-			name = CheckInKitTests;
-			packageProductDependencies = (
-			);
-			productName = CheckInKitTests;
-			productReference = 6BD1250A2FC8E42300B6B85F /* CheckInKitTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -683,13 +370,6 @@
 					19C6DDC02FAD391B008DDDF0 = {
 						CreatedOnToolsVersion = 26.4.1;
 					};
-					6B6B55572FCA061C00EDE43B = {
-						CreatedOnToolsVersion = 26.3;
-					};
-					6B6B55612FCA061D00EDE43B = {
-						CreatedOnToolsVersion = 26.3;
-						TestTargetID = 19C6DDC02FAD391B008DDDF0;
-					};
 					6B78BD8E2FC15197008CF821 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -698,13 +378,6 @@
 					};
 					6B88F4242FCA6C7100D002A5 = {
 						CreatedOnToolsVersion = 26.3;
-					};
-					6BD124FF2FC8E42300B6B85F = {
-						CreatedOnToolsVersion = 26.3;
-					};
-					6BD125092FC8E42300B6B85F = {
-						CreatedOnToolsVersion = 26.3;
-						TestTargetID = 19C6DDC02FAD391B008DDDF0;
 					};
 				};
 			};
@@ -718,6 +391,8 @@
 			mainGroup = 19C6DDB82FAD391B008DDDF0;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */,
+				7A0000000000000000000002 /* XCLocalSwiftPackageReference "CheckInGraph" */,
 				194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -727,10 +402,6 @@
 			targets = (
 				19C6DDC02FAD391B008DDDF0 /* CheckIn */,
 				6B78BD8E2FC15197008CF821 /* CheckInWidgetExtension */,
-				6BD124FF2FC8E42300B6B85F /* CheckInKit */,
-				6BD125092FC8E42300B6B85F /* CheckInKitTests */,
-				6B6B55572FCA061C00EDE43B /* CheckInGraph */,
-				6B6B55612FCA061D00EDE43B /* CheckInGraphTests */,
 				6B88F3F52FCA6BDF00D002A5 /* CheckInWatch Watch App */,
 				6B88F4242FCA6C7100D002A5 /* CheckInWatchWidgetExtension */,
 			);
@@ -739,20 +410,6 @@
 
 /* Begin PBXResourcesBuildPhase section */
 		19C6DDBF2FAD391B008DDDF0 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6B6B55562FCA061C00EDE43B /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6B6B55602FCA061D00EDE43B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -780,38 +437,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6BD124FE2FC8E42300B6B85F /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6BD125082FC8E42300B6B85F /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		19C6DDBD2FAD391B008DDDF0 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6B6B55542FCA061C00EDE43B /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6B6B555E2FCA061D00EDE43B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -839,58 +468,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6BD124FC2FC8E42300B6B85F /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6BD125062FC8E42300B6B85F /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		6B6B55652FCA061D00EDE43B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6B6B55572FCA061C00EDE43B /* CheckInGraph */;
-			targetProxy = 6B6B55642FCA061D00EDE43B /* PBXContainerItemProxy */;
-		};
-		6B6B55672FCA061D00EDE43B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 19C6DDC02FAD391B008DDDF0 /* CheckIn */;
-			targetProxy = 6B6B55662FCA061D00EDE43B /* PBXContainerItemProxy */;
-		};
-		6B6B556C2FCA061D00EDE43B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6B6B55572FCA061C00EDE43B /* CheckInGraph */;
-			targetProxy = 6B6B556B2FCA061D00EDE43B /* PBXContainerItemProxy */;
-		};
-		6B6B55782FCA065000EDE43B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
-			targetProxy = 6B6B55772FCA065000EDE43B /* PBXContainerItemProxy */;
-		};
-		6B6B557C2FCA069A00EDE43B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6B6B55572FCA061C00EDE43B /* CheckInGraph */;
-			targetProxy = 6B6B557B2FCA069A00EDE43B /* PBXContainerItemProxy */;
-		};
-		6B6B55802FCA06B500EDE43B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6B6B55572FCA061C00EDE43B /* CheckInGraph */;
-			targetProxy = 6B6B557F2FCA06B500EDE43B /* PBXContainerItemProxy */;
-		};
-		6B6B55842FCA085D00EDE43B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
-			targetProxy = 6B6B55832FCA085D00EDE43B /* PBXContainerItemProxy */;
-		};
 		6B78BDA22FC15199008CF821 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 6B78BD8E2FC15197008CF821 /* CheckInWidgetExtension */;
@@ -905,37 +485,6 @@
 			isa = PBXTargetDependency;
 			target = 6B88F4242FCA6C7100D002A5 /* CheckInWatchWidgetExtension */;
 			targetProxy = 6B88F4322FCA6C7300D002A5 /* PBXContainerItemProxy */;
-		};
-		6B88F43F2FCA6D8000D002A5 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
-			targetProxy = 6B88F43E2FCA6D8000D002A5 /* PBXContainerItemProxy */;
-		};
-		6B88F4442FCA6E4E00D002A5 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
-			targetProxy = 6B88F4432FCA6E4E00D002A5 /* PBXContainerItemProxy */;
-		};
-		6BD1250D2FC8E42300B6B85F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
-			targetProxy = 6BD1250C2FC8E42300B6B85F /* PBXContainerItemProxy */;
-		};
-		6BD1250F2FC8E42300B6B85F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 19C6DDC02FAD391B008DDDF0 /* CheckIn */;
-			targetProxy = 6BD1250E2FC8E42300B6B85F /* PBXContainerItemProxy */;
-		};
-		6BD125142FC8E42300B6B85F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			platformFilter = ios;
-			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
-			targetProxy = 6BD125132FC8E42300B6B85F /* PBXContainerItemProxy */;
-		};
-		6BD125232FC8E64700B6B85F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
-			targetProxy = 6BD125222FC8E64700B6B85F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1137,132 +686,6 @@
 			};
 			name = Release;
 		};
-		6B6B55702FCA061D00EDE43B /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				ENABLE_MODULE_VERIFIER = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
-				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInGraph;
-				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_INSTALL_MODULE = YES;
-				SWIFT_INSTALL_OBJC_HEADER = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,4";
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-				WATCHOS_DEPLOYMENT_TARGET = 11.6;
-			};
-			name = Debug;
-		};
-		6B6B55712FCA061D00EDE43B /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				ENABLE_MODULE_VERIFIER = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
-				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInGraph;
-				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_INSTALL_MODULE = YES;
-				SWIFT_INSTALL_OBJC_HEADER = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,4";
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-				WATCHOS_DEPLOYMENT_TARGET = 11.6;
-			};
-			name = Release;
-		};
-		6B6B55732FCA061D00EDE43B /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInGraphTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CheckIn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CheckIn";
-			};
-			name = Debug;
-		};
-		6B6B55742FCA061D00EDE43B /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInGraphTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CheckIn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CheckIn";
-			};
-			name = Release;
-		};
 		6B78BDA52FC15199008CF821 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1337,7 +760,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				ENABLE_PREVIEWS = YES;
-				EXCLUDED_ARCHS = arm64_32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -1372,7 +794,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				ENABLE_PREVIEWS = YES;
-				EXCLUDED_ARCHS = arm64_32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -1406,7 +827,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				EXCLUDED_ARCHS = arm64_32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CheckInWatchWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatchWidget;
@@ -1441,7 +861,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				EXCLUDED_ARCHS = arm64_32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CheckInWatchWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatchWidget;
@@ -1467,132 +886,6 @@
 			};
 			name = Release;
 		};
-		6BD125182FC8E42300B6B85F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				ENABLE_MODULE_VERIFIER = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
-				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInKit;
-				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_INSTALL_MODULE = YES;
-				SWIFT_INSTALL_OBJC_HEADER = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,4";
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-				WATCHOS_DEPLOYMENT_TARGET = 11.6;
-			};
-			name = Debug;
-		};
-		6BD125192FC8E42300B6B85F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUILD_LIBRARY_FOR_DISTRIBUTION = NO;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				ENABLE_MODULE_VERIFIER = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
-				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInKit;
-				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_INSTALL_MODULE = YES;
-				SWIFT_INSTALL_OBJC_HEADER = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,4";
-				VERSIONING_SYSTEM = "apple-generic";
-				VERSION_INFO_PREFIX = "";
-				WATCHOS_DEPLOYMENT_TARGET = 11.6;
-			};
-			name = Release;
-		};
-		6BD1251A2FC8E42300B6B85F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInKitTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CheckIn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CheckIn";
-			};
-			name = Debug;
-		};
-		6BD1251B2FC8E42300B6B85F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 9K6W5PMFYP;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.CheckInKitTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CheckIn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CheckIn";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1610,24 +903,6 @@
 			buildConfigurations = (
 				19C6DDCD2FAD391B008DDDF0 /* Debug */,
 				19C6DDCE2FAD391B008DDDF0 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		6B6B556F2FCA061D00EDE43B /* Build configuration list for PBXNativeTarget "CheckInGraph" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				6B6B55702FCA061D00EDE43B /* Debug */,
-				6B6B55712FCA061D00EDE43B /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		6B6B55722FCA061D00EDE43B /* Build configuration list for PBXNativeTarget "CheckInGraphTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				6B6B55732FCA061D00EDE43B /* Debug */,
-				6B6B55742FCA061D00EDE43B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1659,25 +934,18 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		6BD1251C2FC8E42300B6B85F /* Build configuration list for PBXNativeTarget "CheckInKit" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				6BD125182FC8E42300B6B85F /* Debug */,
-				6BD125192FC8E42300B6B85F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		6BD1251D2FC8E42300B6B85F /* Build configuration list for PBXNativeTarget "CheckInKitTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				6BD1251A2FC8E42300B6B85F /* Debug */,
-				6BD1251B2FC8E42300B6B85F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = CheckInKit;
+		};
+		7A0000000000000000000002 /* XCLocalSwiftPackageReference "CheckInGraph" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = CheckInGraph;
+		};
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
@@ -1700,6 +968,36 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
 			productName = MSAL;
+		};
+		7A0000000000000000000010 /* CheckInKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */;
+			productName = CheckInKit;
+		};
+		7A0000000000000000000011 /* CheckInGraph */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000002 /* XCLocalSwiftPackageReference "CheckInGraph" */;
+			productName = CheckInGraph;
+		};
+		7A0000000000000000000012 /* CheckInKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */;
+			productName = CheckInKit;
+		};
+		7A0000000000000000000013 /* CheckInGraph */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000002 /* XCLocalSwiftPackageReference "CheckInGraph" */;
+			productName = CheckInGraph;
+		};
+		7A0000000000000000000014 /* CheckInKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */;
+			productName = CheckInKit;
+		};
+		7A0000000000000000000015 /* CheckInKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */;
+			productName = CheckInKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
