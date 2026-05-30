@@ -279,7 +279,7 @@ final class GraphClient {
                 "$orderby": "receivedDateTime desc",
                 "$top": "\(top)",
                 "$count": "true",
-                "$select": "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
+                "$select": "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,hasAttachments,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
             ],
             headers: ["ConsistencyLevel": "eventual"]
         )
@@ -306,7 +306,8 @@ final class GraphClient {
                 meetingEnd: meetingEnd,
                 isMailingList: isMailingList,
                 toRecipients: toRecipients,
-                ccRecipients: ccRecipients
+                ccRecipients: ccRecipients,
+                hasAttachments: e.hasAttachments ?? false
             )
         }
         return (emails, data.count ?? emails.count)

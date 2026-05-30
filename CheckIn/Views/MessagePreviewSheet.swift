@@ -272,6 +272,7 @@ struct MessagePreviewSheet: View {
                         .foregroundStyle(Brand.textMuted)
                 }
                 recipientRow(for: email)
+                attachmentIndicator(for: email)
             }
         case .chat(let chat):
             VStack(alignment: .leading, spacing: 6) {
@@ -297,6 +298,26 @@ struct MessagePreviewSheet: View {
                         .lineLimit(2)
                 }
             }
+        }
+    }
+
+    /// Paperclip + "Has attachments" caption shown when Graph reports the
+    /// message carries any attachment. Graph's `hasAttachments` flips
+    /// `true` for inline images as well (signatures, embedded HTML
+    /// screenshots), so this is a presence hint, not a guarantee of a
+    /// user-attached file. We avoid loading `/attachments` to keep the
+    /// preview free of extra Graph round-trips.
+    @ViewBuilder
+    private func attachmentIndicator(for email: Email) -> some View {
+        if email.hasAttachments {
+            HStack(spacing: 4) {
+                Image(systemName: "paperclip")
+                    .font(.caption)
+                Text("Has attachments")
+                    .font(.caption)
+            }
+            .foregroundStyle(Brand.textMuted)
+            .accessibilityElement(children: .combine)
         }
     }
 

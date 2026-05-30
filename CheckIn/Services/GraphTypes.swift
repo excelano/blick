@@ -85,6 +85,7 @@ struct EmailResponse: Decodable {
     let startDateTime: DateTimeResponse?
     let endDateTime: DateTimeResponse?
     let internetMessageHeaders: [InternetMessageHeader]?
+    let hasAttachments: Bool?
 }
 
 struct InternetMessageHeader: Decodable {

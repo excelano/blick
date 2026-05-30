@@ -55,6 +55,12 @@ struct Email: Identifiable {
     let toRecipients: [Recipient]
     /// `ccRecipients` from Graph. Same filter applies in the UI.
     let ccRecipients: [Recipient]
+    /// Mirrors Graph's `hasAttachments`. Drives the paperclip indicator in
+    /// the preview sheet. Note this is `true` for inline images too
+    /// (signature graphics, embedded HTML screenshots), not just user-
+    /// attached files — filtering those out would require loading
+    /// `/attachments` metadata, which the panel deliberately avoids.
+    let hasAttachments: Bool
 
     init(id: String,
          subject: String,
@@ -69,7 +75,8 @@ struct Email: Identifiable {
          meetingEnd: Date? = nil,
          isMailingList: Bool = false,
          toRecipients: [Recipient] = [],
-         ccRecipients: [Recipient] = []) {
+         ccRecipients: [Recipient] = [],
+         hasAttachments: Bool = false) {
         self.id = id
         self.subject = subject
         self.from = from
@@ -84,6 +91,7 @@ struct Email: Identifiable {
         self.isMailingList = isMailingList
         self.toRecipients = toRecipients
         self.ccRecipients = ccRecipients
+        self.hasAttachments = hasAttachments
     }
 
     func with(isFlagged: Bool) -> Email {
@@ -96,7 +104,8 @@ struct Email: Identifiable {
               meetingEnd: meetingEnd,
               isMailingList: isMailingList,
               toRecipients: toRecipients,
-              ccRecipients: ccRecipients)
+              ccRecipients: ccRecipients,
+              hasAttachments: hasAttachments)
     }
 }
 
