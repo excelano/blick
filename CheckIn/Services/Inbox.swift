@@ -141,6 +141,15 @@ final class Inbox {
     private static let fullEmailCap = 999
     private var emailTop: Int { showingAllEmails ? Self.fullEmailCap : 20 }
 
+    /// How long an undoable bulk action stays offered before it expires
+    /// silently. Long enough to catch a "wait, undo that" reflex,
+    /// short enough that an old action doesn't surprise the user when
+    /// they tap Undo well after the fact.
+    private static let undoExpirySeconds: Double = 8
+    /// How long a transient error message stays on screen before it
+    /// self-clears. Matches the rhythm of the undo banner.
+    private static let transientErrorExpirySeconds: Double = 6
+
     @ObservationIgnored private let logger = Logger(subsystem: "com.excelano.checkin", category: "inbox")
 
     init(graphClient: GraphClient, authService: AuthService, teamsEnabled: Bool) {
@@ -174,12 +183,12 @@ final class Inbox {
     }
 
     /// Set a fresh undoable action, replacing whatever was there before
-    /// and restarting the 8-second auto-expiry timer.
+    /// and restarting the auto-expiry timer.
     private func setPendingUndo(_ action: UndoableBulkAction) {
         pendingUndo = action
         undoExpiryTask?.cancel()
         undoExpiryTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(8))
+            try? await Task.sleep(for: .seconds(Self.undoExpirySeconds))
             guard let self, !Task.isCancelled else { return }
             self.pendingUndo = nil
         }
@@ -202,13 +211,13 @@ final class Inbox {
     }
 
     /// Surface a brief failure message for an optimistic action that
-    /// reverted. Replaces any earlier message and restarts the 6-second
+    /// reverted. Replaces any earlier message and restarts the
     /// auto-clear timer.
     private func showTransientError(_ message: String) {
         transientError = message
         transientErrorExpiryTask?.cancel()
         transientErrorExpiryTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(6))
+            try? await Task.sleep(for: .seconds(Self.transientErrorExpirySeconds))
             guard let self, !Task.isCancelled else { return }
             self.transientError = nil
         }
@@ -277,14 +286,14 @@ final class Inbox {
         lastRefreshFailed = anyFailed || meetingsResult.failed || emailsResult.failed || chatsFailed
         await updateAppBadge()
         await rescheduleMeetingNotificationsIfEnabled()
-        writeWidgetSnapshot()
+        publishStatusSnapshot()
     }
 
     /// Serialize the current summary into the App Group container the
-    /// widget reads from, and tell the widget to reload. Widgets can't
-    /// authenticate or call Graph themselves, so this is the only way
-    /// they get fresh data.
-    private func writeWidgetSnapshot() {
+    /// widget and Control Center controls read from, then nudge them to
+    /// reload. The write + reload together are what make a refresh
+    /// visible on those surfaces.
+    private func publishStatusSnapshot() {
         guard let summary else { return }
         let next = nextMeeting
         let snapshot = CheckInSnapshot(
@@ -299,7 +308,7 @@ final class Inbox {
             isOutOfOffice: isOutOfOffice
         )
         if !snapshot.saveToAppGroup() {
-            logger.error("writeWidgetSnapshot: couldn't encode or open App Group defaults")
+            logger.error("publishStatusSnapshot: couldn't encode or open App Group defaults")
             return
         }
         CheckInSnapshot.reloadStatusSurfaces()

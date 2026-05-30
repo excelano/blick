@@ -8,6 +8,13 @@ import SwiftUI
 import AppIntents
 import CheckInGraph
 import CheckInKit
+import os
+
+private let log = Logger(subsystem: "com.excelano.checkin", category: "widget")
+
+/// Furthest minute the timeline pre-renders, so the "in N min" countdown
+/// updates without a Graph round-trip until WidgetKit reloads us.
+private let timelineHorizonMinutes = 60
 
 struct CheckInEntry: TimelineEntry {
     let date: Date
@@ -23,18 +30,18 @@ struct CheckInProvider: TimelineProvider {
         completion(CheckInEntry(date: Date(), snapshot: CheckInSnapshot.loadFromAppGroup() ?? previewSnapshot))
     }
 
-    /// Generate one entry per minute up to 60 minutes out so the
-    /// "in X min" countdown stays accurate without requiring a widget
-    /// refresh. After 60 entries, iOS reloads; the main app also reloads
-    /// us proactively on every refresh. On each reload we fetch a fresh
-    /// snapshot (next meeting, counts, presence, OOO) straight from Graph,
-    /// so the widget stays current between app launches.
+    /// Generate one entry per minute up to `timelineHorizonMinutes` out so the
+    /// "in X min" countdown stays accurate without requiring a widget refresh.
+    /// At the horizon, iOS reloads; the main app also reloads us proactively on
+    /// every refresh. On each reload we fetch a fresh snapshot (next meeting,
+    /// counts, presence, OOO) straight from Graph, so the widget stays current
+    /// between app launches.
     func getTimeline(in context: Context, completion: @escaping (Timeline<CheckInEntry>) -> Void) {
         Task {
             let snapshot = await liveSnapshot()
             let now = Date()
             var entries: [CheckInEntry] = []
-            for minute in 0...60 {
+            for minute in 0...timelineHorizonMinutes {
                 let date = now.addingTimeInterval(TimeInterval(minute * 60))
                 entries.append(CheckInEntry(date: date, snapshot: snapshot))
             }
@@ -61,11 +68,14 @@ struct CheckInProvider: TimelineProvider {
             return cached
         }
         let core = GraphCore(tokenProvider: WidgetTokenProvider())
-        if let fresh = try? await core.fetchSnapshot() {
+        do {
+            let fresh = try await core.fetchSnapshot()
             fresh.saveToAppGroup()
             return fresh
+        } catch {
+            log.error("widget self-fetch failed: \(error.localizedDescription, privacy: .public)")
+            return cached
         }
-        return cached
     }
 
     private var previewSnapshot: CheckInSnapshot {
@@ -275,6 +285,12 @@ struct CheckInWidgetEntryView: View {
                 }
             }
             .toggleStyle(AvailabilityToggleStyle())
+            .accessibilityLabel(isOutOfOffice
+                ? "Out of office"
+                : "Presence: \(presence.displayName)")
+            .accessibilityHint(isAvailable
+                ? "Set your status to Busy"
+                : "Set your status to Available")
         }
     }
 }

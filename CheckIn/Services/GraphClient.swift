@@ -481,11 +481,14 @@ final class GraphClient {
                         body: FlagBody(flag: FlagStatusBody(flagStatus: "notFlagged")))
     }
 
-/// Bulk mark-read via `/$batch`. Chunks larger inputs into 20-op
-    /// batches (Graph's per-batch ceiling). Avoids the 429 Too Many
-    /// Requests bursts we'd see firing concurrent PATCHes directly.
-    /// Returns the IDs that came back non-2xx so the caller can
-    /// selectively revert.
+/// Microsoft Graph's per-batch ceiling for `/$batch` operations.
+    /// Chunking at this size keeps us inside the limit and avoids the
+    /// 429 Too Many Requests bursts we'd see firing concurrent PATCHes.
+    private static let graphBatchSize = 20
+
+    /// Bulk mark-read via `/$batch`. Chunks larger inputs into
+    /// `graphBatchSize`-op batches. Returns the IDs that came back
+    /// non-2xx so the caller can selectively revert.
     func batchMarkRead(ids: [String]) async throws -> Set<String> {
         try await batchSetReadState(ids: ids, isRead: true)
     }
@@ -498,7 +501,7 @@ final class GraphClient {
 
     private func batchSetReadState(ids: [String], isRead: Bool) async throws -> Set<String> {
         var failed: Set<String> = []
-        for chunk in ids.batched(by: 20) {
+        for chunk in ids.batched(by: Self.graphBatchSize) {
             let requests = chunk.enumerated().map { (i, id) in
                 BatchRequest(
                     id: "\(i)",
@@ -522,7 +525,7 @@ final class GraphClient {
     func batchSetFlagged(ids: [String], flagged: Bool) async throws -> Set<String> {
         let status = flagged ? "flagged" : "notFlagged"
         var failed: Set<String> = []
-        for chunk in ids.batched(by: 20) {
+        for chunk in ids.batched(by: Self.graphBatchSize) {
             let requests = chunk.enumerated().map { (i, id) in
                 BatchRequest(
                     id: "\(i)",
@@ -560,9 +563,9 @@ final class GraphClient {
     ///
     /// Additional filters:
     /// - Skip chats the user hid in Teams (`viewpoint.isHidden`).
-    /// - Skip messages older than 24h so the list stays focused on
-    ///   recent activity (an unread message from last week shouldn't
-    ///   linger forever in the panel).
+    /// - Skip messages older than `pendingChatLookback` so the list stays
+    ///   focused on recent activity (an unread message from last week
+    ///   shouldn't linger forever in the panel).
     /// - Skip non-message events (joins, leaves, renames).
     ///
     /// We intentionally do NOT skip chats where the last message is
@@ -579,7 +582,7 @@ final class GraphClient {
             "$top": "50"
         ])
 
-        let cutoff = Date().addingTimeInterval(-24 * 3600)
+        let cutoff = Date().addingTimeInterval(-pendingChatLookback)
         var messages: [ChatMessage] = []
 
         for chat in data.value {

@@ -6,11 +6,17 @@
 import CheckInKit
 import Foundation
 
+/// How far back to consider a Teams chat message "pending" — for both the
+/// in-app panel list (`GraphClient.pendingChats`) and the widget snapshot
+/// count (`fetchPendingChatCount`). Older messages are dropped so the panel
+/// stays focused on recent activity.
+public let pendingChatLookback: TimeInterval = 24 * 3600
+
 /// Assembles a `CheckInSnapshot` directly from Graph, so the widget extension
 /// can refresh itself between app launches instead of only showing what the
 /// app last wrote. Decodes lean shapes (only the fields the snapshot needs)
 /// rather than the app's rich `Meeting`/`Email`/`ChatMessage` models, which
-/// stay app-side. Field semantics match `Inbox.writeWidgetSnapshot` so a
+/// stay app-side. Field semantics match `Inbox.publishStatusSnapshot` so a
 /// self-fetched snapshot reads the same as an app-written one.
 public extension GraphCore {
     /// Fetch everything the snapshot surfaces (next meeting, unread email
@@ -87,9 +93,10 @@ public extension GraphCore {
 
     /// Count of chats with unread activity, applying the same filter as
     /// `GraphClient.pendingChats`: skip hidden chats, non-message events, and
-    /// messages older than 24h or already read per the user's viewpoint. The
-    /// self-filter on participant names that `pendingChats` does isn't needed
-    /// here — it affects display, not the count.
+    /// messages older than `pendingChatLookback` or already read per the
+    /// user's viewpoint. The self-filter on participant names that
+    /// `pendingChats` does isn't needed here — it affects display, not the
+    /// count.
     private func fetchPendingChatCount() async throws -> Int {
         let data: GraphList<SnapshotChat> = try await get("/me/chats", query: [
             "$select": "id,lastMessagePreview,viewpoint",
@@ -97,7 +104,7 @@ public extension GraphCore {
             "$top": "50"
         ])
 
-        let cutoff = Date().addingTimeInterval(-24 * 3600)
+        let cutoff = Date().addingTimeInterval(-pendingChatLookback)
         var count = 0
         for chat in data.value {
             if chat.viewpoint?.isHidden == true { continue }

@@ -6,6 +6,9 @@
 import CheckInGraph
 import CheckInKit
 import Foundation
+import os
+
+private let log = Logger(subsystem: "com.excelano.checkin", category: "widget")
 
 /// Backs the `StatusActions` the widget extension registers for its
 /// interactive presence / Out-of-Office controls. Each action builds a
@@ -24,9 +27,13 @@ struct WidgetStatusActions: Sendable {
         do {
             // Best-effort session heartbeat (Available); failure here
             // shouldn't block the preferred-presence set.
-            try? await core.setSessionPresence(
-                sessionId: widgetEffectiveConfig().clientID, presence: .available
-            )
+            do {
+                try await core.setSessionPresence(
+                    sessionId: widgetEffectiveConfig().clientID, presence: .available
+                )
+            } catch {
+                log.error("session heartbeat failed: \(error.localizedDescription, privacy: .public)")
+            }
 
             if presence == .unknown {
                 try await core.clearUserPreferredPresence()
@@ -36,10 +43,15 @@ struct WidgetStatusActions: Sendable {
 
             // Choosing a presence also clears Out of Office, matching the picker.
             if wasOutOfOffice {
-                try? await core.disableAutomaticReplies()
+                do {
+                    try await core.disableAutomaticReplies()
+                } catch {
+                    log.error("OOO disable failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             CheckInSnapshot.patchAndReload(presence: presence, isOutOfOffice: false)
         } catch {
+            log.error("applyPresence failed: \(error.localizedDescription, privacy: .public)")
             CheckInSnapshot.reloadStatusSurfaces()
             throw error
         }
@@ -60,6 +72,7 @@ struct WidgetStatusActions: Sendable {
             let presence = CheckInSnapshot.loadFromAppGroup()?.presence ?? .unknown
             CheckInSnapshot.patchAndReload(presence: presence, isOutOfOffice: on)
         } catch {
+            log.error("applyOutOfOffice failed: \(error.localizedDescription, privacy: .public)")
             CheckInSnapshot.reloadStatusSurfaces()
             throw error
         }
