@@ -76,24 +76,27 @@ public struct CheckInSnapshot: Codable {
         )
     }
 
-    /// Decode the snapshot the app last wrote to the App Group, or nil if
-    /// none is stored yet (or it can't be opened/decoded). The single read
-    /// path shared by the widget timeline, the widget's status actions, the
-    /// Control Center value providers, and the app's intent-driven patch.
-    public static func loadFromAppGroup() -> CheckInSnapshot? {
-        guard let defaults = UserDefaults(suiteName: appGroupIdentifier),
+    /// Decode the snapshot last written to an App Group, or nil if none
+    /// is stored yet (or it can't be opened/decoded). The single read
+    /// path shared by the widget timeline, the widget's status actions,
+    /// the Control Center value providers, and the app's intent-driven
+    /// patch. Watch surfaces pass `watchAppGroupIdentifier` to read the
+    /// snapshot pushed from the phone over WatchConnectivity.
+    public static func loadFromAppGroup(suite: String = appGroupIdentifier) -> CheckInSnapshot? {
+        guard let defaults = UserDefaults(suiteName: suite),
               let data = defaults.data(forKey: userDefaultsKey) else { return nil }
         return try? JSONDecoder().decode(CheckInSnapshot.self, from: data)
     }
 
-    /// Encode and write the snapshot to the App Group. Returns `true` on
+    /// Encode and write the snapshot to an App Group. Returns `true` on
     /// success so callers can log a failure with their own logger. The
     /// single write path shared by the app's refresh, the app's
-    /// intent-driven patch, and the widget's status actions.
+    /// intent-driven patch, the widget's status actions, and the watch's
+    /// session receiver (which passes `watchAppGroupIdentifier`).
     @discardableResult
-    public func saveToAppGroup() -> Bool {
+    public func saveToAppGroup(suite: String = appGroupIdentifier) -> Bool {
         guard let data = try? JSONEncoder().encode(self),
-              let defaults = UserDefaults(suiteName: Self.appGroupIdentifier) else {
+              let defaults = UserDefaults(suiteName: suite) else {
             return false
         }
         defaults.set(data, forKey: Self.userDefaultsKey)
@@ -105,9 +108,11 @@ public struct CheckInSnapshot: Codable {
     /// so a reload after a write is what makes a change visible.
     public static func reloadStatusSurfaces() {
         WidgetCenter.shared.reloadAllTimelines()
+        #if os(iOS)
         if #available(iOS 18.0, *) {
             ControlCenter.shared.reloadControls(ofKind: ControlKind.outOfOffice)
         }
+        #endif
     }
 
     /// Patch the last-written snapshot's presence/OOO fields and reload
@@ -134,6 +139,11 @@ public struct CheckInSnapshot: Codable {
     /// Identifier shared between the main app and the widget extension
     /// for the App Group container both can read/write.
     public static let appGroupIdentifier = "group.com.excelano.checkin"
+    /// Identifier shared between the watch app and its widget extension.
+    /// Distinct from the phone's group because App Groups don't sync
+    /// across devices — the watch keeps its own copy of the snapshot
+    /// after `WatchSessionReceiver` decodes the WatchConnectivity push.
+    public static let watchAppGroupIdentifier = "group.com.excelano.checkin.watch"
     /// Key inside the App Group's UserDefaults where the encoded
     /// snapshot is stored.
     public static let userDefaultsKey = "snapshot"

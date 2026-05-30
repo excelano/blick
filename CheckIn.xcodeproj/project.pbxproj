@@ -18,6 +18,13 @@
 		6B78BD922FC15197008CF821 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD912FC15197008CF821 /* WidgetKit.framework */; };
 		6B78BD942FC15197008CF821 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD932FC15197008CF821 /* SwiftUI.framework */; };
 		6B78BDA32FC15199008CF821 /* CheckInWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6B78BD8F2FC15197008CF821 /* CheckInWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6B88F4162FCA6BE100D002A5 /* CheckInWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 6B88F3F62FCA6BDF00D002A5 /* CheckInWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6B88F4262FCA6C7100D002A5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD912FC15197008CF821 /* WidgetKit.framework */; };
+		6B88F4272FCA6C7100D002A5 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD932FC15197008CF821 /* SwiftUI.framework */; };
+		6B88F4342FCA6C7300D002A5 /* CheckInWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6B88F43C2FCA6D8000D002A5 /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
+		6B88F43D2FCA6D8000D002A5 /* CheckInKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		6B88F4412FCA6E4E00D002A5 /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
 		6BD1250B2FC8E42300B6B85F /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; };
 		6BD125152FC8E42300B6B85F /* CheckInKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; platformFilter = ios; };
 		6BD125162FC8E42300B6B85F /* CheckInKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 6BD125002FC8E42300B6B85F /* CheckInKit.framework */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -83,6 +90,34 @@
 			remoteGlobalIDString = 6B78BD8E2FC15197008CF821;
 			remoteInfo = CheckInWidgetExtension;
 		};
+		6B88F4142FCA6BE100D002A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6B88F3F52FCA6BDF00D002A5;
+			remoteInfo = "CheckInWatch Watch App";
+		};
+		6B88F4322FCA6C7300D002A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6B88F4242FCA6C7100D002A5;
+			remoteInfo = CheckInWatchWidgetExtension;
+		};
+		6B88F43E2FCA6D8000D002A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
+			remoteInfo = CheckInKit;
+		};
+		6B88F4432FCA6E4E00D002A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6BD124FF2FC8E42300B6B85F;
+			remoteInfo = CheckInKit;
+		};
 		6BD1250C2FC8E42300B6B85F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
@@ -125,6 +160,39 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6B88F4172FCA6BE100D002A5 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				6B88F4162FCA6BE100D002A5 /* CheckInWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4392FCA6C7300D002A5 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				6B88F4342FCA6C7300D002A5 /* CheckInWatchWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4402FCA6D8000D002A5 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				6B88F43D2FCA6D8000D002A5 /* CheckInKit.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6BD125172FC8E42300B6B85F /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -159,6 +227,9 @@
 		6B78BD912FC15197008CF821 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		6B78BD932FC15197008CF821 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		6B78BDA92FC1540B008CF821 /* CheckInWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CheckInWidgetExtension.entitlements; sourceTree = "<group>"; };
+		6B88F3F62FCA6BDF00D002A5 /* CheckInWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CheckInWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CheckInWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B88F43B2FCA6D2A00D002A5 /* CheckInWatchWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CheckInWatchWidgetExtension.entitlements; sourceTree = "<group>"; };
 		6BD125002FC8E42300B6B85F /* CheckInKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CheckInKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		6BD1250A2FC8E42300B6B85F /* CheckInKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CheckInKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -177,6 +248,13 @@
 				Info.plist,
 			);
 			target = 6B78BD8E2FC15197008CF821 /* CheckInWidgetExtension */;
+		};
+		6B88F4382FCA6C7300D002A5 /* Exceptions for "CheckInWatchWidget" folder in "CheckInWatchWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6B88F4242FCA6C7100D002A5 /* CheckInWatchWidgetExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -205,6 +283,29 @@
 				6B78BDA82FC15199008CF821 /* Exceptions for "CheckInWidget" folder in "CheckInWidgetExtension" target */,
 			);
 			path = CheckInWidget;
+			sourceTree = "<group>";
+		};
+		6B88F3F72FCA6BDF00D002A5 /* CheckInWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "CheckInWatch Watch App";
+			sourceTree = "<group>";
+		};
+		6B88F4052FCA6BE100D002A5 /* CheckInWatch Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "CheckInWatch Watch AppTests";
+			sourceTree = "<group>";
+		};
+		6B88F40F2FCA6BE100D002A5 /* CheckInWatch Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "CheckInWatch Watch AppUITests";
+			sourceTree = "<group>";
+		};
+		6B88F4282FCA6C7100D002A5 /* CheckInWatchWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6B88F4382FCA6C7300D002A5 /* Exceptions for "CheckInWatchWidget" folder in "CheckInWatchWidgetExtension" target */,
+			);
+			path = CheckInWatchWidget;
 			sourceTree = "<group>";
 		};
 		6BD125012FC8E42300B6B85F /* CheckInKit */ = {
@@ -264,6 +365,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6B88F3F32FCA6BDF00D002A5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B88F43C2FCA6D8000D002A5 /* CheckInKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4222FCA6C7100D002A5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B88F4272FCA6C7100D002A5 /* SwiftUI.framework in Frameworks */,
+				6B88F4412FCA6E4E00D002A5 /* CheckInKit.framework in Frameworks */,
+				6B88F4262FCA6C7100D002A5 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6BD124FD2FC8E42300B6B85F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -285,6 +404,7 @@
 		19C6DDB82FAD391B008DDDF0 = {
 			isa = PBXGroup;
 			children = (
+				6B88F43B2FCA6D2A00D002A5 /* CheckInWatchWidgetExtension.entitlements */,
 				6B78BDA92FC1540B008CF821 /* CheckInWidgetExtension.entitlements */,
 				19C6DDC32FAD391B008DDDF0 /* CheckIn */,
 				6B78BD952FC15197008CF821 /* CheckInWidget */,
@@ -293,6 +413,10 @@
 				6BFACE0000000000000000A1 /* SharedIntents */,
 				6B6B55592FCA061C00EDE43B /* CheckInGraph */,
 				6B6B55682FCA061D00EDE43B /* CheckInGraphTests */,
+				6B88F3F72FCA6BDF00D002A5 /* CheckInWatch Watch App */,
+				6B88F4052FCA6BE100D002A5 /* CheckInWatch Watch AppTests */,
+				6B88F40F2FCA6BE100D002A5 /* CheckInWatch Watch AppUITests */,
+				6B88F4282FCA6C7100D002A5 /* CheckInWatchWidget */,
 				6B78BD902FC15197008CF821 /* Frameworks */,
 				19C6DDC22FAD391B008DDDF0 /* Products */,
 			);
@@ -307,6 +431,8 @@
 				6BD1250A2FC8E42300B6B85F /* CheckInKitTests.xctest */,
 				6B6B55582FCA061C00EDE43B /* CheckInGraph.framework */,
 				6B6B55622FCA061D00EDE43B /* CheckInGraphTests.xctest */,
+				6B88F3F62FCA6BDF00D002A5 /* CheckInWatch Watch App.app */,
+				6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -349,6 +475,7 @@
 				19C6DDBF2FAD391B008DDDF0 /* Resources */,
 				6B78BDA42FC15199008CF821 /* Embed Foundation Extensions */,
 				6BD125172FC8E42300B6B85F /* Embed Frameworks */,
+				6B88F4172FCA6BE100D002A5 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
@@ -357,6 +484,7 @@
 				6BD125142FC8E42300B6B85F /* PBXTargetDependency */,
 				6B6B556C2FCA061D00EDE43B /* PBXTargetDependency */,
 				6B6B557C2FCA069A00EDE43B /* PBXTargetDependency */,
+				6B88F4152FCA6BE100D002A5 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				19C6DDC32FAD391B008DDDF0 /* CheckIn */,
@@ -446,6 +574,55 @@
 			productReference = 6B78BD8F2FC15197008CF821 /* CheckInWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		6B88F3F52FCA6BDF00D002A5 /* CheckInWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6B88F41E2FCA6BE100D002A5 /* Build configuration list for PBXNativeTarget "CheckInWatch Watch App" */;
+			buildPhases = (
+				6B88F3F22FCA6BDF00D002A5 /* Sources */,
+				6B88F3F32FCA6BDF00D002A5 /* Frameworks */,
+				6B88F3F42FCA6BDF00D002A5 /* Resources */,
+				6B88F4392FCA6C7300D002A5 /* Embed Foundation Extensions */,
+				6B88F4402FCA6D8000D002A5 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6B88F4332FCA6C7300D002A5 /* PBXTargetDependency */,
+				6B88F43F2FCA6D8000D002A5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				6B88F3F72FCA6BDF00D002A5 /* CheckInWatch Watch App */,
+			);
+			name = "CheckInWatch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "CheckInWatch Watch App";
+			productReference = 6B88F3F62FCA6BDF00D002A5 /* CheckInWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6B88F4242FCA6C7100D002A5 /* CheckInWatchWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6B88F4352FCA6C7300D002A5 /* Build configuration list for PBXNativeTarget "CheckInWatchWidgetExtension" */;
+			buildPhases = (
+				6B88F4212FCA6C7100D002A5 /* Sources */,
+				6B88F4222FCA6C7100D002A5 /* Frameworks */,
+				6B88F4232FCA6C7100D002A5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6B88F4442FCA6E4E00D002A5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				6B88F4282FCA6C7100D002A5 /* CheckInWatchWidget */,
+			);
+			name = CheckInWatchWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = CheckInWatchWidgetExtension;
+			productReference = 6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		6BD124FF2FC8E42300B6B85F /* CheckInKit */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6BD1251C2FC8E42300B6B85F /* Build configuration list for PBXNativeTarget "CheckInKit" */;
@@ -516,6 +693,12 @@
 					6B78BD8E2FC15197008CF821 = {
 						CreatedOnToolsVersion = 26.3;
 					};
+					6B88F3F52FCA6BDF00D002A5 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					6B88F4242FCA6C7100D002A5 = {
+						CreatedOnToolsVersion = 26.3;
+					};
 					6BD124FF2FC8E42300B6B85F = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -548,6 +731,8 @@
 				6BD125092FC8E42300B6B85F /* CheckInKitTests */,
 				6B6B55572FCA061C00EDE43B /* CheckInGraph */,
 				6B6B55612FCA061D00EDE43B /* CheckInGraphTests */,
+				6B88F3F52FCA6BDF00D002A5 /* CheckInWatch Watch App */,
+				6B88F4242FCA6C7100D002A5 /* CheckInWatchWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -575,6 +760,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		6B78BD8D2FC15197008CF821 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F3F42FCA6BDF00D002A5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4232FCA6C7100D002A5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -620,6 +819,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		6B78BD8B2FC15197008CF821 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F3F22FCA6BDF00D002A5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4212FCA6C7100D002A5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -682,6 +895,26 @@
 			isa = PBXTargetDependency;
 			target = 6B78BD8E2FC15197008CF821 /* CheckInWidgetExtension */;
 			targetProxy = 6B78BDA12FC15199008CF821 /* PBXContainerItemProxy */;
+		};
+		6B88F4152FCA6BE100D002A5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6B88F3F52FCA6BDF00D002A5 /* CheckInWatch Watch App */;
+			targetProxy = 6B88F4142FCA6BE100D002A5 /* PBXContainerItemProxy */;
+		};
+		6B88F4332FCA6C7300D002A5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6B88F4242FCA6C7100D002A5 /* CheckInWatchWidgetExtension */;
+			targetProxy = 6B88F4322FCA6C7300D002A5 /* PBXContainerItemProxy */;
+		};
+		6B88F43F2FCA6D8000D002A5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
+			targetProxy = 6B88F43E2FCA6D8000D002A5 /* PBXContainerItemProxy */;
+		};
+		6B88F4442FCA6E4E00D002A5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6BD124FF2FC8E42300B6B85F /* CheckInKit */;
+			targetProxy = 6B88F4432FCA6E4E00D002A5 /* PBXContainerItemProxy */;
 		};
 		6BD1250D2FC8E42300B6B85F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -931,15 +1164,18 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_MODULE = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,4";
 				VERSIONING_SYSTEM = "apple-generic";
 				VERSION_INFO_PREFIX = "";
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
 			};
 			name = Debug;
 		};
@@ -970,15 +1206,18 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_MODULE = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,4";
 				VERSIONING_SYSTEM = "apple-generic";
 				VERSION_INFO_PREFIX = "";
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
 			};
 			name = Release;
 		};
@@ -1088,6 +1327,146 @@
 			};
 			name = Release;
 		};
+		6B88F4182FCA6BE100D002A5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "CheckInWatch Watch App/CheckInWatch Watch App.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_ARCHS = arm64_32;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatch;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.excelano.checkin;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Debug;
+		};
+		6B88F4192FCA6BE100D002A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "CheckInWatch Watch App/CheckInWatch Watch App.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_ARCHS = arm64_32;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatch;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.excelano.checkin;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Release;
+		};
+		6B88F4362FCA6C7300D002A5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = CheckInWatchWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				EXCLUDED_ARCHS = arm64_32;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CheckInWatchWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatchWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Debug;
+		};
+		6B88F4372FCA6C7300D002A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = CheckInWatchWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				EXCLUDED_ARCHS = arm64_32;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CheckInWatchWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatchWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Release;
+		};
 		6BD125182FC8E42300B6B85F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1115,15 +1494,18 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_MODULE = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,4";
 				VERSIONING_SYSTEM = "apple-generic";
 				VERSION_INFO_PREFIX = "";
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
 			};
 			name = Debug;
 		};
@@ -1154,15 +1536,18 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator watchos watchsimulator";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_MODULE = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1,2,4";
 				VERSIONING_SYSTEM = "apple-generic";
 				VERSION_INFO_PREFIX = "";
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
 			};
 			name = Release;
 		};
@@ -1252,6 +1637,24 @@
 			buildConfigurations = (
 				6B78BDA52FC15199008CF821 /* Debug */,
 				6B78BDA62FC15199008CF821 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6B88F41E2FCA6BE100D002A5 /* Build configuration list for PBXNativeTarget "CheckInWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B88F4182FCA6BE100D002A5 /* Debug */,
+				6B88F4192FCA6BE100D002A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6B88F4352FCA6C7300D002A5 /* Build configuration list for PBXNativeTarget "CheckInWatchWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B88F4362FCA6C7300D002A5 /* Debug */,
+				6B88F4372FCA6C7300D002A5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

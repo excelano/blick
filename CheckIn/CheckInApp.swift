@@ -28,6 +28,15 @@ struct CheckInApp: App {
         auth.onSignOut = { [inbox] in inbox.reset() }
         _authService = State(initialValue: auth)
         self.inbox = inbox
+        // Watch-side relay. Activated here so the WCSession is live by the
+        // time the first refresh pushes a snapshot. The closures route
+        // watch-originated actions through the same Inbox entry points
+        // Siri uses — same silent-token preflight, same optimistic
+        // mutate-then-revert path, same snapshot patch on completion.
+        inbox.phoneConnectivity = PhoneConnectivity(
+            setPresence: { [inbox] in try await inbox.applyPresence($0) },
+            setOutOfOffice: { [inbox] in try await inbox.applyOutOfOffice($0) }
+        )
         UNUserNotificationCenter.current().delegate = NotificationCenterDelegate.shared
         // Expose the live services to App Intents. The system runs this
         // init before any intent's perform() — whether the process is

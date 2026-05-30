@@ -128,6 +128,12 @@ final class Inbox {
     private let graphClient: GraphClient
     private let authService: AuthService
     private let teamsEnabled: Bool
+    /// Watch-side relay. Set by `CheckInApp.init` after Inbox is built;
+    /// nil in unit tests and any future host that doesn't pair with a
+    /// watch. `publishStatusSnapshot()` pushes on every refresh; the
+    /// intent-driven action paths push the patched snapshot after
+    /// `CheckInSnapshot.patchAndReload(...)` updates the App Group.
+    @ObservationIgnored var phoneConnectivity: PhoneConnectivity?
     private let meetingNotifications = MeetingNotifications()
     private var didFetchUserID = false
     private var lastRefreshedAt: Date?
@@ -312,6 +318,7 @@ final class Inbox {
             return
         }
         CheckInSnapshot.reloadStatusSurfaces()
+        phoneConnectivity?.push(snapshot)
     }
 
     /// sessionId for `/me/presence/setPresence`. Microsoft constrains
@@ -1280,6 +1287,7 @@ extension Inbox {
             throw StatusActionError.applyFailed
         }
         CheckInSnapshot.patchAndReload(presence: currentPresence, isOutOfOffice: isOutOfOffice)
+        phoneConnectivity?.pushFromAppGroup()
     }
 
     func applyOutOfOffice(_ on: Bool) async throws {
@@ -1288,5 +1296,6 @@ extension Inbox {
             throw StatusActionError.applyFailed
         }
         CheckInSnapshot.patchAndReload(presence: currentPresence, isOutOfOffice: isOutOfOffice)
+        phoneConnectivity?.pushFromAppGroup()
     }
 }
