@@ -42,6 +42,9 @@ struct WatchGlanceView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showUnreachableToast)
+        .task {
+            await autoRefreshIfStale()
+        }
         .sheet(isPresented: $showingPicker) {
             PresencePickerSheet(
                 currentPresence: receiver.snapshot?.presence ?? .unknown,
@@ -244,6 +247,25 @@ struct WatchGlanceView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
             pendingAction = false
+        }
+    }
+
+    /// Auto-pull when the glance becomes visible. Only fires if the
+    /// cached snapshot is older than the staleness window (or absent),
+    /// so quick re-opens within ~a minute don't re-hit Graph. Guards
+    /// against firing while a manual refresh is already in flight.
+    @MainActor
+    private func autoRefreshIfStale() async {
+        guard !refreshing else { return }
+        let staleness: TimeInterval = 60
+        let shouldRefresh: Bool
+        if let updatedAt = receiver.snapshot?.updatedAt {
+            shouldRefresh = Date().timeIntervalSince(updatedAt) > staleness
+        } else {
+            shouldRefresh = true
+        }
+        if shouldRefresh {
+            await handleRefresh()
         }
     }
 

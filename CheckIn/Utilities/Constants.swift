@@ -18,7 +18,7 @@ enum Constants {
     /// Lower bound iOS uses when scheduling our next background run.
     /// Actual run time is at the system's discretion and can be much
     /// later (or never, on a quiet day or after a force-quit).
-    static let backgroundRefreshInterval: TimeInterval = 30 * 60
+    static let backgroundRefreshInterval: TimeInterval = 15 * 60
 
     /// User-supplied client ID if set, otherwise the published default.
     static var effectiveClientID: String {
