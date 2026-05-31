@@ -47,13 +47,6 @@ struct SetPresenceIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         try await actions.applyPresence(status.asPresence)
-
-        let dialog: IntentDialog
-        if status == .resetToAuto {
-            dialog = "Your CheckIn status is back to automatic."
-        } else {
-            dialog = "Your CheckIn status is now \(status.asPresence.displayName)."
-        }
-        return .result(dialog: dialog)
+        return .result(dialog: "\(StatusSpeech.setPresenceConfirmation(status.asPresence))")
     }
 }

@@ -43,9 +43,6 @@ struct SetOutOfOfficeIntent: SetValueIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         try await actions.applyOutOfOffice(value)
-        let dialog: IntentDialog = value
-            ? "Out of Office is now on."
-            : "Out of Office is now off."
-        return .result(dialog: dialog)
+        return .result(dialog: "\(StatusSpeech.outOfOfficeConfirmation(value))")
     }
 }

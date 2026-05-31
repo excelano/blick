@@ -48,12 +48,7 @@ struct CheckInCountIntent: AppIntent {
             return .result(value: n, dialog: "\(IntentSpeech.count(n, singular: "unread chat", plural: "unread chats"))")
         case .remainingMeetings:
             let n = inbox.remainingMeetingCount
-            let dialog: IntentDialog = switch n {
-            case 0: "You have no more meetings today."
-            case 1: "You have 1 more meeting today."
-            default: "You have \(n) more meetings today."
-            }
-            return .result(value: n, dialog: dialog)
+            return .result(value: n, dialog: "\(IntentSpeech.remainingMeetings(n))")
         case .unreadMessages:
             let emails = inbox.unreadEmailCount
             let chats = inbox.unreadChatCount
