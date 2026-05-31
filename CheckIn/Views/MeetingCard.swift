@@ -15,38 +15,47 @@ struct MeetingCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onTap) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Image(systemName: "calendar")
-                            .foregroundStyle(Brand.accent)
+                // Three-row pattern shared with the watch glance,
+                // watch rectangular widget, and iPhone widget:
+                // calendar icon + time range, then subject, then the
+                // countdown (or "soon" / "now"). Calendar tints orange
+                // alongside the countdown once the meeting is imminent
+                // or live.
+                TimelineView(.periodic(from: .now, by: 15)) { context in
+                    let inProgress = meeting.start <= context.date
+                    let imminent = isMeetingImminent(meeting.start, referenceDate: context.date)
+                    let highlight = inProgress || imminent
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(highlight ? .orange : Brand.accent)
+                            Text(meetingTimeRange(start: meeting.start, end: meeting.end))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Brand.textMuted)
+                            Spacer()
+                        }
                         Text(meeting.subject)
                             .font(.headline)
                             .foregroundStyle(.white)
                             .lineLimit(2)
-                        Spacer()
-                    }
-                    HStack(spacing: 12) {
-                        // TimelineView re-renders this label every 15s so
-                        // "in 5 min" naturally counts down and flips to
-                        // "Starting soon" without needing a refresh.
-                        TimelineView(.periodic(from: .now, by: 15)) { context in
+                        HStack(spacing: 12) {
                             Text(untilTime(meeting.start, referenceDate: context.date))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(isMeetingImminent(meeting.start, referenceDate: context.date) ? .orange : Brand.accent)
-                        }
-                        if !meeting.organizer.isEmpty {
-                            Text("with \(meeting.organizer)")
-                                .font(.subheadline)
-                                .foregroundStyle(Brand.textMuted)
-                                .lineLimit(2)
+                                .foregroundStyle(highlight ? .orange : Brand.accent)
+                            if !meeting.organizer.isEmpty {
+                                Text("with \(meeting.organizer)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Brand.textMuted)
+                                    .lineLimit(2)
+                            }
                         }
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 14)
+                    .padding(.bottom, meeting.hasConflict ? 6 : 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, meeting.hasConflict ? 6 : 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)

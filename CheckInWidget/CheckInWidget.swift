@@ -131,19 +131,35 @@ struct CheckInWidgetEntryView: View {
         }
     }
 
-    /// Below the subject: the time + organizer until the meeting is within
-    /// `joinPillLeadTime` of starting, then the Join button takes the row
-    /// (dropping the organizer). In-person meetings (no join URL) keep showing
-    /// the time + organizer.
+    /// Bottom row of the meeting block: the countdown + organizer until
+    /// the meeting is within `joinPillLeadTime` of starting, then the
+    /// Join button takes the row (dropping the organizer). In-person
+    /// meetings (no join URL) keep showing the countdown + organizer
+    /// all the way through.
     @ViewBuilder
-    private func meetingDetailLine(_ meeting: SnapshotMeeting) -> some View {
+    private func meetingBottomRow(_ meeting: SnapshotMeeting) -> some View {
         let secondsToStart = meeting.start.timeIntervalSince(entry.date)
         if secondsToStart <= joinPillLeadTime,
            let urlString = meeting.joinUrl,
            let url = teamsJoinURL(from: urlString) {
             joinPill(url: url)
         } else {
-            organizerLine(start: meeting.start, organizer: meeting.organizer)
+            let imminent = isMeetingImminent(meeting.start, referenceDate: entry.date)
+            let inProgress = meeting.start <= entry.date
+            HStack(spacing: 8) {
+                Text(untilTime(meeting.start, referenceDate: entry.date))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                if let organizer = meeting.organizer, !organizer.isEmpty {
+                    Text("with \(organizer)")
+                        .font(.subheadline)
+                        .foregroundStyle(Brand.textMuted)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
         }
     }
 
@@ -161,7 +177,7 @@ struct CheckInWidgetEntryView: View {
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .truncationMode(.tail)
-            meetingDetailLine(meeting)
+            meetingBottomRow(meeting)
         } else if entry.snapshot != nil {
             Text("No more meetings today.")
                 .font(.headline)
@@ -178,39 +194,20 @@ struct CheckInWidgetEntryView: View {
         }
     }
 
-    /// "NEXT MEETING" until the meeting starts, then "IN PROGRESS" once
-    /// `start` is at or before the entry's date. The label is computed against
-    /// `entry.date`, so the per-minute timeline flips it on its own without a
-    /// refetch. In progress reads orange to signal the meeting is live. The
-    /// time renders as a start-end range so the user sees the meeting's
-    /// shape at a glance.
+    /// Top row of the meeting block: calendar icon + the meeting's time
+    /// range. Matches the watch glance and rectangular widget so the
+    /// surfaces read alike. The calendar tints orange once the meeting
+    /// is imminent or live, matching the countdown's orange below.
     private func meetingHeader(_ meeting: SnapshotMeeting) -> some View {
         let inProgress = meeting.start <= entry.date
+        let imminent = isMeetingImminent(meeting.start, referenceDate: entry.date)
         return HStack(spacing: 6) {
-            Text(inProgress ? "IN PROGRESS" : "NEXT MEETING")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(inProgress ? .orange : Brand.accent)
+            Image(systemName: "calendar")
+                .font(.subheadline)
+                .foregroundStyle(inProgress || imminent ? .orange : Brand.accent)
             Text(meetingTimeRange(start: meeting.start, end: meeting.end))
                 .font(.subheadline)
                 .foregroundStyle(Brand.textMuted)
-        }
-    }
-
-    private func organizerLine(start: Date, organizer: String?) -> some View {
-        let imminent = isMeetingImminent(start, referenceDate: entry.date)
-        return HStack(spacing: 8) {
-            Text(untilTime(start, referenceDate: entry.date))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(imminent ? .orange : Brand.accent)
-                .lineLimit(1)
-                .layoutPriority(1)
-            if let organizer, !organizer.isEmpty {
-                Text("with \(organizer)")
-                    .font(.subheadline)
-                    .foregroundStyle(Brand.textMuted)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
         }
     }
 

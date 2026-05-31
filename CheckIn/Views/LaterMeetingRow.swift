@@ -12,15 +12,23 @@ struct LaterMeetingRow: View {
     let onConflictTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        // Mirror the watch glance's "live" treatment on the Later Today
+        // rows: once a meeting is within the imminent window or already
+        // started, the calendar icon and time tint orange. SummaryView
+        // re-renders this list every 30 seconds via its clockTick, so
+        // the recolor takes effect without a refresh.
+        let live = meeting.start <= Date()
+            || isMeetingImminent(meeting.start, referenceDate: Date())
+        let accent = live ? Color.orange : Brand.accent
+        return HStack(spacing: 12) {
             Button(action: onTap) {
                 HStack(spacing: 12) {
                     Image(systemName: "calendar")
-                        .foregroundStyle(Brand.accent)
+                        .foregroundStyle(accent)
                         .frame(width: 20)
                     Text(meetingTimeRange(start: meeting.start, end: meeting.end))
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Brand.accent)
+                        .foregroundStyle(accent)
                     Text(meeting.subject)
                         .font(.body)
                         .foregroundStyle(.white)
