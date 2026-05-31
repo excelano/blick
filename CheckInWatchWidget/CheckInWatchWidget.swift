@@ -49,25 +49,65 @@ struct WatchCornerView: View {
     let entry: WatchStatusEntry
 
     var body: some View {
-        Group {
-            if let start = entry.snapshot?.nextMeetingStart {
-                Image(systemName: "calendar.badge.clock")
-                    .widgetLabel {
-                        Text(untilTime(start, referenceDate: entry.date))
-                    }
-            } else if let snapshot = entry.snapshot, snapshot.isOutOfOffice {
-                OutOfOfficeGlyph()
-                    .widgetLabel {
-                        Text("Out of office")
-                    }
-            } else {
-                PresenceGlyph(entry.snapshot?.presence ?? .unknown)
-                    .widgetLabel {
-                        Text(entry.snapshot?.presence.displayName ?? "—")
-                    }
-            }
+        cornerGlyph
+            .widgetLabel { Text(cornerLabel) }
+    }
+
+    @ViewBuilder
+    private var cornerGlyph: some View {
+        if let snapshot = entry.snapshot, snapshot.isOutOfOffice {
+            cornerBadge("arrow.up.forward")
+        } else if let presence = entry.snapshot?.presence,
+                  presence == .beRightBack || presence == .away {
+            Image(systemName: "clock.fill")
+                .font(.system(size: 32, weight: .semibold))
+        } else {
+            cornerBadge(cornerSymbol(for: entry.snapshot?.presence ?? .unknown))
         }
-        .font(.system(size: 24, weight: .semibold))
+    }
+
+    /// Curved label text on the corner edge. Prefers the countdown when
+    /// a meeting is coming up so the glyph still reflects presence while
+    /// the words tell you when you're up next; otherwise falls back to
+    /// the OOO or presence name.
+    private var cornerLabel: String {
+        if let start = entry.snapshot?.nextMeetingStart {
+            return untilTime(start, referenceDate: entry.date)
+        }
+        if let snapshot = entry.snapshot, snapshot.isOutOfOffice {
+            return "Out of office"
+        }
+        return entry.snapshot?.presence.displayName ?? "—"
+    }
+
+    /// Inverted treatment for the non-clock states: a solid tinted circle
+    /// with the glyph punched through as transparent so the watch face
+    /// shows through. The corner complication forces a single tint on
+    /// both `foregroundStyle` layers, so a stacked dark glyph collapses
+    /// into a solid dot — `destinationOut` cuts the glyph shape out
+    /// of the circle instead.
+    private func cornerBadge(_ symbol: String) -> some View {
+        Circle()
+            .foregroundStyle(.primary)
+            .overlay {
+                Image(systemName: symbol)
+                    .font(.system(size: 18, weight: .heavy))
+                    .blendMode(.destinationOut)
+            }
+            .compositingGroup()
+            .frame(width: 32, height: 32)
+    }
+
+    /// BRB and Away are handled above with a bare `clock.fill` outside
+    /// the cutout badge, so they fall through to the question mark here
+    /// (defensive; they never actually reach this branch).
+    private func cornerSymbol(for presence: Presence) -> String {
+        switch presence {
+        case .available: return "checkmark"
+        case .busy, .doNotDisturb: return "minus"
+        case .offline: return "xmark"
+        case .beRightBack, .away, .unknown: return "questionmark"
+        }
     }
 }
 
@@ -104,18 +144,23 @@ struct WatchRectangularView: View {
     private func meetingLayout(start: Date, subject: String, snapshot: CheckInSnapshot) -> some View {
         let inProgress = start <= entry.date
         let imminent = isMeetingImminent(start, referenceDate: entry.date)
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Image(systemName: "calendar")
                     .foregroundStyle(inProgress ? .orange : Brand.accent)
-                Text(subject)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                Text(start, style: .time)
+                    .foregroundStyle(Brand.textMuted)
                 Spacer(minLength: 0)
                 presenceGlyph(for: snapshot)
             }
             .font(.caption2.weight(.semibold))
             .imageScale(.small)
+            Spacer(minLength: 0)
+            Text(subject)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
             HStack(spacing: 6) {
                 Text(untilTime(start, referenceDate: entry.date))
                     .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
@@ -142,11 +187,11 @@ struct WatchRectangularView: View {
     }
 
     private func noMeetingLayout(snapshot: CheckInSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Image(systemName: "calendar")
                     .foregroundStyle(Brand.accent)
-                Text("No more meetings")
+                Text("No meetings")
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -154,7 +199,9 @@ struct WatchRectangularView: View {
             }
             .font(.caption2.weight(.semibold))
             .imageScale(.small)
+            Spacer(minLength: 0)
             HStack(spacing: 6) {
+                Spacer(minLength: 0)
                 Label {
                     Text("\(snapshot.unreadEmailCount)")
                 } icon: {
@@ -167,7 +214,6 @@ struct WatchRectangularView: View {
                     Image(systemName: "bubble.left.fill")
                         .foregroundStyle(Brand.accent)
                 }
-                Spacer(minLength: 0)
             }
             .font(.caption2.weight(.semibold))
             .imageScale(.small)
@@ -177,11 +223,15 @@ struct WatchRectangularView: View {
 
     @ViewBuilder
     private func presenceGlyph(for snapshot: CheckInSnapshot) -> some View {
-        if snapshot.isOutOfOffice {
-            OutOfOfficeGlyph()
-        } else {
-            PresenceGlyph(snapshot.presence)
+        Group {
+            if snapshot.isOutOfOffice {
+                OutOfOfficeGlyph()
+            } else {
+                PresenceGlyph(snapshot.presence)
+            }
         }
+        .font(.subheadline)
+        .imageScale(.medium)
     }
 }
 

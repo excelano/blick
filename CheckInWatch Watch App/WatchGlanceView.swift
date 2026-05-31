@@ -19,13 +19,15 @@ struct WatchGlanceView: View {
     @State private var pendingAction: Bool = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                meetingLine
-                countsRow
-                laterTodaySection
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    meetingLine
+                    laterTodaySection
+                }
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 4)
+            pinnedCountsRow
         }
         .sheet(isPresented: $showingPicker) {
             PresencePickerSheet(
@@ -57,22 +59,33 @@ struct WatchGlanceView: View {
             guard receiver.snapshot != nil else { return }
             showingPicker = true
         } label: {
-            Group {
-                if pendingAction {
-                    ProgressView()
-                        .controlSize(.mini)
-                } else if let snapshot = receiver.snapshot, snapshot.isOutOfOffice {
-                    OutOfOfficeGlyph()
-                } else if let snapshot = receiver.snapshot {
-                    PresenceGlyph(snapshot.presence)
-                } else {
-                    PresenceGlyph(.unknown)
+            glyphContent
+                .font(.caption.weight(.semibold))
+                .opacity(pendingAction ? 0 : 1)
+                .overlay {
+                    if pendingAction {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
                 }
-            }
-            .font(.caption.weight(.semibold))
         }
         .buttonStyle(.plain)
         .disabled(receiver.snapshot == nil)
+    }
+
+    /// The static glyph for the current presence/OOO state. Pulled out
+    /// of `presenceIcon` so the spinner can overlay it without changing
+    /// the button's layout footprint — the glyph defines the size; the
+    /// spinner just paints on top.
+    @ViewBuilder
+    private var glyphContent: some View {
+        if let snapshot = receiver.snapshot, snapshot.isOutOfOffice {
+            OutOfOfficeGlyph()
+        } else if let snapshot = receiver.snapshot {
+            PresenceGlyph(snapshot.presence)
+        } else {
+            PresenceGlyph(.unknown)
+        }
     }
 
     @ViewBuilder
@@ -96,28 +109,22 @@ struct WatchGlanceView: View {
                     Text(subject)
                         .font(.caption.weight(.semibold))
                         .lineLimit(2)
-                    HStack(spacing: 8) {
-                        Text(untilTime(start, referenceDate: context.date))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
-                            .lineLimit(1)
-                            .layoutPriority(1)
-                        Spacer(minLength: 4)
-                        if let snapshot = receiver.snapshot {
-                            countChip(symbol: "envelope.fill", value: snapshot.unreadEmailCount)
-                            countChip(symbol: "bubble.left.fill", value: snapshot.chatCount)
-                        }
-                    }
+                    Text(untilTime(start, referenceDate: context.date))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
+                        .lineLimit(1)
                 }
             }
         } else if receiver.snapshot != nil {
             HStack(spacing: 4) {
-                Text("No more meetings today")
-                    .font(.caption2)
+                Image(systemName: "calendar")
+                    .foregroundStyle(Brand.accent)
+                Text("No meetings")
                     .foregroundStyle(.secondary)
                 Spacer()
                 presenceIcon
             }
+            .font(.caption2.weight(.semibold))
         } else {
             HStack(spacing: 4) {
                 Text("Waiting for phone")
@@ -129,16 +136,19 @@ struct WatchGlanceView: View {
         }
     }
 
-    /// Bottom counts row, shown only when there's no next meeting — when
-    /// a meeting is present the counts ride the countdown line.
+    /// Counts row pinned below the ScrollView so it stays visible as the
+    /// user scrolls the meeting list. Sits outside the scroll surface
+    /// and trades a small slice of scroll height for always-on context.
     @ViewBuilder
-    private var countsRow: some View {
-        if let snapshot = receiver.snapshot, snapshot.nextMeetingStart == nil {
+    private var pinnedCountsRow: some View {
+        if let snapshot = receiver.snapshot {
             HStack(spacing: 10) {
+                Spacer()
                 countChip(symbol: "envelope.fill", value: snapshot.unreadEmailCount)
                 countChip(symbol: "bubble.left.fill", value: snapshot.chatCount)
-                Spacer()
             }
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
         }
     }
 

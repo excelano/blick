@@ -23,18 +23,17 @@ public struct PresenceGlyph: View {
         case .available:
             Image(systemName: "checkmark.circle.fill")
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, .green)
-        case .busy:
-            // Both palette slots set to .red so the red value renders
-            // through the same pipeline as DND's white-on-red palette,
-            // keeping the two reds visually identical.
-            Image(systemName: "circle.fill")
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.red, .red)
-        case .doNotDisturb:
+                .foregroundStyle(.black, .green)
+        case .busy, .doNotDisturb:
+            // Busy and DND share the same minus-on-red glyph. Microsoft
+            // distinguishes them by giving DND a glyph and leaving Busy
+            // bare, which makes their icon set inconsistent across
+            // statuses; CheckIn prefers a uniform "colored circle with
+            // a glyph" treatment and relies on the adjacent label to
+            // tell the two apart.
             Image(systemName: "minus.circle.fill")
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, .red)
+                .foregroundStyle(.black, .red)
         case .beRightBack, .away:
             Image(systemName: "clock.fill")
                 .symbolRenderingMode(.palette)
@@ -42,11 +41,11 @@ public struct PresenceGlyph: View {
         case .offline:
             Image(systemName: "xmark.circle.fill")
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, .gray)
+                .foregroundStyle(.black, .gray)
         case .unknown:
-            Image(systemName: "questionmark.circle")
+            Image(systemName: "questionmark.circle.fill")
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.gray)
+                .foregroundStyle(.black, .gray)
         }
     }
 }

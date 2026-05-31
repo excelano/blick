@@ -6,7 +6,7 @@
 import Foundation
 
 /// Format the gap from `referenceDate` to a future `date` as a human
-/// phrase: "now", "Starting soon", "in N min", "in N hour(s)", "in Nh Mm".
+/// phrase: "now", "soon", "in N min", "in N hour(s)", "in Nh Mm".
 /// The widget passes the timeline entry's date so the countdown stays
 /// correct across pre-generated entries; the in-app surface passes
 /// `.now` and re-renders periodically.
@@ -17,7 +17,7 @@ public func untilTime(_ date: Date, referenceDate: Date) -> String {
         return "now"
     }
     if seconds <= 180 {
-        return "Starting soon"
+        return "soon"
     }
 
     let totalMinutes = Int(seconds / 60)
@@ -35,7 +35,7 @@ public func untilTime(_ date: Date, referenceDate: Date) -> String {
 
 /// True when the meeting starts within the next three minutes of
 /// `referenceDate` (and hasn't started yet). Drives the orange
-/// "Starting soon" treatment on the meeting card and widget pill.
+/// "soon" treatment on the meeting card and widget pill.
 public func isMeetingImminent(_ date: Date, referenceDate: Date) -> Bool {
     let seconds = date.timeIntervalSince(referenceDate)
     return seconds >= 0 && seconds <= 180
