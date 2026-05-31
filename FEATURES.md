@@ -115,12 +115,16 @@ What a user can do, mapped to the entry point in the UI.
 
 | Function | Triggered by |
 |---|---|
-| Set presence by voice or Shortcut | "Set status to Busy in CheckIn" (Siri) or `SetStatusIntent` in Shortcuts. Same six presences as the widget plus "Reset to auto". |
-| Toggle Out of Office by voice or Shortcut | "Turn on Out of Office in CheckIn" or `SetOutOfOfficeIntent` in Shortcuts. |
-| Read unread email or pending chat count by voice or Shortcut | "What's my email count in CheckIn" routes through `CheckInCountIntent`. Returns an integer plus a spoken phrase. |
-| Read unread from a sender by voice or Shortcut | "Anything from <name> in CheckIn" routes through `UnreadFromSenderIntent`. Returns the count of unread messages from the matched sender. |
+| Set presence by voice or Shortcut | "Set my presence to Busy in the CheckIn app" (Siri) or `SetPresenceIntent` in Shortcuts; phrases accept both "presence" and "status" wordings. Same six presences as the widget plus "Reset to auto". |
+| Toggle Out of Office by voice or Shortcut | "Turn on my Out of Office in the CheckIn app" / "Turn off my Out of Office in the CheckIn app" (separate on and off phrases), or `SetOutOfOfficeIntent` in Shortcuts. |
+| Hear your current presence by voice or Shortcut | "What's my presence in the CheckIn app" routes through `CurrentPresenceIntent`. Out of Office dominates the answer when active, and an unset presence is reported as Microsoft 365 showing it automatically. Returns a value plus a spoken phrase. |
+| Hear your next meeting by voice or Shortcut | "What's my next meeting in the CheckIn app" routes through `NextMeetingIntent`. Speaks the subject and start time, or that nothing's coming up. |
+| Read unread email, chat, or combined message count by voice or Shortcut | "How many unread emails in the CheckIn app" (also chats, and a combined "unread messages") routes through `CheckInCountIntent`. Returns an integer plus a spoken phrase. |
+| Hear how many meetings remain today by voice or Shortcut | "How many more meetings today in the CheckIn app" routes through `CheckInCountIntent`. Counts the current-or-next meeting plus the rest of today. |
+| Hear a work-day overview by voice or Shortcut | "What's my work day like in the CheckIn app" (also "What's on my plate", "Give me an overview", "Catch me up", and similar) routes through `WorkdaySummaryIntent`, which answers the next meeting immediately followed by the unread-message count in a single reply. |
+| Read unread from a sender by Shortcut | `UnreadFromSenderIntent` in Shortcuts. Returns the count of unread messages from the matched sender. Available as a Shortcuts action only — it has no built-in Siri phrase, since the spoken-phrase list is at the framework's per-app ceiling. |
 
-App-name token always comes last in the phrasing ("in CheckIn") so Siri doesn't collide with the system's "Check In" Messages feature.
+App-name token always comes last in the phrasing ("in the CheckIn app") so Siri doesn't collide with the system's "Check In" Messages feature.
 
 ## iPad layout
 
@@ -137,6 +141,7 @@ App-name token always comes last in the phrasing ("in CheckIn") so Siri doesn't 
 | Add CheckIn to a watch face or the Smart Stack | Four widget families share the same pushed snapshot. Corner complication shows a presence-colored circle with a cutout glyph and a curved countdown to the next meeting. Smart Stack rectangular tile shows the three-row meeting pattern with the count chips alongside. Circular complication shows a presence-tinted ring with the unread email count centered. Inline complication shows "Status sync in 12m" or "Inbox: 7 unread" depending on what's next. |
 | Set Teams presence from the watch | Glance → presence menu. Same six presences plus OOO and Reset to auto. Tap relays the action to the phone via `WCSession.sendMessage` (live, when the phone is reachable) with `transferUserInfo` fallback. The phone executes the Graph PATCH and pushes a fresh snapshot back. |
 | Trigger a refresh from the watch | Glance → refresh button (gray circle in the pinned counts row). Asks the phone to refresh and pushes the updated snapshot back. Auto-refreshes when the glance opens if the snapshot is over 60 seconds old. Surfaces "Phone unreachable" inline when WatchConnectivity can't deliver the request. |
+| Use Siri or Shortcuts from the wrist | The watch app carries the same App Intents as the phone (set presence, toggle Out of Office, current presence, next meeting, the unread counts, remaining meetings, and the work-day overview), with the same phrases. Read intents answer locally from the last pushed snapshot, so they work without a live phone connection; write intents (set presence, toggle Out of Office) queue to the phone over WatchConnectivity and the phone runs the Graph call. The watch still holds no token and makes no Graph call. |
 
 ## Not yet supported
 
