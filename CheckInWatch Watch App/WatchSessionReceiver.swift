@@ -88,6 +88,16 @@ final class WatchSessionReceiver: NSObject {
     func sendRefreshRequest() async -> RefreshResult {
         guard WCSession.isSupported() else { return .phoneUnreachable }
         let session = WCSession.default
+        // On glance open this request often races WCSession activation:
+        // the link comes up a beat after the view appears, so a bare
+        // reachability check here false-flags a connection that's about
+        // to succeed. Give it a short grace window to finish activating
+        // and become reachable before declaring the phone unreachable.
+        let reachableDeadline = Date().addingTimeInterval(3)
+        while Date() < reachableDeadline {
+            if session.activationState == .activated, session.isReachable { break }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
         guard session.activationState == .activated, session.isReachable else {
             return .phoneUnreachable
         }

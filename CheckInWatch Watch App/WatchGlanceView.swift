@@ -276,16 +276,19 @@ struct WatchGlanceView: View {
             shouldRefresh = true
         }
         if shouldRefresh {
-            await handleRefresh()
+            await handleRefresh(announceFailure: false)
         }
     }
 
     /// Drives the refresh button. Flips the icon to a spinner while the
-    /// round-trip is in flight; surfaces a brief "Phone unreachable"
-    /// hint when the watch can't talk to the phone or the fresh
-    /// snapshot never arrives.
+    /// round-trip is in flight. When `announceFailure` is true (a manual
+    /// tap), surfaces a brief "Phone unreachable" hint if the watch can't
+    /// talk to the phone or the fresh snapshot never arrives. The
+    /// automatic on-open pull passes false: it's best-effort, the glance
+    /// already shows the last-pushed data, so a silent miss is correct —
+    /// only a deliberate tap earns the toast.
     @MainActor
-    private func handleRefresh() async {
+    private func handleRefresh(announceFailure: Bool = true) async {
         refreshing = true
         defer { refreshing = false }
         let result = await receiver.sendRefreshRequest()
@@ -293,6 +296,7 @@ struct WatchGlanceView: View {
         case .refreshed:
             break
         case .phoneUnreachable, .timedOut:
+            guard announceFailure else { return }
             showUnreachableToast = true
             try? await Task.sleep(for: .seconds(2))
             showUnreachableToast = false
