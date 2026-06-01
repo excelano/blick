@@ -75,29 +75,21 @@ final class GraphClient {
     /// start time. Window is `[now, start of tomorrow local]`, so we
     /// don't bleed into tomorrow's calendar.
     func todaysMeetings() async throws -> (next: Meeting?, laterToday: [Meeting]) {
-        let now = Date()
-        let calendar = Calendar.current
-        let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        let window = todayMeetingWindow()
         let formatter = ISO8601DateFormatter()
 
         let data: GraphList<CalendarEventResponse> = try await core.get("/me/calendarView", query: [
-            "startDateTime": formatter.string(from: now),
-            "endDateTime": formatter.string(from: endOfDay),
+            "startDateTime": formatter.string(from: window.start),
+            "endDateTime": formatter.string(from: window.end),
             "$top": "10",
             "$orderby": "start/dateTime",
             "$select": "id,subject,organizer,start,end,onlineMeeting,responseStatus,isCancelled,iCalUId"
         ])
 
-        // Skip cancelled events (they stay in calendarView until removed)
-        // and declined events (some tenants/users keep declined invites on
-        // the calendar rather than auto-removing them). Done client-side
-        // because calendarView's `$filter` support is narrow and undocumented
-        // for these fields.
-        let isAttendable: (CalendarEventResponse) -> Bool = { e in
-            !(e.isCancelled ?? false) && e.responseStatus?.response != "declined"
-        }
+        // `isAttendableMeeting` (CheckInGraph) skips cancelled and declined
+        // events; shared with the widget/watch snapshot so both agree.
         let attendable = data.value
-            .filter(isAttendable)
+            .filter { isAttendableMeeting(isCancelled: $0.isCancelled, response: $0.responseStatus?.response) }
             .map { e -> (event: CalendarEventResponse, start: Date, end: Date) in
                 (e,
                  parseGraphDate(e.start.dateTime, timeZone: e.start.timeZone),
@@ -149,7 +141,7 @@ final class GraphClient {
         ])
 
         return data.value
-            .filter { !($0.isCancelled ?? false) && $0.responseStatus?.response != "declined" }
+            .filter { isAttendableMeeting(isCancelled: $0.isCancelled, response: $0.responseStatus?.response) }
             .map { e in
                 Meeting(
                     id: e.id,
@@ -586,21 +578,17 @@ final class GraphClient {
         var messages: [ChatMessage] = []
 
         for chat in data.value {
-            if chat.viewpoint?.isHidden == true { continue }
-            guard let preview = chat.lastMessagePreview else { continue }
-            // Keep regular messages (and the rare empty-string `messageType`)
-            // and drop everything else — joins, leaves, renames, etc.
-            guard preview.messageType.isEmpty || preview.messageType == "message" else { continue }
-            guard let from = preview.from?.user else { continue }
-            guard let sent = parseISO8601(preview.createdDateTime) else { continue }
-
-            // The real read-state check. `lastMessageReadDateTime` may be
-            // `"0001-01-01T00:00:00Z"` (never read) — parseISO8601 returns
-            // nil for that in some configurations, so fall back to
-            // `.distantPast`, which is unread vs. any real `sent` date.
-            let lastRead = (chat.viewpoint?.lastMessageReadDateTime)
-                .flatMap(parseISO8601) ?? .distantPast
-            guard sent > lastRead else { continue }
+            guard let preview = chat.lastMessagePreview,
+                  let sent = parseISO8601(preview.createdDateTime) else { continue }
+            // `isUnreadChat` (CheckInGraph) is the single authority on what
+            // counts as unread, shared with the widget/watch snapshot count.
+            guard isUnreadChat(
+                isHidden: chat.viewpoint?.isHidden,
+                messageType: preview.messageType,
+                hasSenderUser: preview.from?.user != nil,
+                sent: sent,
+                lastRead: chat.viewpoint?.lastMessageReadDateTime.flatMap(parseISO8601)
+            ), let from = preview.from?.user else { continue }
 
             let others: [String] = (chat.members ?? []).compactMap { m in
                 guard let uid = m.userId, let name = m.displayName, !name.isEmpty else { return nil }

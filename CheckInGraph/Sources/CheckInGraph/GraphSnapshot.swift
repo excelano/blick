@@ -48,21 +48,19 @@ public extension GraphCore {
     /// slot and the "later today" tail, with end times so consumers can
     /// advance through the list as meetings pass.
     private func fetchTodayMeetings() async throws -> [CheckInKit.SnapshotMeeting] {
-        let now = Date()
-        let calendar = Calendar.current
-        let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
+        let window = todayMeetingWindow()
         let formatter = ISO8601DateFormatter()
 
         let data: GraphList<SnapshotEvent> = try await get("/me/calendarView", query: [
-            "startDateTime": formatter.string(from: now),
-            "endDateTime": formatter.string(from: endOfDay),
+            "startDateTime": formatter.string(from: window.start),
+            "endDateTime": formatter.string(from: window.end),
             "$top": "10",
             "$orderby": "start/dateTime",
             "$select": "subject,organizer,start,end,onlineMeeting,responseStatus,isCancelled"
         ])
 
         return data.value
-            .filter { !($0.isCancelled ?? false) && $0.responseStatus?.response != "declined" }
+            .filter { isAttendableMeeting(isCancelled: $0.isCancelled, response: $0.responseStatus?.response) }
             .map { event -> CheckInKit.SnapshotMeeting in
                 CheckInKit.SnapshotMeeting(
                     subject: event.subject,
@@ -107,15 +105,16 @@ public extension GraphCore {
 
         var count = 0
         for chat in data.value {
-            if chat.viewpoint?.isHidden == true { continue }
             guard let preview = chat.lastMessagePreview else { continue }
-            guard preview.messageType.isEmpty || preview.messageType == "message" else { continue }
-            guard preview.from?.user != nil else { continue }
-            guard let sent = parseISO8601(preview.createdDateTime) else { continue }
-            let lastRead = (chat.viewpoint?.lastMessageReadDateTime)
-                .flatMap(parseISO8601) ?? .distantPast
-            guard sent > lastRead else { continue }
-            count += 1
+            if isUnreadChat(
+                isHidden: chat.viewpoint?.isHidden,
+                messageType: preview.messageType,
+                hasSenderUser: preview.from?.user != nil,
+                sent: parseISO8601(preview.createdDateTime),
+                lastRead: chat.viewpoint?.lastMessageReadDateTime.flatMap(parseISO8601)
+            ) {
+                count += 1
+            }
         }
         return count
     }
