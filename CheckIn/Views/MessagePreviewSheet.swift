@@ -202,13 +202,7 @@ struct MessagePreviewSheet: View {
     /// both surfaces convey the same state with the same chrome.
     private func respondedPill(label: String) -> some View {
         HStack {
-            Text(label)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Brand.textMuted)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Brand.bgDarker)
-                .clipShape(Capsule())
+            RespondedPill(label: label, style: .filled(Brand.bgDarker))
             Spacer()
         }
     }
@@ -217,29 +211,11 @@ struct MessagePreviewSheet: View {
     /// card and the email row. Routing the tap through
     /// `Inbox.respondToMeeting` keeps the meeting card, email list,
     /// and badge in sync — same downstream path as the calendar card.
-    @ViewBuilder
     private func rsvpRow(for meeting: Meeting) -> some View {
-        HStack(spacing: 8) {
-            RsvpButton(response: .accepted, label: "Accept", icon: "checkmark",
-                       outlineColor: Brand.accent) {
-                Task {
-                    await inbox.respondToMeeting(.accepted, meetingId: meeting.id)
-                    onClose()
-                }
-            }
-            RsvpButton(response: .tentativelyAccepted, label: "Maybe", icon: "questionmark",
-                       outlineColor: Brand.accent) {
-                Task {
-                    await inbox.respondToMeeting(.tentativelyAccepted, meetingId: meeting.id)
-                    onClose()
-                }
-            }
-            RsvpButton(response: .declined, label: nil, icon: "xmark",
-                       outlineColor: Brand.accent) {
-                Task {
-                    await inbox.respondToMeeting(.declined, meetingId: meeting.id)
-                    onClose()
-                }
+        RsvpRow(outlineColor: Brand.accent) { response in
+            Task {
+                await inbox.respondToMeeting(response, meetingId: meeting.id)
+                onClose()
             }
         }
     }

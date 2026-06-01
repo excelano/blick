@@ -147,31 +147,11 @@ struct EmailRow: View {
     /// rather than the filled pill the calendar card uses on its
     /// darker background.
     private func respondedPill(label: String) -> some View {
-        Text(label)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(Brand.textMuted)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .overlay {
-                Capsule().strokeBorder(Brand.textMuted, lineWidth: 1)
-            }
+        RespondedPill(label: label, style: .outlined(Brand.textMuted))
     }
 
     private var rsvpRow: some View {
-        HStack(spacing: 8) {
-            RsvpButton(response: .accepted, label: "Accept", icon: "checkmark",
-                       outlineColor: Brand.textMuted) {
-                onRsvp(.accepted)
-            }
-            RsvpButton(response: .tentativelyAccepted, label: "Maybe", icon: "questionmark",
-                       outlineColor: Brand.textMuted) {
-                onRsvp(.tentativelyAccepted)
-            }
-            RsvpButton(response: .declined, label: nil, icon: "xmark",
-                       outlineColor: Brand.textMuted) {
-                onRsvp(.declined)
-            }
-        }
+        RsvpRow(outlineColor: Brand.textMuted, onRsvp: onRsvp)
     }
 
     private var accessibilityLabel: String {

@@ -113,35 +113,14 @@ struct ConflictMeetingRow: View {
                     .lineLimit(1)
             }
             if let label = meeting.responseStatus.displayLabel {
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Brand.textMuted)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Brand.bg)
-                    .clipShape(Capsule())
+                RespondedPill(label: label, style: .filled(Brand.bg))
             }
             if meeting.responseStatus.canRsvp {
-                HStack(spacing: 8) {
-                    RsvpButton(response: .accepted,
-                               label: "Accept",
-                               icon: "checkmark",
-                               isCurrentResponse: meeting.responseStatus == .accepted) {
-                        onRsvp(.accepted)
-                    }
-                    RsvpButton(response: .tentativelyAccepted,
-                               label: "Maybe",
-                               icon: "questionmark",
-                               isCurrentResponse: meeting.responseStatus == .tentativelyAccepted) {
-                        onRsvp(.tentativelyAccepted)
-                    }
-                    RsvpButton(response: .declined,
-                               label: "Decline",
-                               icon: "xmark",
-                               isCurrentResponse: meeting.responseStatus == .declined) {
-                        onRsvp(.declined)
-                    }
-                }
+                RsvpRow(
+                    declineLabel: "Decline",
+                    currentResponse: meeting.responseStatus,
+                    onRsvp: onRsvp
+                )
             } else {
                 deleteButton
             }

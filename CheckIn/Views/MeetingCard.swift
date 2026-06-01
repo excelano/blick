@@ -93,32 +93,16 @@ struct MeetingCard: View {
     }
 
     private var rsvpRow: some View {
-        HStack(spacing: 8) {
-            RsvpButton(response: .accepted, label: "Accept", icon: "checkmark") {
-                onRsvp(.accepted)
-            }
-            RsvpButton(response: .tentativelyAccepted, label: "Maybe", icon: "questionmark") {
-                onRsvp(.tentativelyAccepted)
-            }
-            RsvpButton(response: .declined, label: nil, icon: "xmark") {
-                onRsvp(.declined)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 14)
+        RsvpRow(onRsvp: onRsvp)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
     }
 
     @ViewBuilder
     private var respondedPill: some View {
         if let label = meeting.responseStatus.displayLabel {
             HStack {
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Brand.textMuted)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Brand.bg)
-                    .clipShape(Capsule())
+                RespondedPill(label: label, style: .filled(Brand.bg))
                 Spacer()
             }
             .padding(.horizontal, 14)

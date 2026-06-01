@@ -64,3 +64,59 @@ struct RsvpButton: View {
         }
     }
 }
+
+/// The Accept / Maybe / Decline triplet shared by the meeting card, email
+/// row, message-preview sheet, and conflict-resolution sheet. The surfaces
+/// differ only in the button chrome (`outlineColor`), whether Decline shows
+/// a label, and whether the current response is highlighted — all parameters
+/// here, so the three-button layout lives in one place.
+struct RsvpRow: View {
+    /// nil = filled pills (dark-card contexts); non-nil = outlined in this color.
+    var outlineColor: Color? = nil
+    /// nil = icon-only Decline (used where horizontal space is tight).
+    var declineLabel: String? = nil
+    /// When set, the matching button is highlighted as the current response.
+    var currentResponse: MeetingResponse? = nil
+    let onRsvp: (MeetingResponse) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            RsvpButton(response: .accepted, label: "Accept", icon: "checkmark",
+                       isCurrentResponse: currentResponse == .accepted,
+                       outlineColor: outlineColor) { onRsvp(.accepted) }
+            RsvpButton(response: .tentativelyAccepted, label: "Maybe", icon: "questionmark",
+                       isCurrentResponse: currentResponse == .tentativelyAccepted,
+                       outlineColor: outlineColor) { onRsvp(.tentativelyAccepted) }
+            RsvpButton(response: .declined, label: declineLabel, icon: "xmark",
+                       isCurrentResponse: currentResponse == .declined,
+                       outlineColor: outlineColor) { onRsvp(.declined) }
+        }
+    }
+}
+
+/// Non-interactive capsule showing a meeting's responded state ("Accepted",
+/// "Removed", …). Filled on dark-card surfaces, outlined on the main app
+/// background — the chrome is the only thing that differs, so callers pick a
+/// `style` and the text/padding/shape live here.
+struct RespondedPill: View {
+    enum Style {
+        case filled(Color)
+        case outlined(Color)
+    }
+    let label: String
+    let style: Style
+
+    var body: some View {
+        let base = Text(label)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(Brand.textMuted)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+        switch style {
+        case .filled(let color):
+            base.background(color).clipShape(Capsule())
+        case .outlined(let color):
+            base.overlay { Capsule().strokeBorder(color, lineWidth: 1) }
+        }
+    }
+}
