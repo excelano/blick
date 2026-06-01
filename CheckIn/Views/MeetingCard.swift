@@ -111,7 +111,13 @@ struct MeetingCard: View {
     }
 
     private var accessibilityLabel: String {
-        var parts = ["Next meeting", meeting.subject, untilTime(meeting.start, referenceDate: .now)]
+        // The card renders both the next meeting and the in-progress
+        // "active" meeting, so don't announce "Next meeting" once it has
+        // started.
+        let lead = meetingInProgress(start: meeting.start, referenceDate: .now)
+            ? "Current meeting"
+            : "Next meeting"
+        var parts = [lead, meeting.subject, untilTime(meeting.start, referenceDate: .now)]
         if !meeting.organizer.isEmpty { parts.append("with \(meeting.organizer)") }
         return parts.joined(separator: ", ")
     }

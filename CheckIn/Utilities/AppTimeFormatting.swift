@@ -1,4 +1,4 @@
-// RelativeTime.swift
+// AppTimeFormatting.swift
 // CheckIn
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
