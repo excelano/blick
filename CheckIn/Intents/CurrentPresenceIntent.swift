@@ -17,12 +17,10 @@ struct CurrentPresenceIntent: AppIntent {
     static var openAppWhenRun = false
 
     @Dependency var inbox: Inbox
-    @Dependency var authService: AuthService
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
-        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
-        await inbox.refresh()
+        try await inbox.refreshForIntent()
 
         let presence = inbox.currentPresence
         let value = presence == .unknown ? "Not set" : presence.displayName

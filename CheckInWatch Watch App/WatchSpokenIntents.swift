@@ -228,9 +228,10 @@ struct WatchWorkdaySummaryIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         .result(dialog: fromSnapshot(receiver) { snapshot in
             let meeting = snapshot.currentOrNextMeeting(referenceDate: Date())
-            let meetingLine = StatusSpeech.nextMeeting(subject: meeting?.subject, start: meeting?.start)
-            let messages = StatusSpeech.unreadMessages(emails: snapshot.unreadEmailCount, chats: snapshot.chatCount)
-            return "\(meetingLine) \(messages)"
+            return StatusSpeech.workdaySummary(
+                meetingSubject: meeting?.subject, meetingStart: meeting?.start,
+                emails: snapshot.unreadEmailCount, chats: snapshot.chatCount
+            )
         })
     }
 }

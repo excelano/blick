@@ -41,6 +41,22 @@ public enum StatusSpeech {
         }
     }
 
+    /// Unread emails from one sender — the from-a-sender twin of `count`.
+    public static func unreadFromSender(_ n: Int, sender: String) -> String {
+        switch n {
+        case 0: return "You have no unread emails from \(sender)."
+        case 1: return "You have 1 unread email from \(sender)."
+        default: return "You have \(n) unread emails from \(sender)."
+        }
+    }
+
+    /// The work-day overview: the next-meeting sentence followed by the
+    /// unread-messages sentence, as one spoken line. Shared by the phone and
+    /// watch work-day intents so their separator and order can't drift.
+    public static func workdaySummary(meetingSubject: String?, meetingStart: Date?, emails: Int, chats: Int) -> String {
+        "\(nextMeeting(subject: meetingSubject, start: meetingStart)) \(unreadMessages(emails: emails, chats: chats))"
+    }
+
     /// The combined unread-messages sentence (emails plus chats).
     public static func unreadMessages(emails: Int, chats: Int) -> String {
         switch (emails, chats) {

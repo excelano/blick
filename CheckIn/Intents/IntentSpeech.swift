@@ -19,6 +19,17 @@ enum IntentSpeech {
         StatusSpeech.nextMeeting(subject: meeting?.subject, start: meeting?.start)
     }
 
+    static func unreadFromSender(_ n: Int, sender: String) -> String {
+        StatusSpeech.unreadFromSender(n, sender: sender)
+    }
+
+    static func workdaySummary(_ meeting: Meeting?, emails: Int, chats: Int) -> String {
+        StatusSpeech.workdaySummary(
+            meetingSubject: meeting?.subject, meetingStart: meeting?.start,
+            emails: emails, chats: chats
+        )
+    }
+
     static func remainingMeetings(_ n: Int) -> String {
         StatusSpeech.remainingMeetings(n)
     }

@@ -20,7 +20,6 @@ struct UnreadFromSenderIntent: AppIntent {
     var sender: String
 
     @Dependency var inbox: Inbox
-    @Dependency var authService: AuthService
 
     init() {}
 
@@ -34,15 +33,10 @@ struct UnreadFromSenderIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
-        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
-        await inbox.refresh(fetchAllEmails: true)
+        try await inbox.refreshForIntent(fetchAllEmails: true)
 
         let n = inbox.unreadCount(fromSenderMatching: sender)
-        let dialog: IntentDialog = switch n {
-        case 0: "You have no unread emails from \(sender)."
-        case 1: "You have 1 unread email from \(sender)."
-        default: "You have \(n) unread emails from \(sender)."
-        }
+        let dialog: IntentDialog = "\(IntentSpeech.unreadFromSender(n, sender: sender))"
         return .result(value: n, dialog: dialog)
     }
 }

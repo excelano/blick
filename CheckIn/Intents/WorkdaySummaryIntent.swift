@@ -21,19 +21,12 @@ struct WorkdaySummaryIntent: AppIntent {
     static var openAppWhenRun = false
 
     @Dependency var inbox: Inbox
-    @Dependency var authService: AuthService
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
-        await inbox.refresh()
+        try await inbox.refreshForIntent()
 
-        let meeting = IntentSpeech.nextMeeting(inbox.nextMeeting)
-        let messages = IntentSpeech.unreadMessages(
-            emails: inbox.unreadEmailCount,
-            chats: inbox.unreadChatCount
-        )
-        let dialog: IntentDialog = "\(meeting) \(messages)"
+        let dialog: IntentDialog = "\(IntentSpeech.workdaySummary(inbox.nextMeeting, emails: inbox.unreadEmailCount, chats: inbox.unreadChatCount))"
         return .result(dialog: dialog)
     }
 }

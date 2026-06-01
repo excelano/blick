@@ -22,7 +22,6 @@ struct CheckInCountIntent: AppIntent {
     var metric: CountMetric
 
     @Dependency var inbox: Inbox
-    @Dependency var authService: AuthService
 
     init() {}
 
@@ -36,8 +35,7 @@ struct CheckInCountIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
-        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
-        await inbox.refresh()
+        try await inbox.refreshForIntent()
 
         switch metric {
         case .unreadEmails:

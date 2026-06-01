@@ -276,6 +276,15 @@ final class Inbox {
         if result.failed { lastRefreshFailed = true }
     }
 
+    /// Headless-intent preamble: acquire a token silently, then refresh.
+    /// The read App Intents start with empty in-memory state, so each must
+    /// authenticate and reload before reading the summary. `fetchAllEmails`
+    /// forces the full unread set (needed for the from-sender count).
+    func refreshForIntent(fetchAllEmails: Bool = false) async throws {
+        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
+        await refresh(fetchAllEmails: fetchAllEmails)
+    }
+
     /// `fetchAllEmails` lifts the email fetch to the full unread set for
     /// this refresh only, without touching the persisted "show all"
     /// preference. Intents that filter `summary.emails` (e.g. by sender)
