@@ -17,8 +17,7 @@ struct LaterMeetingRow: View {
         // started, the calendar icon and time tint orange. SummaryView
         // re-renders this list every 30 seconds via its clockTick, so
         // the recolor takes effect without a refresh.
-        let live = meeting.start <= Date()
-            || isMeetingImminent(meeting.start, referenceDate: Date())
+        let live = meetingIsLive(start: meeting.start, referenceDate: Date())
         let accent = live ? Color.orange : Brand.accent
         return HStack(spacing: 12) {
             Button(action: onTap) {

@@ -22,9 +22,7 @@ struct MeetingCard: View {
                 // alongside the countdown once the meeting is imminent
                 // or live.
                 TimelineView(.periodic(from: .now, by: 15)) { context in
-                    let inProgress = meeting.start <= context.date
-                    let imminent = isMeetingImminent(meeting.start, referenceDate: context.date)
-                    let highlight = inProgress || imminent
+                    let highlight = meetingIsLive(start: meeting.start, referenceDate: context.date)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
                             Image(systemName: "calendar")

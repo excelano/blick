@@ -122,8 +122,8 @@ struct WatchGlanceView: View {
     }
 
     private func meetingBlock(meeting: SnapshotMeeting, referenceDate: Date) -> some View {
-        let inProgress = meeting.start <= referenceDate
-        let imminent = isMeetingImminent(meeting.start, referenceDate: referenceDate)
+        let inProgress = meetingInProgress(start: meeting.start, referenceDate: referenceDate)
+        let live = meetingIsLive(start: meeting.start, referenceDate: referenceDate)
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
                 Image(systemName: "calendar")
@@ -139,7 +139,7 @@ struct WatchGlanceView: View {
                 .lineLimit(2)
             Text(untilTime(meeting.start, referenceDate: referenceDate))
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
+                .foregroundStyle(live ? .orange : Brand.accent)
                 .lineLimit(1)
         }
     }
@@ -232,8 +232,7 @@ struct WatchGlanceView: View {
     }
 
     private func laterRow(meeting: SnapshotMeeting, referenceDate: Date) -> some View {
-        let live = meeting.start <= referenceDate
-            || isMeetingImminent(meeting.start, referenceDate: referenceDate)
+        let live = meetingIsLive(start: meeting.start, referenceDate: referenceDate)
         return HStack(spacing: 6) {
             Text(meetingTimeRange(start: meeting.start, end: meeting.end, includePeriod: false))
                 .foregroundStyle(live ? .orange : Brand.accent)

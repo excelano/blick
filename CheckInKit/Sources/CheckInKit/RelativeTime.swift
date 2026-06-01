@@ -41,6 +41,22 @@ public func isMeetingImminent(_ date: Date, referenceDate: Date) -> Bool {
     return seconds >= 0 && seconds <= 180
 }
 
+/// True once a meeting has started (its start is at or before
+/// `referenceDate`). The watch surfaces tint the calendar icon on this.
+public func meetingInProgress(start: Date, referenceDate: Date) -> Bool {
+    start <= referenceDate
+}
+
+/// True when a meeting should get the "soon/now" orange highlight: already
+/// in progress, or imminent (starting within three minutes). The single
+/// source for the live-highlight rule the meeting card, widgets, and watch
+/// rows all share — it drives the orange countdown everywhere and the
+/// orange calendar icon on the phone surfaces.
+public func meetingIsLive(start: Date, referenceDate: Date) -> Bool {
+    meetingInProgress(start: start, referenceDate: referenceDate)
+        || isMeetingImminent(start, referenceDate: referenceDate)
+}
+
 /// Compact meeting time range in 12-hour US format, e.g. "9-9:30 PM"
 /// when both ends fall in the same period, or "11:30 AM-12:30 PM" when
 /// the meeting crosses noon (or midnight). Drops `:00` for on-the-hour

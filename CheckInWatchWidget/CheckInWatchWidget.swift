@@ -146,8 +146,8 @@ struct WatchRectangularView: View {
     private func meetingLayout(meeting: SnapshotMeeting, snapshot: CheckInSnapshot) -> some View {
         let start = meeting.start
         let subject = meeting.subject
-        let inProgress = start <= entry.date
-        let imminent = isMeetingImminent(start, referenceDate: entry.date)
+        let inProgress = meetingInProgress(start: start, referenceDate: entry.date)
+        let live = meetingIsLive(start: start, referenceDate: entry.date)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Image(systemName: "calendar")
@@ -167,7 +167,7 @@ struct WatchRectangularView: View {
             Spacer(minLength: 0)
             HStack(spacing: 6) {
                 Text(untilTime(start, referenceDate: entry.date))
-                    .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
+                    .foregroundStyle(live ? .orange : Brand.accent)
                     .lineLimit(1)
                     .layoutPriority(1)
                 Spacer(minLength: 4)

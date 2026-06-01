@@ -144,12 +144,11 @@ struct CheckInWidgetEntryView: View {
            let url = teamsJoinURL(from: urlString) {
             joinPill(url: url)
         } else {
-            let imminent = isMeetingImminent(meeting.start, referenceDate: entry.date)
-            let inProgress = meeting.start <= entry.date
+            let live = meetingIsLive(start: meeting.start, referenceDate: entry.date)
             HStack(spacing: 8) {
                 Text(untilTime(meeting.start, referenceDate: entry.date))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(imminent || inProgress ? .orange : Brand.accent)
+                    .foregroundStyle(live ? .orange : Brand.accent)
                     .lineLimit(1)
                     .layoutPriority(1)
                 if let organizer = meeting.organizer, !organizer.isEmpty {
@@ -199,12 +198,11 @@ struct CheckInWidgetEntryView: View {
     /// surfaces read alike. The calendar tints orange once the meeting
     /// is imminent or live, matching the countdown's orange below.
     private func meetingHeader(_ meeting: SnapshotMeeting) -> some View {
-        let inProgress = meeting.start <= entry.date
-        let imminent = isMeetingImminent(meeting.start, referenceDate: entry.date)
+        let live = meetingIsLive(start: meeting.start, referenceDate: entry.date)
         return HStack(spacing: 6) {
             Image(systemName: "calendar")
                 .font(.subheadline)
-                .foregroundStyle(inProgress || imminent ? .orange : Brand.accent)
+                .foregroundStyle(live ? .orange : Brand.accent)
             Text(meetingTimeRange(start: meeting.start, end: meeting.end))
                 .font(.subheadline)
                 .foregroundStyle(Brand.textMuted)
