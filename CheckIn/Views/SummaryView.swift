@@ -114,7 +114,7 @@ struct SummaryView: View {
                 Spacer()
                 transientErrorBanner
                     .padding(.horizontal, 16)
-                    .animation(.easeInOut(duration: 0.25), value: inbox.transientError)
+                    .animation(.easeInOut(duration: 0.25), value: inbox.transientMessage)
                 undoBanner
                     .padding(.horizontal, 16)
                     .padding(.bottom, 20)
@@ -125,23 +125,24 @@ struct SummaryView: View {
 
     @ViewBuilder
     private var transientErrorBanner: some View {
-        if let message = inbox.transientError {
+        if let message = inbox.transientMessage {
+            let isError = message.kind == .error
             HStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
                     .font(.subheadline)
-                    .foregroundStyle(.orange)
-                Text(message)
+                    .foregroundStyle(isError ? .orange : Brand.accent)
+                Text(message.text)
                     .font(.subheadline)
                     .foregroundStyle(.white)
                 Spacer()
                 Button {
-                    inbox.dismissTransientError()
+                    inbox.dismissTransientMessage()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.subheadline)
                         .foregroundStyle(Brand.textMuted)
                 }
-                .accessibilityLabel("Dismiss error")
+                .accessibilityLabel(isError ? "Dismiss error" : "Dismiss message")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -286,7 +287,8 @@ struct SummaryView: View {
             Section {
                 if summary.chats.isEmpty {
                     emptyStateButton(label: "Mark unread: today's chats",
-                                     icon: "bubble.left.fill") {
+                                     icon: "bubble.left.fill",
+                                     isBusy: inbox.activeBulkActivity == .todaysChats) {
                         Task { await inbox.markTodayChatsUnread() }
                     }
                 }
@@ -376,7 +378,8 @@ struct SummaryView: View {
             Section {
                 if summary.emails.isEmpty {
                     emptyStateButton(label: "Mark unread: today's emails",
-                                     icon: "envelope.badge") {
+                                     icon: "envelope.badge",
+                                     isBusy: inbox.activeBulkActivity == .todaysEmails) {
                         Task { await inbox.markTodayUnread() }
                     }
                 }
@@ -486,6 +489,8 @@ struct SummaryView: View {
                                 totalUnread: summary.totalUnreadEmails,
                                 isShowingAll: inbox.showingAllEmails,
                                 userMailDomain: inbox.userMailDomain,
+                                isBusy: inbox.activeBulkActivity == .todaysEmails
+                                    || inbox.activeBulkActivity == .flaggedEmails,
                                 onMarkAllRead: { Task { await inbox.markAllVisibleRead() } },
                                 onMarkOtherRead: { Task { await inbox.markOtherInboxRead() } },
                                 onMarkMeetingNoticesRead: { Task { await inbox.markMeetingNoticesRead() } },
@@ -513,17 +518,27 @@ struct SummaryView: View {
     /// state doesn't shout louder than the populated state.
     private func emptyStateButton(label: String,
                                   icon: String,
+                                  isBusy: Bool = false,
                                   action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(label, systemImage: icon)
-                .font(.footnote)
-                .foregroundStyle(Brand.textMuted)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            Label {
+                Text(label)
+            } icon: {
+                if isBusy {
+                    ProgressView().controlSize(.small).tint(Brand.textMuted)
+                } else {
+                    Image(systemName: icon)
+                }
+            }
+            .font(.footnote)
+            .foregroundStyle(Brand.textMuted)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(isBusy)
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))

@@ -24,14 +24,18 @@ final class Inbox {
     /// 8 seconds; only one is held at a time (replaced by the next bulk
     /// action). Nil when there's nothing to undo.
     private(set) var pendingUndo: UndoableBulkAction?
-    /// Transient user-facing failure message, set when an optimistic
-    /// action reverted because Graph rejected it. Drives a floating
-    /// banner in the summary view. Auto-clears after 6 seconds; the
-    /// most recent failure replaces any earlier one. Used only for
-    /// high-consequence actions where the silent revert isn't enough —
-    /// currently OOO toggle and custom status message. Nil when there's
-    /// no failure to surface.
-    private(set) var transientError: String?
+    /// Transient user-facing note, set when an optimistic action reverted
+    /// because Graph rejected it (`.error`) or when a bulk action found
+    /// nothing to do (`.info`). Drives a floating banner in the summary
+    /// view. Auto-clears after 6 seconds; the most recent note replaces
+    /// any earlier one. Nil when there's nothing to surface.
+    private(set) var transientMessage: TransientMessage?
+    /// The fetch-first bulk "mark unread" action currently running, or nil
+    /// when idle. These actions fetch candidate IDs, mutate, then refetch,
+    /// with no optimistic feedback, so the originating control watches this
+    /// to show a spinner and disable itself while in flight. Only one runs
+    /// at a time. See `runBulkUnread`.
+    private(set) var activeBulkActivity: BulkActivity?
     /// True when the user's Graph auto-reply status is `alwaysEnabled` or
     /// `scheduled`. Drives the OOO indicator that replaces the presence
     /// glyph and reroutes the tap to Settings. Refreshed on every refresh.
@@ -167,7 +171,7 @@ final class Inbox {
     private var lastRefreshedAt: Date?
     private var didRequestBadgeAuthorization = false
     @ObservationIgnored private var undoExpiryTask: Task<Void, Never>?
-    @ObservationIgnored private var transientErrorExpiryTask: Task<Void, Never>?
+    @ObservationIgnored private var transientMessageExpiryTask: Task<Void, Never>?
 
     /// Graph caps `$top` at 1000; 999 stays just under. Shared by the
     /// "show all" mode and by intent refreshes that need the full unread
@@ -182,7 +186,7 @@ final class Inbox {
     private static let undoExpirySeconds: Double = 8
     /// How long a transient error message stays on screen before it
     /// self-clears. Matches the rhythm of the undo banner.
-    private static let transientErrorExpirySeconds: Double = 6
+    private static let transientMessageExpirySeconds: Double = 6
 
     @ObservationIgnored private let logger = Logger(subsystem: "com.excelano.checkin", category: "inbox")
 
@@ -205,9 +209,10 @@ final class Inbox {
         pendingUndo = nil
         undoExpiryTask?.cancel()
         undoExpiryTask = nil
-        transientError = nil
-        transientErrorExpiryTask?.cancel()
-        transientErrorExpiryTask = nil
+        transientMessage = nil
+        transientMessageExpiryTask?.cancel()
+        transientMessageExpiryTask = nil
+        activeBulkActivity = nil
         currentPresence = .unknown
         meetingsById = [:]
         todayMeetingIds = []
@@ -244,25 +249,24 @@ final class Inbox {
         await action.undo()
     }
 
-    /// Surface a brief failure message for an optimistic action that
-    /// reverted. Replaces any earlier message and restarts the
-    /// auto-clear timer.
-    private func showTransientError(_ message: String) {
-        transientError = message
-        transientErrorExpiryTask?.cancel()
-        transientErrorExpiryTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.transientErrorExpirySeconds))
+    /// Surface a brief banner note. Replaces any earlier message and
+    /// restarts the auto-clear timer.
+    private func showTransient(_ text: String, kind: TransientMessage.Kind) {
+        transientMessage = TransientMessage(text: text, kind: kind)
+        transientMessageExpiryTask?.cancel()
+        transientMessageExpiryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.transientMessageExpirySeconds))
             guard let self, !Task.isCancelled else { return }
-            self.transientError = nil
+            self.transientMessage = nil
         }
     }
 
-    /// User dismissed the transient-error banner without waiting for
-    /// the auto-clear.
-    func dismissTransientError() {
-        transientErrorExpiryTask?.cancel()
-        transientErrorExpiryTask = nil
-        transientError = nil
+    /// User dismissed the transient banner without waiting for the
+    /// auto-clear.
+    func dismissTransientMessage() {
+        transientMessageExpiryTask?.cancel()
+        transientMessageExpiryTask = nil
+        transientMessage = nil
     }
 
     /// Toggle the email cap and refetch just the emails. No need to ripple
@@ -450,7 +454,7 @@ final class Inbox {
         } catch {
             logger.error("setCustomStatusMessage failed: \(error.localizedDescription, privacy: .public)")
             customStatusMessage = previous
-            showTransientError("Couldn't update your status. Try again.")
+            showTransient("Couldn't update your status. Try again.", kind: .error)
         }
     }
 
@@ -473,7 +477,7 @@ final class Inbox {
         } catch {
             logger.error("setOutOfOffice(\(on)) failed: \(error.localizedDescription, privacy: .public)")
             isOutOfOffice = previous
-            showTransientError("Couldn't update Out of Office. Try again.")
+            showTransient("Couldn't update Out of Office. Try again.", kind: .error)
             return false
         }
     }
@@ -619,11 +623,12 @@ final class Inbox {
     /// shows up in CheckIn again. Re-fetches the summary because the
     /// newly-unread emails are not in our visible list.
     func markTodayUnread() async {
-        do {
-            let ids = try await graphClient.idsOfReadEmailsReceivedToday()
-            try await resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) today unread")
-        } catch {
-            logger.error("markTodayUnread failed: \(error.localizedDescription, privacy: .public)")
+        await runBulkUnread(.todaysEmails,
+                            nothing: "No read email from today to mark unread.",
+                            failure: "Couldn't mark today's email unread. Try again.") {
+            let ids = try await self.graphClient.idsOfReadEmailsReceivedToday()
+            try await self.resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) today unread")
+            return ids.count
         }
     }
 
@@ -632,11 +637,51 @@ final class Inbox {
     /// `markTodayUnread`: the newly-unread emails aren't in the visible
     /// list, so we re-fetch the summary.
     func markFlaggedUnread() async {
+        await runBulkUnread(.flaggedEmails,
+                            nothing: "No read flagged email to mark unread.",
+                            failure: "Couldn't mark flagged email unread. Try again.") {
+            let ids = try await self.graphClient.idsOfReadFlaggedEmails()
+            try await self.resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) flagged unread")
+            return ids.count
+        }
+    }
+
+    /// Runs a fetch-first "mark unread" bulk action behind a visible busy
+    /// indicator. Sets `activeBulkActivity` so the launching control can
+    /// spin and disable itself, enforces a 400 ms minimum on-screen time
+    /// so a fast Graph round-trip doesn't strobe the spinner, then clears.
+    /// `work` returns the number of items it flipped: 0 surfaces the
+    /// `nothing` note, a thrown error surfaces the `failure` note. The
+    /// re-entrancy guard drops a second tap while one is already running.
+    private func runBulkUnread(_ activity: BulkActivity,
+                               nothing: String,
+                               failure: String,
+                               work: () async throws -> Int) async {
+        guard activeBulkActivity == nil else { return }
+        activeBulkActivity = activity
+        let clock = ContinuousClock()
+        let start = clock.now
         do {
-            let ids = try await graphClient.idsOfReadFlaggedEmails()
-            try await resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) flagged unread")
+            let count = try await work()
+            await enforceSpinnerFloor(since: start, on: clock)
+            activeBulkActivity = nil
+            if count == 0 { showTransient(nothing, kind: .info) }
         } catch {
-            logger.error("markFlaggedUnread failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("\(failure, privacy: .public) (\(error.localizedDescription, privacy: .public))")
+            await enforceSpinnerFloor(since: start, on: clock)
+            activeBulkActivity = nil
+            showTransient(failure, kind: .error)
+        }
+    }
+
+    /// Keep a just-shown spinner up for at least 400 ms total so it reads as
+    /// deliberate rather than a flash when Graph answers quickly.
+    private func enforceSpinnerFloor(since start: ContinuousClock.Instant,
+                                     on clock: ContinuousClock) async {
+        let elapsed = clock.now - start
+        let floor = Duration.milliseconds(400)
+        if elapsed < floor {
+            try? await Task.sleep(for: floor - elapsed)
         }
     }
 
@@ -916,15 +961,17 @@ final class Inbox {
     /// endpoint for chats, so this is a client-side loop.
     func markTodayChatsUnread() async {
         guard let (userId, tenantId) = chatIdentity(context: "markTodayChatsUnread") else { return }
-        do {
-            let ids = try await graphClient.idsOfReadChatsToday()
-            guard !ids.isEmpty else { return }
+        await runBulkUnread(.todaysChats,
+                            nothing: "No chats read today to mark unread.",
+                            failure: "Couldn't mark today's chats unread. Try again.") {
+            let ids = try await self.graphClient.idsOfReadChatsToday()
+            guard !ids.isEmpty else { return 0 }
             for id in ids {
-                try? await graphClient.markChatUnread(chatId: id, userId: userId, tenantId: tenantId)
+                try? await self.graphClient.markChatUnread(chatId: id, userId: userId, tenantId: tenantId)
             }
-            await refreshChats()
-            await updateAppBadge()
-            setPendingUndo(UndoableBulkAction(
+            await self.refreshChats()
+            await self.updateAppBadge()
+            self.setPendingUndo(UndoableBulkAction(
                 summary: "Marked \(ids.count) chat\(ids.count == 1 ? "" : "s") unread",
                 undo: { [weak self] in
                     guard let self else { return }
@@ -935,8 +982,7 @@ final class Inbox {
                     await self.updateAppBadge()
                 }
             ))
-        } catch {
-            logger.error("markTodayChatsUnread failed: \(error.localizedDescription, privacy: .public)")
+            return ids.count
         }
     }
 
@@ -1292,6 +1338,22 @@ final class Inbox {
     struct UndoableBulkAction {
         let summary: String
         let undo: @MainActor () async -> Void
+    }
+
+    /// The fetch-first "mark unread" bulk actions, each tied to the control
+    /// that launches it so that control can show its own spinner.
+    enum BulkActivity {
+        case todaysChats
+        case todaysEmails
+        case flaggedEmails
+    }
+
+    /// A floating banner note. `.error` styles as a warning (reverted
+    /// action); `.info` is neutral (a bulk action found nothing to do).
+    struct TransientMessage: Equatable {
+        enum Kind { case error, info }
+        let text: String
+        let kind: Kind
     }
 
     /// Best-effort presence read. Failures don't bump `lastRefreshFailed`

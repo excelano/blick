@@ -11,6 +11,10 @@ struct BulkActionsMenu: View {
     let totalUnread: Int
     let isShowingAll: Bool
     let userMailDomain: String
+    /// True while a menu-launched "mark unread" action (today's emails or
+    /// flagged emails) is in flight. The menu closes on tap, so the spinner
+    /// lives on this trigger capsule, not on the vanished menu item.
+    let isBusy: Bool
     let onMarkAllRead: () -> Void
     let onMarkOtherRead: () -> Void
     let onMarkMeetingNoticesRead: () -> Void
@@ -96,7 +100,11 @@ struct BulkActionsMenu: View {
                 // count pill, so the two capsules render the same height
                 // despite an SF Symbol having no ascender/descender.
                 Text("0").opacity(0)
-                Image(systemName: "ellipsis")
+                if isBusy {
+                    ProgressView().controlSize(.small).tint(Brand.accent)
+                } else {
+                    Image(systemName: "ellipsis")
+                }
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Brand.accent)
