@@ -6,6 +6,16 @@
 import CheckInKit
 import Foundation
 
+/// The outcome of `applyPreferredPresence`: what Graph reports after the write
+/// (the source of truth for the display) and whether Microsoft honored the
+/// requested state. `honored` is `false` when the effective presence doesn't
+/// match the request, and callers must not report success then.
+public struct PresenceApplyResult {
+    public let effective: Presence
+    public let statusMessage: String
+    public let honored: Bool
+}
+
 /// Presence and Out-of-Office operations, shared by the app's `GraphClient`
 /// and the widget extension. Each rides `GraphCore`'s HTTP primitives, so
 /// there is one implementation of every presence/OOO call regardless of which
@@ -33,7 +43,7 @@ public extension GraphCore {
             body: SetPresenceBody(
                 availability: availability,
                 activity: activity,
-                expirationDuration: "P1D"
+                expirationDuration: PreferredPresenceStore.pinExpirationISO8601
             )
         )
     }
@@ -42,6 +52,19 @@ public extension GraphCore {
     /// POSTs an empty body.
     func clearUserPreferredPresence() async throws {
         try await emptyPost("/me/presence/clearUserPreferredPresence")
+    }
+
+    /// Tear down CheckIn's presence session immediately, rather than waiting
+    /// for it to lapse. The counterpart to `setSessionPresence`. Used when the
+    /// user pins Offline: with no session of ours reporting Available, the user
+    /// actually shows Offline instead of lingering visible until the session
+    /// would otherwise expire. Identifies the session by the same `sessionId`
+    /// we set it with.
+    func clearSessionPresence(sessionId: String) async throws {
+        try await post(
+            "/me/presence/clearPresence",
+            body: ClearPresenceBody(sessionId: sessionId)
+        )
     }
 
     /// Set (or clear) the user's Teams status message — the short text shown
@@ -56,9 +79,10 @@ public extension GraphCore {
 
     /// Register CheckIn as an active presence-session source so the user's
     /// preferred presence keeps applying even when no other Microsoft client
-    /// (Teams) holds a session. Max expiration is `PT1H`; callers re-up on
-    /// every refresh. `.offline` is not a valid combination for this endpoint,
-    /// so an Offline presence is skipped.
+    /// (Teams) holds a session. `PT1H` expiration, renewed on every refresh
+    /// (≈30 min), so it never lapses while CheckIn is in use. `.offline` is not
+    /// a valid combination for this endpoint, so an Offline presence is skipped
+    /// (the Offline case tears the session down via `clearSessionPresence`).
     func setSessionPresence(sessionId: String, presence: Presence) async throws {
         guard let availability = presence.graphAvailability,
               let activity = presence.graphActivity,
@@ -72,6 +96,80 @@ public extension GraphCore {
                 expirationDuration: "PT1H"
             )
         )
+    }
+
+    /// Apply a preferred presence end to end, then read back what Graph
+    /// actually reports so the caller can show the truth rather than the
+    /// request. One implementation for every process (app, Siri, widget).
+    ///
+    /// - `.unknown` clears the pin (reset to auto) and keeps the session alive
+    ///   at Available, so the user stays visible rather than dropping Offline.
+    /// - `.offline` tears our session down and pins Offline, so the user shows
+    ///   Offline instead of our heartbeat's Available; the caller pauses the
+    ///   heartbeat while the pin holds.
+    /// - Any other state re-ups the session at Available (so Graph honors the
+    ///   override even when no Teams client runs) and pins that state.
+    ///
+    /// `honored` reflects a read-back comparison, not just an HTTP 200:
+    /// presence is eventually consistent, so on a first mismatch this waits
+    /// briefly and reads once more before concluding the request didn't take.
+    /// A tenant policy, Conditional Access, or another client can override us,
+    /// and the caller must not report success when `honored` is `false`.
+    func applyPreferredPresence(
+        _ presence: Presence,
+        sessionId: String,
+        store: PreferredPresenceStore,
+        now: Date = Date()
+    ) async throws -> PresenceApplyResult {
+        switch presence {
+        case .offline:
+            // Best-effort teardown; a pin over no session of ours shows Offline.
+            do { try await clearSessionPresence(sessionId: sessionId) }
+            catch { /* best-effort: the session lapses on its own otherwise */ }
+            try await setUserPreferredPresence(.offline)
+            // Pin eagerly so a concurrent heartbeat stays paused during the
+            // read-back below; cleared again if Graph didn't honor it.
+            store.pin(.offline, now: now)
+        case .unknown:
+            await heartbeat(sessionId: sessionId)
+            try await clearUserPreferredPresence()
+            store.clear()
+        default:
+            await heartbeat(sessionId: sessionId)
+            try await setUserPreferredPresence(presence)
+        }
+
+        var (effective, message) = try await fetchPresence()
+        // Reset-to-auto has no specific target to confirm: the clear succeeding
+        // is the success signal, and effective is whatever auto now resolves to.
+        if presence == .unknown {
+            return PresenceApplyResult(effective: effective, statusMessage: message, honored: true)
+        }
+        // Eventual consistency: give a first mismatch one short settle before
+        // calling the request unhonored.
+        if effective != presence {
+            try? await Task.sleep(for: .milliseconds(800))
+            (effective, message) = try await fetchPresence()
+        }
+        let honored = effective == presence
+        // Record the pin only for a state Graph actually applied, so the
+        // Offline heartbeat-pause can never get stuck suppressing the session
+        // over a presence the server rejected.
+        if honored {
+            store.pin(presence, now: now)
+        } else if presence == .offline {
+            store.clear()
+        }
+        return PresenceApplyResult(effective: effective, statusMessage: message, honored: honored)
+    }
+
+    /// Re-up the presence session at Available, best-effort: a transient
+    /// session failure must not abort the preferred-presence write. When it
+    /// does fail and no other client holds a session, the override simply
+    /// won't display, and the read-back honored check reports that truthfully.
+    private func heartbeat(sessionId: String) async {
+        do { try await setSessionPresence(sessionId: sessionId, presence: .available) }
+        catch { /* best-effort; honored check catches the visible consequence */ }
     }
 
     /// Whether Outlook automatic replies are on. Any non-`disabled` state
@@ -147,7 +245,13 @@ struct SetSessionPresenceBody: Encodable {
     let sessionId: String
     let availability: String
     let activity: String
-    let expirationDuration: String  // ISO 8601, max "PT1H"
+    let expirationDuration: String  // ISO 8601; we send "PT1H", renewed every refresh
+}
+
+/// Body for `/me/presence/clearPresence` — tears down the app's session,
+/// identified by the same `sessionId` used to set it.
+struct ClearPresenceBody: Encodable {
+    let sessionId: String
 }
 
 struct SetStatusMessageBody: Encodable {

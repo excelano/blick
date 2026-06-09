@@ -183,6 +183,18 @@ final class GraphClient {
         try await core.clearUserPreferredPresence()
     }
 
+    /// Apply a preferred presence (or reset-to-auto / Offline) and read back
+    /// what Graph actually reports. Forwards to `GraphCore`, which owns the
+    /// session management, Offline teardown, pin tracking, and honored check.
+    func applyPreferredPresence(
+        _ presence: Presence,
+        sessionId: String,
+        store: PreferredPresenceStore,
+        now: Date = Date()
+    ) async throws -> PresenceApplyResult {
+        try await core.applyPreferredPresence(presence, sessionId: sessionId, store: store, now: now)
+    }
+
     /// Set (or clear, with an empty string) the user's Teams status message.
     func setStatusMessage(_ content: String) async throws {
         try await core.setStatusMessage(content)

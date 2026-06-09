@@ -25,23 +25,9 @@ struct WidgetStatusActions: Sendable {
         let wasOutOfOffice = CheckInSnapshot.loadFromAppGroup()?.isOutOfOffice == true
         let core = GraphCore(tokenProvider: WidgetTokenProvider())
         do {
-            // Best-effort session heartbeat (Available); failure here
-            // shouldn't block the preferred-presence set.
-            do {
-                try await core.setSessionPresence(
-                    sessionId: widgetEffectiveConfig().clientID, presence: .available
-                )
-            } catch {
-                log.error("session heartbeat failed: \(error.localizedDescription, privacy: .public)")
-            }
-
-            if presence == .unknown {
-                try await core.clearUserPreferredPresence()
-            } else {
-                try await core.setUserPreferredPresence(presence)
-            }
-
-            // Choosing a presence also clears Out of Office, matching the picker.
+            // Choosing a presence also clears Out of Office, matching the
+            // picker. Do it first so the presence read-back isn't tinted by
+            // the Out-of-Office overlay.
             if wasOutOfOffice {
                 do {
                     try await core.disableAutomaticReplies()
@@ -49,7 +35,16 @@ struct WidgetStatusActions: Sendable {
                     log.error("OOO disable failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            CheckInSnapshot.patchAndReload(presence: presence, isOutOfOffice: false)
+
+            let result = try await core.applyPreferredPresence(
+                presence, sessionId: widgetEffectiveConfig().clientID, store: PreferredPresenceStore()
+            )
+            // Reflect what Graph actually reports; OOO is off by now.
+            CheckInSnapshot.patchAndReload(presence: result.effective, isOutOfOffice: false)
+            guard result.honored else {
+                // Surface a silent non-honor so the intent doesn't speak success.
+                throw StatusActionError.applyFailed
+            }
         } catch {
             log.error("applyPresence failed: \(error.localizedDescription, privacy: .public)")
             CheckInSnapshot.reloadStatusSurfaces()

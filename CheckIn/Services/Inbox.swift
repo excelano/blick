@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import CheckInGraph
 import CheckInKit
 import Foundation
 import UserNotifications
@@ -373,6 +374,12 @@ final class Inbox {
         phoneConnectivity?.push(snapshot)
     }
 
+    /// Tracks the preferred presence we last pinned and when it lapses, shared
+    /// with the widget through the App Group. Gates the heartbeat (paused while
+    /// the user is pinned Offline) and outlives the process so a background
+    /// refresh after relaunch honors a still-current pin.
+    private let preferredStore = PreferredPresenceStore()
+
     /// sessionId for `/me/presence/setPresence`. Microsoft constrains
     /// delegated-permission callers to set sessionId equal to the
     /// calling app's Azure AD client ID — a random GUID is silently
@@ -391,6 +398,11 @@ final class Inbox {
     /// is in active use.
     private func refreshPresenceSession() async {
         guard teamsEnabled else { return }
+        // While the user is pinned Offline (and the pin hasn't lapsed), stay
+        // silent: re-upping any session would make them visible again. With no
+        // session of ours, Graph shows Offline — exactly the pinned state. The
+        // heartbeat resumes once the pin is changed or expires.
+        if preferredStore.current()?.presence == .offline { return }
         do {
             try await graphClient.setSessionPresence(sessionId: presenceSessionId, presence: .available)
         } catch {
@@ -494,39 +506,37 @@ final class Inbox {
     @discardableResult
     func setPresence(_ presence: Presence) async -> Bool {
         let previous = currentPresence
-        currentPresence = presence
+        currentPresence = presence  // optimistic; reconciled to the read-back below
+        // Picking a status (or resetting) means "I'm back," so clear Out of
+        // Office first — both to drop the override and so the presence
+        // read-back isn't tinted by the Out-of-Office overlay. Bail if that
+        // write fails rather than half-applying.
+        if isOutOfOffice {
+            guard await setOutOfOffice(false) else {
+                currentPresence = previous
+                return false
+            }
+        }
         do {
-            // Keep our session alive at Available so Graph honors the
-            // preferred override and so Reset-to-auto shows Available
-            // (rather than Offline) when no other Microsoft client has
-            // a session.
-            do {
-                try await graphClient.setSessionPresence(sessionId: presenceSessionId, presence: .available)
-            } catch {
-                logger.error("setPresence session sync failed: \(error.localizedDescription, privacy: .public)")
+            let result = try await graphClient.applyPreferredPresence(
+                presence, sessionId: presenceSessionId, store: preferredStore
+            )
+            // Always show what the API reports, honored or not.
+            currentPresence = result.effective
+            customStatusMessage = result.statusMessage
+            guard result.honored else {
+                // Microsoft didn't apply the request (tenant policy,
+                // Conditional Access, another client, or a state it won't
+                // honor). Surface it; don't claim success.
+                showTransient("Microsoft didn't apply that status.", kind: .info)
+                return false
             }
-            if presence == .unknown {
-                try await graphClient.clearUserPreferredPresence()
-                let (p, msg) = await fetchPresence()
-                currentPresence = p
-                customStatusMessage = msg
-            } else {
-                try await graphClient.setUserPreferredPresence(presence)
-            }
+            return true
         } catch {
             logger.error("setPresence(\(presence.displayName, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
             currentPresence = previous
             return false
         }
-        // OOO disable lives outside the do/catch but only runs when the
-        // presence write succeeded — Graph failures above return early.
-        // The whole call only reports success if the OOO disable also
-        // succeeded, so an intent-driven set won't speak success when
-        // OOO is still on.
-        if isOutOfOffice {
-            return await setOutOfOffice(false)
-        }
-        return true
     }
 
     /// Sets the iOS app-icon badge to `unread emails + pending chats`. The
@@ -1402,11 +1412,14 @@ extension Inbox {
     /// doesn't speak after nothing changed.
     func applyPresence(_ presence: Presence) async throws {
         _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: teamsEnabled)
-        guard await setPresence(presence) else {
-            throw StatusActionError.applyFailed
-        }
+        let honored = await setPresence(presence)
+        // Publish the read-back truth either way, then fail the intent if
+        // Microsoft didn't honor it so the success dialog doesn't speak.
         CheckInSnapshot.patchAndReload(presence: currentPresence, isOutOfOffice: isOutOfOffice)
         phoneConnectivity?.pushFromAppGroup()
+        guard honored else {
+            throw StatusActionError.applyFailed
+        }
     }
 
     func applyOutOfOffice(_ on: Bool) async throws {

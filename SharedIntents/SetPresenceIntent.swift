@@ -18,10 +18,11 @@ import CheckInKit
 /// `Inbox`, extension-side wired to a lean presence client — and the
 /// `@Dependency` resolves to whichever process the intent fires in.
 ///
-/// Known limitation, carried honestly from the app: a preferred presence
-/// only takes visible effect when a Teams desktop session exists. Graph
-/// returns success regardless, so this intent reports success the same
-/// way the in-app picker does.
+/// CheckIn keeps its own presence session alive, so a pinned presence takes
+/// effect without a Teams desktop session running. `applyPresence` reads the
+/// presence back after writing and throws when Microsoft didn't honor the
+/// request (tenant policy, Conditional Access, or another client overriding),
+/// so this intent only speaks success when the status actually changed.
 struct SetPresenceIntent: AppIntent {
     static var title: LocalizedStringResource = "Set Presence"
     static var description = IntentDescription(
