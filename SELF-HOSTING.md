@@ -6,7 +6,7 @@ You will need a Mac with Xcode 15 or later, an Apple Developer account (the free
 
 ## Step 1: Clone and choose your identifiers
 
-1. Fork [excelano/checkin](https://github.com/excelano/checkin) on GitHub, or just clone it directly.
+1. Fork [excelano/blick](https://github.com/excelano/blick) on GitHub, or just clone it directly.
 2. Decide on your **bundle ID** (for example, `com.example.checkin`). It must be unique to your Apple Developer team.
 3. Decide on your **redirect URI scheme**. The MSAL convention is `msauth.<bundle-id>`, so a bundle ID of `com.example.checkin` gives a redirect URI scheme of `msauth.com.example.checkin` and a full redirect URI of `msauth.com.example.checkin://auth`. The widget extension is a second bundle, `<bundle-id>.CheckInWidget`, with its own redirect URI, `msauth.<bundle-id>.CheckInWidget://auth`. You register both in Azure (Step 4), because the interactive widget authenticates under the extension's own bundle ID.
 

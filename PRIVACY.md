@@ -32,7 +32,7 @@ Apple aggregates anonymous crash logs at the iOS level from devices that have **
 
 ## How to verify the claims yourself
 
-The full source is at [github.com/excelano/checkin](https://github.com/excelano/checkin). To check the claims here independently:
+The full source is at [github.com/excelano/blick](https://github.com/excelano/blick). To check the claims here independently:
 
 1. Search the project for `URLSession`. Every network call should target `graph.microsoft.com`, `login.microsoftonline.com`, or one of their regional equivalents.
 2. Search for analytics and crash-reporter SDK names: Firebase, Sentry, Crashlytics, Mixpanel, Amplitude, Segment, GoogleAnalytics. None should appear.
