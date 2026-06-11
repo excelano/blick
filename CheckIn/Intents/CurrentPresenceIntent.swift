@@ -15,7 +15,7 @@ import CheckInKit
 /// leaves the spoken status as the answer.
 struct CurrentPresenceIntent: AppIntent {
     static var title: LocalizedStringResource = "Current Presence"
-    static var description = IntentDescription("Check your current Microsoft 365 presence.")
+    static var description = IntentDescription("Check your current Microsoft 365 presence, and optionally switch it.")
     static var openAppWhenRun = false
 
     @Dependency var inbox: Inbox
