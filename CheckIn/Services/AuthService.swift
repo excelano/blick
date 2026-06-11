@@ -264,7 +264,7 @@ enum AuthError: LocalizedError {
                 "Your organization's Microsoft 365 settings blocked the sign-in. " +
                 "This usually means an administrator needs to approve Blick before you can use it, " +
                 "and it's not a problem with the app or your account.\n\n" +
-                "For an email you can forward to your IT team, see [excelano.com/checkin](https://excelano.com/checkin/#admin-approval)."
+                "For an email you can forward to your IT team, see [excelano.com/blick](https://excelano.com/blick/#admin-approval)."
             if let code {
                 let label = code.hasPrefix("AADSTS") ? "Error code" : "Reference"
                 message += "\n\n\(label): \(code)"

@@ -25,7 +25,7 @@ I'd like to use a third-party iOS app called Blick for M365 to view my Microsoft
 
 Blick for M365 is a status panel app that reads my Outlook inbox, calendar, and Teams chats and shows them together. It also lets me RSVP to meetings, mark email read or unread, send replies, and update my presence. It runs entirely on my iPhone and connects to Microsoft 365 through Microsoft Graph using Microsoft's standard MSAL authentication.
 
-On privacy: Blick has no backend server, sends no data to its developer or any third party, and contains no analytics SDK or telemetry. The only network destinations it contacts are Microsoft Graph at graph.microsoft.com and Microsoft identity endpoints at login.microsoftonline.com. The full privacy policy is at https://excelano.com/legal/#checkin.
+On privacy: Blick has no backend server, sends no data to its developer or any third party, and contains no analytics SDK or telemetry. The only network destinations it contacts are Microsoft Graph at graph.microsoft.com and Microsoft identity endpoints at login.microsoftonline.com. The full privacy policy is at https://excelano.com/legal/#blick.
 
 The Microsoft Graph permissions Blick requests fall into four areas. For sign-in, it asks for User.Read (basic name and email). For mail, it asks for Mail.ReadWrite (read inbox, mark read or unread, flag) and Mail.Send (in-app replies). For calendar, it asks for Calendars.ReadWrite (meeting list and RSVP) and MailboxSettings.ReadWrite (Out of Office toggle). For Teams, it asks for Chat.ReadWrite (read and reply to chats) and Presence.ReadWrite (view and set presence).
 
