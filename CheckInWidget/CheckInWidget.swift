@@ -178,10 +178,10 @@ struct CheckInWidgetEntryView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         } else {
-            Text("CheckIn")
+            Text("Blick")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
-            Text("Open CheckIn to refresh.")
+            Text("Open Blick to refresh.")
                 .font(.subheadline)
                 .foregroundStyle(Brand.textMuted)
         }
@@ -328,7 +328,7 @@ struct CheckInWidget: Widget {
             CheckInWidgetEntryView(entry: entry)
                 .containerBackground(Brand.bg, for: .widget)
         }
-        .configurationDisplayName("CheckIn")
+        .configurationDisplayName("Blick")
         .description("Your next meeting and unread counts at a glance.")
         .supportedFamilies([.systemMedium])
     }

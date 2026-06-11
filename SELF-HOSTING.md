@@ -1,6 +1,6 @@
-# CheckIn: Self-Hosting Guide
+# Blick: Self-Hosting Guide
 
-CheckIn is built so you can run it independently of Excelano if you choose. Clone the source, change the redirect URI scheme and bundle ID to your own, sign with your own Apple Developer team, and install the build you produced yourself. This puts every piece of infrastructure in your own hands: your own bundle ID, your own redirect URI scheme, your own Apple Developer team, your own Azure App Registration. The trade-off is that you maintain it yourself, including future updates.
+Blick is built so you can run it independently of Excelano if you choose. Clone the source, change the redirect URI scheme and bundle ID to your own, sign with your own Apple Developer team, and install the build you produced yourself. This puts every piece of infrastructure in your own hands: your own bundle ID, your own redirect URI scheme, your own Apple Developer team, your own Azure App Registration. The trade-off is that you maintain it yourself, including future updates.
 
 You will need a Mac with Xcode 15 or later, an Apple Developer account (the free tier suffices for personal device installs lasting up to seven days; a paid tier is required for TestFlight and longer-lived signing), an Azure tenant where you can create an App Registration, and comfort with Xcode signing and command-line git.
 
@@ -27,11 +27,11 @@ You will need a Mac with Xcode 15 or later, an Apple Developer account (the free
 
 1. Sign in to the [Azure portal](https://portal.azure.com).
 2. Navigate to **Microsoft Entra ID** > **App registrations** > **New registration**.
-3. Name the registration whatever you like (for example, "CheckIn personal").
+3. Name the registration whatever you like (for example, "Blick personal").
 4. Under **Supported account types**, choose multi-tenant if you plan to sign in with multiple M365 accounts; otherwise single-tenant.
 5. Under **Redirect URI**, choose **Public client/native (mobile & desktop)** and enter your custom redirect URI (`msauth.<your-bundle-id>://auth`). Then add a **second** redirect URI for the widget extension: `msauth.<your-bundle-id>.CheckInWidget://auth`. The interactive widget's presence buttons run in the widget extension process, which authenticates under its own bundle ID, so Entra must have that redirect URI registered as well. If you omit it, the widget's buttons work right after sign-in but fail silently once the access token expires (roughly an hour later), because the token refresh carries the extension's redirect URI (see Common errors, AADSTS50011).
 6. Click **Register**.
-7. In the registration's sidebar, open **API permissions** > **Add a permission** > **Microsoft Graph** > **Delegated permissions**. The base set CheckIn requires is `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`, and `MailboxSettings.ReadWrite` (the last one drives the Out-of-Office toggle). For Teams chat and presence support also add `Chat.ReadWrite` and `Presence.ReadWrite`; the same `Presence.ReadWrite` permission drives the widget presence pills, the Control Center controls, and the Siri / Shortcuts intents.
+7. In the registration's sidebar, open **API permissions** > **Add a permission** > **Microsoft Graph** > **Delegated permissions**. The base set Blick requires is `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`, and `MailboxSettings.ReadWrite` (the last one drives the Out-of-Office toggle). For Teams chat and presence support also add `Chat.ReadWrite` and `Presence.ReadWrite`; the same `Presence.ReadWrite` permission drives the widget presence pills, the Control Center controls, and the Siri / Shortcuts intents.
 8. Click **Add permissions**. If your tenant requires admin consent for any permission (typically `Chat.ReadWrite` or `Presence.ReadWrite`), grant it via **Grant admin consent for [tenant]**, or have an administrator do so. Without consent, MSAL returns AADSTS65001 on sign-in for the affected scopes.
 9. Open **Authentication** in the registration's sidebar. Under **Advanced settings**, set **Allow public client flows** to **Yes**. Save.
 10. The **Application (client) ID** is shown on the registration's **Overview** page. Copy it into `Constants.swift` from step 2.
@@ -68,4 +68,4 @@ If Excelano changes the redirect URI scheme, the bundle ID, or the URL scheme st
 
 ## License
 
-CheckIn is MIT-licensed. You may fork, modify, redistribute, and publish your own version under the terms of the MIT license. You are responsible for any tradenames, trademarks, or branding under your control; the CheckIn name and any associated marks are not granted by the license and should be replaced in any publicly distributed fork.
+Blick is MIT-licensed. You may fork, modify, redistribute, and publish your own version under the terms of the MIT license. You are responsible for any tradenames, trademarks, or branding under your control; the Blick name and any associated marks are not granted by the license and should be replaced in any publicly distributed fork.

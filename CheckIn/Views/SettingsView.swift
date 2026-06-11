@@ -43,7 +43,7 @@ struct SettingsView: View {
                         .accessibilityLabel("Close settings")
                 }
             }
-            .confirmationDialog("Sign out of CheckIn?",
+            .confirmationDialog("Sign out of Blick?",
                                 isPresented: $showSignOutConfirm,
                                 titleVisibility: .visible) {
                 Button("Sign Out", role: .destructive) { signOut() }

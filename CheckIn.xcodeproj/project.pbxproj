@@ -693,7 +693,7 @@
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CheckInWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = CheckInWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -723,7 +723,7 @@
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CheckInWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = CheckInWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -753,7 +753,7 @@
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = CheckIn;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.excelano.checkin;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -785,7 +785,7 @@
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = CheckIn;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.excelano.checkin;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -817,7 +817,7 @@
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CheckInWatchWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatchWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -849,7 +849,7 @@
 				DEVELOPMENT_TEAM = 9K6W5PMFYP;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CheckInWatchWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = CheckInWatchWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

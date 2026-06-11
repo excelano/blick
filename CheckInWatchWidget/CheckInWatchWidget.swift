@@ -128,7 +128,7 @@ struct CheckInWatchCornerWidget: Widget {
                 .widgetURL(URL(string: "checkin://open"))
         }
         .supportedFamilies([.accessoryCorner])
-        .configurationDisplayName("CheckIn Countdown")
+        .configurationDisplayName("Blick Countdown")
         .description("Time until your next meeting.")
     }
 }
@@ -246,7 +246,7 @@ struct CheckInWatchRectangularWidget: Widget {
                 .widgetURL(URL(string: "checkin://open"))
         }
         .supportedFamilies([.accessoryRectangular])
-        .configurationDisplayName("CheckIn Status")
+        .configurationDisplayName("Blick Status")
         .description("Presence, next meeting, and counts at a glance.")
     }
 }
@@ -293,7 +293,7 @@ struct CheckInWatchCircularWidget: Widget {
                 .widgetURL(URL(string: "checkin://open"))
         }
         .supportedFamilies([.accessoryCircular])
-        .configurationDisplayName("CheckIn Unread")
+        .configurationDisplayName("Blick Unread")
         .description("Unread email count in a presence-colored ring.")
     }
 }
@@ -308,7 +308,7 @@ struct WatchInlineView: View {
     }
 
     private var text: String {
-        guard let snapshot = entry.snapshot else { return "CheckIn — waiting" }
+        guard let snapshot = entry.snapshot else { return "Blick — waiting" }
         if let start = snapshot.nextMeetingStart {
             return "Next meeting \(untilTime(start, referenceDate: entry.date))"
         }
@@ -328,7 +328,7 @@ struct CheckInWatchInlineWidget: Widget {
                 .widgetURL(URL(string: "checkin://open"))
         }
         .supportedFamilies([.accessoryInline])
-        .configurationDisplayName("CheckIn Line")
-        .description("A one-line CheckIn summary across the top of the face.")
+        .configurationDisplayName("Blick Line")
+        .description("A one-line Blick summary across the top of the face.")
     }
 }

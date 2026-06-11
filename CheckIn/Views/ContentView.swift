@@ -62,7 +62,7 @@ private struct SignInView: View {
 
             VStack(spacing: 24) {
                 Spacer()
-                Text("CheckIn")
+                Text("Blick")
                     .font(.system(.largeTitle, design: .monospaced).weight(.bold))
                     .foregroundStyle(.white)
                 Text("Sign in with your Microsoft 365 account to get started.")

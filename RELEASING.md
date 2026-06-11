@@ -1,6 +1,6 @@
-# Releasing CheckIn to the App Store
+# Releasing Blick to the App Store
 
-The verified end-to-end flow for cutting a CheckIn release: bump the version,
+The verified end-to-end flow for cutting a Blick release: bump the version,
 archive, upload, fill in App Store Connect, and submit. This is the store
 counterpart to the `run-checkin` skill, which covers dev installs on a device.
 The gotchas below were each paid for once during the 1.0 and 1.1 cycles; the
@@ -53,7 +53,7 @@ Release), and Submit for Review.
 
 Metadata that must be right on a feature release, learned from 1.1:
 
-- **App Privacy** stays "Data Not Collected." CheckIn adds no data egress between
+- **App Privacy** stays "Data Not Collected." Blick adds no data egress between
   releases; the only cross-device traffic is non-credential status over
   WatchConnectivity. Revisit this only if a release genuinely changes what leaves
   the device.
@@ -78,7 +78,7 @@ After the build is uploaded and submitted, tag the exact commit it was built fro
 annotated, matching the existing scheme `vMAJOR.MINOR.PATCH`:
 
 ```bash
-git tag -a v1.1.1 -m "CheckIn 1.1.1 — <one-line scope> (build 5, submitted to App Store <date>)" <commit>
+git tag -a v1.1.1 -m "Blick 1.1.1 — <one-line scope> (build 5, submitted to App Store <date>)" <commit>
 git push origin v1.1.1
 ```
 

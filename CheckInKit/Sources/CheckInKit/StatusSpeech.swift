@@ -83,19 +83,82 @@ public enum StatusSpeech {
                 : "Out of office is on, and you're showing as \(presence.displayName)."
         }
         return presence == .unknown
-            ? "Your status isn't set — Microsoft 365 is showing it automatically."
+            ? "Your presence isn't set — Microsoft 365 is showing it automatically."
             : "You're showing as \(presence.displayName)."
     }
 
     /// Confirmation spoken after setting a presence (or resetting to auto).
     public static func setPresenceConfirmation(_ presence: Presence) -> String {
         presence == .unknown
-            ? "Your CheckIn status is back to automatic."
-            : "Your CheckIn status is now \(presence.displayName)."
+            ? "Your Blick presence is back to automatic."
+            : "Your Blick presence is now \(presence.displayName)."
     }
 
     /// Confirmation spoken after toggling Out of Office.
     public static func outOfOfficeConfirmation(_ on: Bool) -> String {
         on ? "Out of Office is now on." : "Out of Office is now off."
+    }
+
+    /// Level 2 of the work-day breakdown: who the unread messages are from.
+    /// Groups by distinct sender in arrival order, e.g. "Your 5 chats are from
+    /// Bob, Stan, and Sarah. Your 3 emails are from Microsoft and John." A true
+    /// `emailsCapped` means more unread emails exist than were sampled, so the
+    /// named senders close with "and others".
+    public static func unreadSenders(chatSenders: [String], chatCount: Int,
+                                     emailSenders: [String], emailCount: Int,
+                                     emailsCapped: Bool) -> String {
+        var clauses: [String] = []
+        if chatCount > 0 {
+            clauses.append(senderClause(count: chatCount, noun: "chat",
+                                        senders: chatSenders, capped: false))
+        }
+        if emailCount > 0 {
+            clauses.append(senderClause(count: emailCount, noun: "email",
+                                        senders: emailSenders, capped: emailsCapped))
+        }
+        return clauses.isEmpty ? "You have no unread messages." : clauses.joined(separator: " ")
+    }
+
+    /// Level 3: each remaining meeting by name and time, e.g. "Standup at
+    /// 9:00 AM, Design review at 11:00 AM, and your 1:1 at 3:00 PM." Times use
+    /// the same format as `nextMeeting` so the surfaces never disagree.
+    public static func meetingList(_ meetings: [(subject: String, start: Date)]) -> String {
+        guard !meetings.isEmpty else { return "You have no more meetings today." }
+        let items = meetings.map {
+            "\($0.subject) at \($0.start.formatted(date: .omitted, time: .shortened))"
+        }
+        return englishList(items) + "."
+    }
+
+    // MARK: - Private list helpers
+
+    private static func senderClause(count: Int, noun: String,
+                                     senders: [String], capped: Bool) -> String {
+        var names = orderedDistinct(senders)
+        if capped { names.append("others") }
+        let plural = count == 1 ? noun : "\(noun)s"
+        let verb = count == 1 ? "is" : "are"
+        let who = names.isEmpty ? "someone" : englishList(names)
+        return "Your \(count) \(plural) \(verb) from \(who)."
+    }
+
+    /// Distinct, first-seen order preserved, blanks dropped.
+    private static func orderedDistinct(_ items: [String]) -> [String] {
+        var seen = Set<String>()
+        return items.compactMap { item in
+            let trimmed = item.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { return nil }
+            return trimmed
+        }
+    }
+
+    /// "A" / "A and B" / "A, B, and C" (Oxford comma).
+    private static func englishList(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default: return "\(items.dropLast().joined(separator: ", ")), and \(items.last!)"
+        }
     }
 }

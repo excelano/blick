@@ -20,7 +20,7 @@ enum StatusAppEnum: String, AppEnum {
     case resetToAuto
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
-        "Status"
+        "Presence"
     }
 
     // Casing mirrors `Presence.displayName` (and the watch's

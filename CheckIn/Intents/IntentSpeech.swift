@@ -41,4 +41,16 @@ enum IntentSpeech {
     static func currentPresence(_ presence: Presence, isOutOfOffice: Bool) -> String {
         StatusSpeech.currentPresence(presence, isOutOfOffice: isOutOfOffice)
     }
+
+    static func unreadSenders(chatSenders: [String], chatCount: Int,
+                              emailSenders: [String], emailCount: Int,
+                              emailsCapped: Bool) -> String {
+        StatusSpeech.unreadSenders(chatSenders: chatSenders, chatCount: chatCount,
+                                   emailSenders: emailSenders, emailCount: emailCount,
+                                   emailsCapped: emailsCapped)
+    }
+
+    static func meetingList(_ meetings: [Meeting]) -> String {
+        StatusSpeech.meetingList(meetings.map { (subject: $0.subject, start: $0.start) })
+    }
 }

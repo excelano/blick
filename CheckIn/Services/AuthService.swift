@@ -258,11 +258,11 @@ enum AuthError: LocalizedError {
         case .notAuthenticated:
             return "No signed-in account. Please sign in first."
         case .signInRequired:
-            return "Open CheckIn and sign in to use this shortcut."
+            return "Open Blick and sign in to use this shortcut."
         case .adminConsentRequired(let code):
             var message =
                 "Your organization's Microsoft 365 settings blocked the sign-in. " +
-                "This usually means an administrator needs to approve CheckIn before you can use it, " +
+                "This usually means an administrator needs to approve Blick before you can use it, " +
                 "and it's not a problem with the app or your account.\n\n" +
                 "For an email you can forward to your IT team, see [excelano.com/checkin](https://excelano.com/checkin/#admin-approval)."
             if let code {

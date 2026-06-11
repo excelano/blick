@@ -1,4 +1,4 @@
-# CheckIn: Features
+# Blick: Features
 
 What a user can do, mapped to the entry point in the UI.
 
@@ -66,7 +66,7 @@ What a user can do, mapped to the entry point in the UI.
 
 | Function | Triggered by |
 |---|---|
-| See chats with unread activity in the last 24 hours | Chats section, above emails. "Unread" uses Graph's per-user `viewpoint.lastMessageReadDateTime`: a chat is unread when the last message's `createdDateTime` is newer than the user's last-read timestamp. Reading the chat in any Teams client drops it from CheckIn automatically; new messages in a previously-replied chat re-surface. |
+| See chats with unread activity in the last 24 hours | Chats section, above emails. "Unread" uses Graph's per-user `viewpoint.lastMessageReadDateTime`: a chat is unread when the last message's `createdDateTime` is newer than the user's last-read timestamp. Reading the chat in any Teams client drops it from Blick automatically; new messages in a previously-replied chat re-surface. |
 | See the sender plus other thread participants | "with A, B, C" line below the sender name; wraps to 2 lines, collapses to "with A, B +N" for big groups |
 | Preview a chat with recent history | Tap a chat row. Opens a sheet showing the conversation back to the last message you sent (your message anchors the top, their replies below it, newest nearest the composer), so you can catch up and reply in context. Seeds with the last message instantly and loads the earlier run in above it; a failed fetch degrades to just the last message. Capped at 20 messages. Auto-marks the chat as read on open (advances `viewpoint.lastMessageReadDateTime` via `markChatReadForUser`). |
 | Jump to the full chat history in Teams | When the run back to your last reply is longer than the 20-message cap, an "Earlier messages are in Teams" link at the top of the preview opens the exact chat in Teams (via `chat.webUrl`). |
@@ -81,7 +81,7 @@ What a user can do, mapped to the entry point in the UI.
 
 | Function | Triggered by |
 |---|---|
-| Set Teams presence (Available, Busy, Do not disturb, Be right back, Away, Offline) | Top of the Chats section → presence menu. Calls Graph's `setUserPreferredPresence` (1-day expiration) plus a private session via `setPresence` (PT1H, refreshed on every CheckIn refresh) so the preferred state holds even when no other Microsoft client is running. Offline instead tears the session down so you actually show Offline, and CheckIn keeps quiet (pauses the refresh heartbeat) until you pick another state. Every set reads the result back from Microsoft and shows that, so the menu reflects your real status and won't claim a change worked if Microsoft didn't apply it. |
+| Set Teams presence (Available, Busy, Do not disturb, Be right back, Away, Offline) | Top of the Chats section → presence menu. Calls Graph's `setUserPreferredPresence` (1-day expiration) plus a private session via `setPresence` (PT1H, refreshed on every Blick refresh) so the preferred state holds even when no other Microsoft client is running. Offline instead tears the session down so you actually show Offline, and Blick keeps quiet (pauses the refresh heartbeat) until you pick another state. Every set reads the result back from Microsoft and shows that, so the menu reflects your real status and won't claim a change worked if Microsoft didn't apply it. |
 | Set Out of Office | Same presence menu → "Out of office" (peer of the regular presences). Enables Microsoft 365 auto-replies with a default message; preserves any existing internal/external auto-reply text. The presence menu shows a distinct purple OOO icon when active. |
 | Reset Teams presence to auto | Same presence menu → "Reset to auto". Clears the preferred-presence override, clears OOO if set, re-fetches the current auto-detected state. |
 | Set / edit a custom Teams status message | Chats section header → "Set message…" (when no message is set) or the existing message text (when one is set) → opens a sheet with a multi-line TextField. Calls `setStatusMessage` on Graph. |
@@ -99,7 +99,7 @@ What a user can do, mapped to the entry point in the UI.
 
 | Function | Triggered by |
 |---|---|
-| Glance at next meeting + unread counts from the home screen | Add the CheckIn widget (medium size). Three-row meeting layout (calendar + time range / subject / countdown + organizer), unread email count, pending chat count. Refreshed by the main app on every refresh via `WidgetCenter`. Pre-generated timeline entries at each upcoming meeting start so back-to-back transitions don't require an app refresh. |
+| Glance at next meeting + unread counts from the home screen | Add the Blick widget (medium size). Three-row meeting layout (calendar + time range / subject / countdown + organizer), unread email count, pending chat count. Refreshed by the main app on every refresh via `WidgetCenter`. Pre-generated timeline entries at each upcoming meeting start so back-to-back transitions don't require an app refresh. |
 | Join the next meeting directly from the widget | Tap the "Join meeting" pill on the widget (visible within five minutes of the meeting's start when a join URL exists). Rewrites to `msteams:/` so iOS routes to Teams. |
 | Set Teams presence from the widget | Tap any of the six presence pills on the medium widget (Available, Busy, Do not disturb, Be right back, Away, Offline). Runs in the widget extension via a shared `StatusActions`; uses the device's cached MSAL token to PATCH Graph; reloads the widget and Control Center controls when it returns. Optimistic UI; falls back to opening the app if silent token refresh fails. |
 | Toggle Out of Office from the widget | Tap the OOO pill on the medium widget. Same execution path as the presence pills; flips Outlook auto-replies and clears any presence override. |
@@ -116,30 +116,30 @@ What a user can do, mapped to the entry point in the UI.
 
 | Function | Triggered by |
 |---|---|
-| Set presence by voice or Shortcut | "Set my presence to Busy in the CheckIn app" (Siri) or `SetPresenceIntent` in Shortcuts; phrases accept both "presence" and "status" wordings. Same six presences as the widget plus "Reset to auto". |
-| Toggle Out of Office by voice or Shortcut | "Turn on my Out of Office in the CheckIn app" / "Turn off my Out of Office in the CheckIn app" (separate on and off phrases), or `SetOutOfOfficeIntent` in Shortcuts. |
-| Hear your current presence by voice or Shortcut | "What's my presence in the CheckIn app" routes through `CurrentPresenceIntent`. Out of Office dominates the answer when active, and an unset presence is reported as Microsoft 365 showing it automatically. Returns a value plus a spoken phrase. |
-| Hear your next meeting by voice or Shortcut | "What's my next meeting in the CheckIn app" routes through `NextMeetingIntent`. Speaks the subject and start time, or that nothing's coming up. |
-| Read unread email, chat, or combined message count by voice or Shortcut | "How many unread emails in the CheckIn app" (also chats, and a combined "unread messages") routes through `CheckInCountIntent`. Returns an integer plus a spoken phrase. |
-| Hear how many meetings remain today by voice or Shortcut | "How many more meetings today in the CheckIn app" routes through `CheckInCountIntent`. Counts the current-or-next meeting plus the rest of today. |
-| Hear a work-day overview by voice or Shortcut | "What's my work day like in the CheckIn app" (also "What's on my plate", "Give me an overview", "Catch me up", and similar) routes through `WorkdaySummaryIntent`, which answers the next meeting immediately followed by the unread-message count in a single reply. |
+| Set presence by voice or Shortcut | "Set my presence to Busy in Blick" (Siri) or `SetPresenceIntent` in Shortcuts; phrases accept both "presence" and "status" wordings. Same six presences as the widget plus "Reset to auto". |
+| Toggle Out of Office by voice or Shortcut | "Turn on my Out of Office in Blick" / "Turn off my Out of Office in Blick" (separate on and off phrases), or `SetOutOfOfficeIntent` in Shortcuts. |
+| Hear your current presence by voice or Shortcut | "What's my presence in Blick" routes through `CurrentPresenceIntent`. Out of Office dominates the answer when active, and an unset presence is reported as Microsoft 365 showing it automatically. Returns a value plus a spoken phrase. |
+| Hear your next meeting by voice or Shortcut | "What's my next meeting in Blick" routes through `NextMeetingIntent`. Speaks the subject and start time, or that nothing's coming up. |
+| Read unread email, chat, or combined message count by voice or Shortcut | "How many unread emails in Blick" (also chats, and a combined "unread messages") routes through `CheckInCountIntent`. Returns an integer plus a spoken phrase. |
+| Hear how many meetings remain today by voice or Shortcut | "How many more meetings today in Blick" routes through `CheckInCountIntent`. Counts the current-or-next meeting plus the rest of today. |
+| Hear a work-day overview by voice or Shortcut | "What's my Blick" (also "Show me my Blick", "What's today's Blick", "What's my work day like in Blick", and similar) routes through `WorkdaySummaryIntent`, which answers the next meeting immediately followed by the unread-message count in a single reply. |
 | Read unread from a sender by Shortcut | `UnreadFromSenderIntent` in Shortcuts. Returns the count of unread messages from the matched sender. Available as a Shortcuts action only — it has no built-in Siri phrase, since the spoken-phrase list is at the framework's per-app ceiling. |
 
-App-name token always comes last in the phrasing ("in the CheckIn app") so Siri doesn't collide with the system's "Check In" Messages feature.
+Because the app name "Blick" is a real noun, the `\(.applicationName)` token Apple requires in every phrase reads as natural language: it is the sentence's object in the overview ("What's my Blick") and trails the specific queries as "in Blick". This replaced the defensive phrasing the prior name "CheckIn" needed to avoid colliding with Apple's Messages "Check In" feature and Wallet's boarding-pass check-in.
 
 ## iPad layout
 
 | Function | Triggered by |
 |---|---|
-| Use CheckIn natively on iPad | Launch on iPad. The app declares `TARGETED_DEVICE_FAMILY = "1,2"` and `SummaryView` branches on `horizontalSizeClass`: compact width (iPhone, slide-over, narrow split) keeps the existing single-column list; regular width (full-screen iPad and most split configurations) uses a `NavigationSplitView` with the section list as the sidebar and the selected email, chat, or meeting as a persistent detail pane. |
+| Use Blick natively on iPad | Launch on iPad. The app declares `TARGETED_DEVICE_FAMILY = "1,2"` and `SummaryView` branches on `horizontalSizeClass`: compact width (iPhone, slide-over, narrow split) keeps the existing single-column list; regular width (full-screen iPad and most split configurations) uses a `NavigationSplitView` with the section list as the sidebar and the selected email, chat, or meeting as a persistent detail pane. |
 | Preview an email, chat, or meeting in the detail pane | Tap a row on iPad. The same content the iPhone shows in a sheet (`MessagePreviewSheet`, `MeetingCard`, `ConflictResolutionSheet`) renders in the right pane instead. Selection survives orientation changes. |
 
 ## Apple Watch companion
 
 | Function | Triggered by |
 |---|---|
-| See your CheckIn status from the wrist | Open the CheckIn watch app. Glance shows the presence pill (OOO dominates when active), next meeting (calendar + time range / subject / countdown — same three-row pattern as the phone), the "Later today" list, and pinned email + chat count chips at the bottom. The phone pushes the snapshot to the watch over WatchConnectivity; the watch holds no token and makes no Graph call. |
-| Add CheckIn to a watch face or the Smart Stack | Four widget families share the same pushed snapshot. Corner complication shows a presence-colored circle with a cutout glyph and a curved countdown to the next meeting. Smart Stack rectangular tile shows the three-row meeting pattern with the count chips alongside. Circular complication shows a presence-tinted ring with the unread email count centered. Inline complication shows "Status sync in 12m" or "Inbox: 7 unread" depending on what's next. |
+| See your Blick status from the wrist | Open the Blick watch app. Glance shows the presence pill (OOO dominates when active), next meeting (calendar + time range / subject / countdown — same three-row pattern as the phone), the "Later today" list, and pinned email + chat count chips at the bottom. The phone pushes the snapshot to the watch over WatchConnectivity; the watch holds no token and makes no Graph call. |
+| Add Blick to a watch face or the Smart Stack | Four widget families share the same pushed snapshot. Corner complication shows a presence-colored circle with a cutout glyph and a curved countdown to the next meeting. Smart Stack rectangular tile shows the three-row meeting pattern with the count chips alongside. Circular complication shows a presence-tinted ring with the unread email count centered. Inline complication shows "Status sync in 12m" or "Inbox: 7 unread" depending on what's next. |
 | Set Teams presence from the watch | Glance → presence menu. Same six presences plus OOO and Reset to auto. Tap relays the action to the phone via `WCSession.sendMessage` (live, when the phone is reachable) with `transferUserInfo` fallback. The phone executes the Graph PATCH and pushes a fresh snapshot back. |
 | Trigger a refresh from the watch | Glance → refresh button (gray circle in the pinned counts row). Asks the phone to refresh and pushes the updated snapshot back. Auto-refreshes when the glance opens if the snapshot is over 60 seconds old. Surfaces "Phone unreachable" inline when WatchConnectivity can't deliver the request. |
 | Use Siri or Shortcuts from the wrist | The watch app carries the same App Intents as the phone (set presence, toggle Out of Office, current presence, next meeting, the unread counts, remaining meetings, and the work-day overview), with the same phrases. Read intents answer locally from the last pushed snapshot, so they work without a live phone connection; write intents (set presence, toggle Out of Office) queue to the phone over WatchConnectivity and the phone runs the Graph call. The watch still holds no token and makes no Graph call. |

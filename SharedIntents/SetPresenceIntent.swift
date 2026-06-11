@@ -26,7 +26,7 @@ import CheckInKit
 struct SetPresenceIntent: AppIntent {
     static var title: LocalizedStringResource = "Set Presence"
     static var description = IntentDescription(
-        "Set your Microsoft 365 status, or reset it to automatic."
+        "Set your Microsoft 365 presence, or reset it to automatic."
     )
     static var openAppWhenRun = false
 

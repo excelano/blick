@@ -199,7 +199,7 @@ struct SummaryView: View {
 
     private var topBar: some View {
         ZStack {
-            Text("CheckIn")
+            Text("Blick")
                 .font(.system(.headline, design: .monospaced))
                 .foregroundStyle(.white)
 

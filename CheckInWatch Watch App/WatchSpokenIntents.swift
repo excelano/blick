@@ -66,14 +66,14 @@ private func fromSnapshot(
     _ build: (CheckInSnapshot) -> String
 ) -> IntentDialog {
     guard let snapshot = receiver.snapshot else {
-        return "Open CheckIn on your watch to sync with your iPhone first."
+        return "Open Blick on your watch to sync with your iPhone first."
     }
     return "\(build(snapshot))"
 }
 
 struct WatchSetPresenceIntent: AppIntent {
     static var title: LocalizedStringResource = "Set Presence"
-    static var description = IntentDescription("Set your Microsoft 365 status, or reset it to automatic.")
+    static var description = IntentDescription("Set your Microsoft 365 presence, or reset it to automatic.")
     static var openAppWhenRun = false
 
     @Parameter(title: "Presence")
@@ -97,7 +97,7 @@ struct WatchSetPresenceIntent: AppIntent {
 
 struct WatchCurrentPresenceIntent: AppIntent {
     static var title: LocalizedStringResource = "Current Presence"
-    static var description = IntentDescription("Check your current Microsoft 365 status.")
+    static var description = IntentDescription("Check your current Microsoft 365 presence.")
     static var openAppWhenRun = false
 
     @Dependency var receiver: WatchSessionReceiver
@@ -237,20 +237,27 @@ struct WatchWorkdaySummaryIntent: AppIntent {
 }
 
 /// Surfaces the watch's intents to Siri with the same spoken phrases as the
-/// phone, so "in the CheckIn app" works identically on either device. Every
-/// phrase carries the `\(.applicationName)` token the framework requires,
-/// last, as "in the \(.applicationName) app".
+/// phone, so they work identically on either device. Every phrase carries the
+/// `\(.applicationName)` token the framework requires; since the app name
+/// ("Blick") is a real noun it reads naturally — "What's my \(.applicationName)"
+/// for the overview, and "in \(.applicationName)" trailing the specific queries.
 struct CheckInWatchShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: WatchSetPresenceIntent(),
             phrases: [
-                "Set my presence to \(\.$presence) in the \(.applicationName) app",
-                "Change my presence to \(\.$presence) in the \(.applicationName) app",
-                "Mark me as \(\.$presence) in the \(.applicationName) app",
-                "Set my status to \(\.$presence) in the \(.applicationName) app",
-                "Set my status in the \(.applicationName) app",
-                "Change my status in the \(.applicationName) app",
+                "Set my presence to \(\.$presence) in \(.applicationName)",
+                "Change my presence to \(\.$presence) in \(.applicationName)",
+                "Mark me as \(\.$presence) in \(.applicationName)",
+                "I'm \(\.$presence) in \(.applicationName)",
+                "I'm now \(\.$presence) in \(.applicationName)",
+                "I'll \(\.$presence) in \(.applicationName)",
+                "Go \(\.$presence) in \(.applicationName)",
+                "Set my status to \(\.$presence) in \(.applicationName)",
+                "Set my status in \(.applicationName)",
+                "Change my status in \(.applicationName)",
+                "\(\.$presence) in \(.applicationName)",
+                "\(\.$presence) me in \(.applicationName)",
             ],
             shortTitle: "Set Presence",
             systemImageName: "person.crop.circle"
@@ -258,10 +265,10 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchCurrentPresenceIntent(),
             phrases: [
-                "What's my presence in the \(.applicationName) app",
-                "What's my status in the \(.applicationName) app",
-                "What's my current status in the \(.applicationName) app",
-                "What am I set to in the \(.applicationName) app",
+                "What's my presence in \(.applicationName)",
+                "What's my status in \(.applicationName)",
+                "What's my current status in \(.applicationName)",
+                "What am I set to in \(.applicationName)",
             ],
             shortTitle: "My Presence",
             systemImageName: "person.crop.circle.fill"
@@ -269,10 +276,10 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchNextMeetingIntent(),
             phrases: [
-                "What's my next meeting in the \(.applicationName) app",
-                "When's my next meeting in the \(.applicationName) app",
-                "What's coming up next in the \(.applicationName) app",
-                "What's my next call in the \(.applicationName) app",
+                "What's my next meeting in \(.applicationName)",
+                "When's my next meeting in \(.applicationName)",
+                "What's coming up next in \(.applicationName)",
+                "What's my next call in \(.applicationName)",
             ],
             shortTitle: "Next Meeting",
             systemImageName: "calendar"
@@ -280,10 +287,10 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchSetOutOfOfficeOnIntent(),
             phrases: [
-                "Turn on my Out of Office in the \(.applicationName) app",
-                "Set my Out of Office on in the \(.applicationName) app",
-                "Enable my Out of Office in the \(.applicationName) app",
-                "Set me to out of office in the \(.applicationName) app",
+                "Turn on my Out of Office in \(.applicationName)",
+                "Set my Out of Office on in \(.applicationName)",
+                "Enable my Out of Office in \(.applicationName)",
+                "Set me to out of office in \(.applicationName)",
             ],
             shortTitle: "Turn On Out of Office",
             systemImageName: "envelope.badge"
@@ -291,10 +298,10 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchSetOutOfOfficeOffIntent(),
             phrases: [
-                "Turn off my Out of Office in the \(.applicationName) app",
-                "Set my Out of Office off in the \(.applicationName) app",
-                "Disable my Out of Office in the \(.applicationName) app",
-                "Clear my Out of Office in the \(.applicationName) app",
+                "Turn off my Out of Office in \(.applicationName)",
+                "Set my Out of Office off in \(.applicationName)",
+                "Disable my Out of Office in \(.applicationName)",
+                "Clear my Out of Office in \(.applicationName)",
             ],
             shortTitle: "Turn Off Out of Office",
             systemImageName: "envelope.open"
@@ -302,10 +309,10 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchUnreadEmailsIntent(),
             phrases: [
-                "How many unread emails do I have in the \(.applicationName) app",
-                "How many unread emails in the \(.applicationName) app",
-                "Do I have any unread emails in the \(.applicationName) app",
-                "Any unread emails in the \(.applicationName) app",
+                "How many unread emails do I have in \(.applicationName)",
+                "How many unread emails in \(.applicationName)",
+                "Do I have any unread emails in \(.applicationName)",
+                "Any unread emails in \(.applicationName)",
             ],
             shortTitle: "Unread Emails",
             systemImageName: "envelope.badge"
@@ -313,9 +320,9 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchUnreadChatsIntent(),
             phrases: [
-                "How many unread chats do I have in the \(.applicationName) app",
-                "How many unread chats in the \(.applicationName) app",
-                "Do I have any unread chats in the \(.applicationName) app",
+                "How many unread chats do I have in \(.applicationName)",
+                "How many unread chats in \(.applicationName)",
+                "Do I have any unread chats in \(.applicationName)",
             ],
             shortTitle: "Unread Chats",
             systemImageName: "message.badge"
@@ -323,10 +330,10 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchRemainingMeetingsIntent(),
             phrases: [
-                "How many more meetings today in the \(.applicationName) app",
-                "How many meetings do I have left in the \(.applicationName) app",
-                "How many meetings are left today in the \(.applicationName) app",
-                "Do I have more meetings today in the \(.applicationName) app",
+                "How many more meetings today in \(.applicationName)",
+                "How many meetings do I have left in \(.applicationName)",
+                "How many meetings are left today in \(.applicationName)",
+                "Do I have more meetings today in \(.applicationName)",
             ],
             shortTitle: "Remaining Meetings",
             systemImageName: "calendar"
@@ -334,10 +341,10 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchUnreadMessagesIntent(),
             phrases: [
-                "How many unread messages do I have in the \(.applicationName) app",
-                "How many unread messages in the \(.applicationName) app",
-                "Do I have any unread messages in the \(.applicationName) app",
-                "Am I caught up in the \(.applicationName) app",
+                "How many unread messages do I have in \(.applicationName)",
+                "How many unread messages in \(.applicationName)",
+                "Do I have any unread messages in \(.applicationName)",
+                "Am I caught up in \(.applicationName)",
             ],
             shortTitle: "Unread Messages",
             systemImageName: "tray.full"
@@ -345,13 +352,14 @@ struct CheckInWatchShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WatchWorkdaySummaryIntent(),
             phrases: [
-                "What's my work day like in the \(.applicationName) app",
-                "Tell me about my work day in the \(.applicationName) app",
-                "What's on my plate in the \(.applicationName) app",
-                "What's my overview in the \(.applicationName) app",
-                "Give me an overview in the \(.applicationName) app",
-                "How's my day looking in the \(.applicationName) app",
-                "Catch me up in the \(.applicationName) app",
+                "What's my \(.applicationName)",
+                "Show me my \(.applicationName)",
+                "What's today's \(.applicationName)",
+                "Give me my \(.applicationName)",
+                "What's my work day like in \(.applicationName)",
+                "What's on my plate in \(.applicationName)",
+                "Give me an overview in \(.applicationName)",
+                "Catch me up in \(.applicationName)",
             ],
             shortTitle: "Work Day",
             systemImageName: "list.bullet.clipboard"
