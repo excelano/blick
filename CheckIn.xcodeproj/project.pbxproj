@@ -17,6 +17,7 @@
 		6B88F4342FCA6C7300D002A5 /* CheckInWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6B88F4252FCA6C7100D002A5 /* CheckInWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		6BD126232FC9413A00B6B85F /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 6BD126222FC9413A00B6B85F /* MSAL */; };
 		7A0000000000000000000020 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000010 /* CheckInKit */; };
+		7A0000000000000000000026 /* Klartext in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000016 /* Klartext */; };
 		7A0000000000000000000021 /* CheckInGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000011 /* CheckInGraph */; };
 		7A0000000000000000000022 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000012 /* CheckInKit */; };
 		7A0000000000000000000023 /* CheckInGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000013 /* CheckInGraph */; };
@@ -175,6 +176,7 @@
 				194F4CCD2FAD3EA70019A39C /* MSAL in Frameworks */,
 				7A0000000000000000000020 /* CheckInKit in Frameworks */,
 				7A0000000000000000000021 /* CheckInGraph in Frameworks */,
+				7A0000000000000000000026 /* Klartext in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -277,6 +279,7 @@
 				7A0000000000000000000010 /* CheckInKit */,
 				7A0000000000000000000011 /* CheckInGraph */,
 				194F4CCC2FAD3EA70019A39C /* MSAL */,
+				7A0000000000000000000016 /* Klartext */,
 			);
 			productName = CheckIn;
 			productReference = 19C6DDC12FAD391B008DDDF0 /* CheckIn.app */;
@@ -393,6 +396,7 @@
 				7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */,
 				7A0000000000000000000002 /* XCLocalSwiftPackageReference "CheckInGraph" */,
 				194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
+				7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 19C6DDC22FAD391B008DDDF0 /* Products */;
@@ -941,6 +945,14 @@
 				minimumVersion = 2.11.0;
 			};
 		};
+		7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/excelano/klartext";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -983,6 +995,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "CheckInKit" */;
 			productName = CheckInKit;
+		};
+		7A0000000000000000000016 /* Klartext */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */;
+			productName = Klartext;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

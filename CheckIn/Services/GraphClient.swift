@@ -6,6 +6,7 @@
 import CheckInGraph
 import CheckInKit
 import Foundation
+import Klartext
 import os
 
 /// Bridges the app's `AuthService` to `GraphCore`'s token-provider seam.
@@ -301,7 +302,7 @@ final class GraphClient {
                 subject: e.subject,
                 from: e.from.emailAddress.name,
                 fromAddress: e.from.emailAddress.address ?? "",
-                preview: cleanEmailPreview(e.bodyPreview),
+                preview: Klartext.parse(plainText: e.bodyPreview).preview(),
                 received: parseISO8601(e.receivedDateTime) ?? Date(),
                 isFlagged: e.flag?.flagStatus == "flagged",
                 inferenceClassification: e.inferenceClassification,
@@ -608,7 +609,7 @@ final class GraphClient {
                 chatId: chat.id,
                 topic: chat.topic ?? "",
                 from: from.displayName,
-                preview: stripHTML(preview.body.content),
+                preview: Klartext.plainText(fromHTML: preview.body.content),
                 sent: sent,
                 otherParticipants: others,
                 webUrl: chat.webUrl
@@ -651,7 +652,7 @@ final class GraphClient {
                 id: msg.id,
                 from: user.displayName,
                 isFromMe: isMine,
-                body: stripHTML(msg.body.content),
+                body: Klartext.plainText(fromHTML: msg.body.content),
                 sent: sent
             ))
             // Include my own message as the top anchor, then stop — it marks

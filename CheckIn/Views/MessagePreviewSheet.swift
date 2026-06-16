@@ -4,6 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import CheckInKit
+import Klartext
 import SwiftUI
 #if DEBUG
 import os
@@ -625,7 +626,7 @@ struct MessagePreviewSheet: View {
             // place rather than re-added per-investigation because
             // wiring it from scratch under time pressure is annoying.
             // Also dumps email.preview (Graph's bodyPreview, post-
-            // cleanEmailPreview) so the summary-row and preview-sheet
+            // Klartext preview()) so the summary-row and preview-sheet
             // sources can be compared in one capture.
             let visibleRaw = raw
                 .replacingOccurrences(of: "\r\n", with: "[CRLF]")
@@ -638,7 +639,7 @@ struct MessagePreviewSheet: View {
             print("CHECKIN-DEBUG email.preview (len=\(email.preview.count)): \(visiblePreview)")
             print("CHECKIN-DEBUG email body raw (len=\(raw.count)): \(visibleRaw)")
             #endif
-            emailBody = cleanEmailPreview(raw)
+            emailBody = Klartext.parse(plainText: raw).preview()
         } catch {
             bodyFetchFailed = true
         }
