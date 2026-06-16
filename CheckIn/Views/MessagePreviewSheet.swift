@@ -53,8 +53,12 @@ struct MessagePreviewSheet: View {
     let onClose: () -> Void
 
     @State private var showingComposer = false
-    @State private var emailBody: String?
+    @State private var parsedBody: ParsedBody?
     @State private var bodyFetchFailed = false
+    /// Drives the "Show quoted text" disclosure. Collapsed by default so a
+    /// reply's new message stays the focus; the quoted history is one tap
+    /// away rather than silently dropped the way the old preview cut did.
+    @State private var quotedExpanded = false
     @State private var didAutoMarkRead = false
     @State private var recipientsExpanded = false
     /// Set when the user taps the orange conflict indicator on the
@@ -402,23 +406,8 @@ struct MessagePreviewSheet: View {
     private var bodyText: some View {
         switch target.kind {
         case .email:
-            if let body = emailBody {
-                if body.isEmpty {
-                    // For invites with empty bodies (the common case)
-                    // the meeting info row above is the actual content
-                    // — skip the placeholder so the sheet stays tight.
-                    if inviteData == nil {
-                        Text("(no message body)")
-                            .font(.body)
-                            .foregroundStyle(Brand.textMuted)
-                            .italic()
-                    }
-                } else {
-                    Text(body)
-                        .font(.body)
-                        .foregroundStyle(.white)
-                        .textSelection(.enabled)
-                }
+            if let parsed = parsedBody {
+                emailBodyContent(parsed)
             } else if bodyFetchFailed {
                 Text("Couldn't load the message body. Pull down to dismiss and try again.")
                     .font(.body)
@@ -431,6 +420,76 @@ struct MessagePreviewSheet: View {
             }
         case .chat(let chat):
             chatTranscript(for: chat)
+        }
+    }
+
+    /// Render an email body split at the quoted-history seam. The new
+    /// message (everything above the seam) shows in full; the quoted
+    /// history sits behind a disclosure. When the sender wrote nothing of
+    /// their own — a bare forward — the quoted content IS the message, so
+    /// it renders directly rather than hiding the only content behind a tap.
+    private func emailBodyContent(_ parsed: ParsedBody) -> some View {
+        let quoted = parsed.quoted?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasQuoted = !(quoted?.isEmpty ?? true)
+        return VStack(alignment: .leading, spacing: 12) {
+            if !parsed.visible.isEmpty {
+                bodyParagraph(parsed.visible)
+                if hasQuoted {
+                    quotedDisclosure(quoted!)
+                }
+            } else if hasQuoted {
+                bodyParagraph(quoted!)
+            } else if inviteData == nil {
+                // Invites with empty bodies use the meeting info row above
+                // as the content; only show the placeholder for genuinely
+                // empty mail.
+                Text("(no message body)")
+                    .font(.body)
+                    .foregroundStyle(Brand.textMuted)
+                    .italic()
+            }
+        }
+    }
+
+    /// A full-width selectable body paragraph in primary text. Shared by the
+    /// new message and the bare-forward case so both read identically.
+    private func bodyParagraph(_ text: String) -> some View {
+        Text(text)
+            .font(.body)
+            .foregroundStyle(.white)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Collapsible reveal for the quoted history below a reply's new text,
+    /// rendered muted to set it apart from the new message above.
+    private func quotedDisclosure(_ quoted: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    quotedExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: quotedExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                    Text(quotedExpanded ? "Hide quoted text" : "Show quoted text")
+                        .font(.caption)
+                }
+                .foregroundStyle(Brand.accent)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(quotedExpanded ? "Hide the quoted message history" : "Show the quoted message history")
+            if quotedExpanded {
+                Text(quoted)
+                    .font(.body)
+                    .foregroundStyle(Brand.textMuted)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -615,7 +674,7 @@ struct MessagePreviewSheet: View {
     }
 
     private func loadBodyIfNeeded() async {
-        guard case .email(let email) = target.kind, emailBody == nil else { return }
+        guard case .email(let email) = target.kind, parsedBody == nil else { return }
         do {
             let raw = try await inbox.fetchEmailBody(emailId: email.id)
             #if DEBUG
@@ -639,7 +698,10 @@ struct MessagePreviewSheet: View {
             print("CHECKIN-DEBUG email.preview (len=\(email.preview.count)): \(visiblePreview)")
             print("CHECKIN-DEBUG email body raw (len=\(raw.count)): \(visibleRaw)")
             #endif
-            emailBody = Klartext.parse(plainText: raw).preview()
+            // The sheet is a reader, not a glance: keep the signature with
+            // the new message (separateSignature off) and hold the full
+            // parse so the quoted history is available behind the disclosure.
+            parsedBody = Klartext.parse(plainText: raw, options: .init(separateSignature: false))
         } catch {
             bodyFetchFailed = true
         }
@@ -665,7 +727,7 @@ struct MessagePreviewSheet: View {
         case .email(let email):
             // Email body has to load before we mark read — otherwise a
             // fetch failure would silently mark unread emails as read.
-            guard emailBody != nil else { return }
+            guard parsedBody != nil else { return }
             didAutoMarkRead = true
             await inbox.markRead(emailId: email.id)
         case .chat(let chat):
