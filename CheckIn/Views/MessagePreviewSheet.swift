@@ -57,10 +57,6 @@ struct MessagePreviewSheet: View {
     /// hand-off. Feeds the native fold (via `parsed`) and the HTML web view.
     @State private var emailContent: EmailContent?
     @State private var bodyFetchFailed = false
-    /// Drives the "Show quoted text" disclosure. Collapsed by default so a
-    /// reply's new message stays the focus; the quoted history is one tap
-    /// away rather than silently dropped the way the old preview cut did.
-    @State private var quotedExpanded = false
     /// Switches the email body between the native text fold (default) and the
     /// faithful HTML render. Only meaningful when the body has HTML.
     @State private var showWebView = false
@@ -517,8 +513,8 @@ struct MessagePreviewSheet: View {
     private var bodyText: some View {
         switch target.kind {
         case .email:
-            if let parsed {
-                emailBodyContent(parsed)
+            if let content = emailContent {
+                emailBodyContent(content)
             } else if bodyFetchFailed {
                 Text("Couldn't load the message body. Pull down to dismiss and try again.")
                     .font(.body)
@@ -534,71 +530,36 @@ struct MessagePreviewSheet: View {
         }
     }
 
-    /// Render an email body split at the quoted-history seam. The new
-    /// message (everything above the seam) shows in full; the quoted
-    /// history sits behind a disclosure. When the sender wrote nothing of
-    /// their own — a bare forward — the quoted content IS the message, so
-    /// it renders directly rather than hiding the only content behind a tap.
-    private func emailBodyContent(_ parsed: ParsedBody) -> some View {
-        let quoted = parsed.quoted?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasQuoted = !(quoted?.isEmpty ?? true)
+    /// Render an email body through KlartextUI's `EmailTextView`: the new
+    /// message in full, the quoted history folded behind a disclosure, and a
+    /// bare forward (empty `visible`) shown directly. `separateSignature: false`
+    /// keeps the signature in the body — the sheet is a reader, not a glance.
+    /// The host styling flows through: `.white` for the new content, with
+    /// `Brand.textMuted` passed as the subdued color for the quoted history so
+    /// it matches the rest of the sheet rather than system gray.
+    ///
+    /// `EmailTextView` renders nothing for a genuinely empty body, so the
+    /// "(no message body)" placeholder stays here — suppressed for invites,
+    /// which use the meeting info row above as their content.
+    private func emailBodyContent(_ content: EmailContent) -> some View {
+        var options = Options()
+        options.separateSignature = false
+        let parsed = content.parsed(options: options)
+        let visible = parsed.visible.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quoted = parsed.quoted?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let isEmpty = visible.isEmpty && quoted.isEmpty
         return VStack(alignment: .leading, spacing: 12) {
-            if !parsed.visible.isEmpty {
-                bodyParagraph(parsed.visible)
-                if hasQuoted {
-                    quotedDisclosure(quoted!)
+            if isEmpty {
+                if inviteData == nil {
+                    Text("(no message body)")
+                        .font(.body)
+                        .foregroundStyle(Brand.textMuted)
+                        .italic()
                 }
-            } else if hasQuoted {
-                bodyParagraph(quoted!)
-            } else if inviteData == nil {
-                // Invites with empty bodies use the meeting info row above
-                // as the content; only show the placeholder for genuinely
-                // empty mail.
-                Text("(no message body)")
+            } else {
+                EmailTextView(content: content, options: options, subduedStyle: Brand.textMuted)
                     .font(.body)
-                    .foregroundStyle(Brand.textMuted)
-                    .italic()
-            }
-        }
-    }
-
-    /// A full-width selectable body paragraph in primary text. Shared by the
-    /// new message and the bare-forward case so both read identically.
-    private func bodyParagraph(_ text: String) -> some View {
-        Text(text)
-            .font(.body)
-            .foregroundStyle(.white)
-            .textSelection(.enabled)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Collapsible reveal for the quoted history below a reply's new text,
-    /// rendered muted to set it apart from the new message above.
-    private func quotedDisclosure(_ quoted: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    quotedExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: quotedExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                    Text(quotedExpanded ? "Hide quoted text" : "Show quoted text")
-                        .font(.caption)
-                }
-                .foregroundStyle(Brand.accent)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint(quotedExpanded ? "Hide the quoted message history" : "Show the quoted message history")
-            if quotedExpanded {
-                Text(quoted)
-                    .font(.body)
-                    .foregroundStyle(Brand.textMuted)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
