@@ -85,7 +85,6 @@ struct EmailResponse: Decodable {
     let startDateTime: DateTimeResponse?
     let endDateTime: DateTimeResponse?
     let internetMessageHeaders: [InternetMessageHeader]?
-    let hasAttachments: Bool?
 }
 
 struct InternetMessageHeader: Decodable {
@@ -112,11 +111,33 @@ struct EmailIdResponse: Decodable {
     let id: String
 }
 
-/// Used by `fetchEmailBody` to pull just the body text. Combined with
-/// the `Prefer: outlook.body-content-type="text"` request header so
-/// Graph returns plain text instead of HTML.
+/// Used by `fetchEmailContent` to pull just the message body. Combined with
+/// the `Prefer: outlook.body-content-type="html"` request header so Graph
+/// returns the sender's HTML in `body.content` for the rich render. The
+/// attachment metadata is a separate, best-effort call so a failure there
+/// never blanks the body.
 struct EmailBodyResponse: Decodable {
     let body: BodyContentResponse
+}
+
+/// One attachment's metadata as Graph reports it. `contentType`,
+/// `contentId`, and `name` are absent on some attachment kinds
+/// (itemAttachment, referenceAttachment), so all are optional. `isInline`
+/// is Graph's own claim; Klartext re-decides truly-inline via the cid join
+/// against the body HTML.
+struct AttachmentMetaResponse: Decodable {
+    let id: String
+    let name: String?
+    let contentType: String?
+    let size: Int?
+    let isInline: Bool?
+    let contentId: String?
+}
+
+/// The base64 bytes of a single attachment, fetched on demand for inline
+/// images so the HTML web view can paint `cid:` resources on device.
+struct AttachmentBytesResponse: Decodable {
+    let contentBytes: String?
 }
 
 /// POST body for `/me/messages/{id}/replyAll` — Graph wraps the user's

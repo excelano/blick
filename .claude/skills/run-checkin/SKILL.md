@@ -102,7 +102,8 @@ use without modifying code:
 
 | Location | What it prints |
 |---|---|
-| `CheckIn/Views/MessagePreviewSheet.swift` → `loadBodyIfNeeded()` | Raw email body bytes with line breaks tokenized as `[CRLF]`, `[LF]`, `[CR]` |
+| `CheckIn/Views/MessagePreviewSheet.swift` → `loadBodyIfNeeded()` | Email body HTML length, `cid:` image-reference count, and per-part inline/Content-ID/byte-count — for the "renders as text not HTML" and "inline image didn't paint" classes of bug |
+| `CheckIn/Services/GraphClient.swift` → `fetchEmailContent(id:)` | Logs a non-fatal `fetchAttachmentParts failed` with the Graph error body when the best-effort attachment call throws |
 
 Add more here as they get added. Removing them is cheap; re-adding
 under deadline pressure is not.

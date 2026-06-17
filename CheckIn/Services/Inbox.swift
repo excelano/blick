@@ -6,6 +6,7 @@
 import CheckInGraph
 import CheckInKit
 import Foundation
+import KlartextUI
 import UserNotifications
 import os
 
@@ -874,15 +875,16 @@ final class Inbox {
         }
     }
 
-    /// Used by the preview sheet to render the full email body.
-    /// Returns plain text — Graph delivers it that way because of the
-    /// `Prefer: outlook.body-content-type="text"` header in the client.
-    func fetchEmailBody(emailId: String) async throws -> String {
-        try await graphClient.fetchEmailBody(id: emailId)
+    /// Used by the preview sheet to render the full email body. Returns a
+    /// KlartextUI `EmailContent` (HTML body + attachment metadata, with inline
+    /// image bytes hydrated) that drives both the native fold and the rich
+    /// HTML web view.
+    func fetchEmailContent(emailId: String) async throws -> EmailContent {
+        try await graphClient.fetchEmailContent(id: emailId)
     }
 
     /// Used by the preview sheet to render a chat's recent transcript back
-    /// to the user's last reply. Mirrors `fetchEmailBody`: a thin
+    /// to the user's last reply. Mirrors `fetchEmailContent`: a thin
     /// pass-through fetched lazily when the sheet opens.
     func fetchChatThread(chatId: String) async throws -> ChatThread {
         try await graphClient.fetchChatThread(chatId: chatId)

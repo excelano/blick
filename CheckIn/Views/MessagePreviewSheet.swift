@@ -4,7 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import CheckInKit
-import Klartext
+import KlartextUI
 import SwiftUI
 #if DEBUG
 import os
@@ -53,12 +53,22 @@ struct MessagePreviewSheet: View {
     let onClose: () -> Void
 
     @State private var showingComposer = false
-    @State private var parsedBody: ParsedBody?
+    /// The fetched email body (HTML) plus attachment metadata, as a KlartextUI
+    /// hand-off. Feeds the native fold (via `parsed`) and the HTML web view.
+    @State private var emailContent: EmailContent?
     @State private var bodyFetchFailed = false
     /// Drives the "Show quoted text" disclosure. Collapsed by default so a
     /// reply's new message stays the focus; the quoted history is one tap
     /// away rather than silently dropped the way the old preview cut did.
     @State private var quotedExpanded = false
+    /// Switches the email body between the native text fold (default) and the
+    /// faithful HTML render. Only meaningful when the body has HTML.
+    @State private var showWebView = false
+    /// Per-message opt-in to load remote http(s) images in the HTML view. Off
+    /// by default: a remote image is a tracking pixel and a new external
+    /// destination until the reader chooses to load it. `cid:` inline images
+    /// (already on device) always render regardless of this gate.
+    @State private var loadRemoteImages = false
     @State private var didAutoMarkRead = false
     @State private var recipientsExpanded = false
     /// Set when the user taps the orange conflict indicator on the
@@ -107,6 +117,31 @@ struct MessagePreviewSheet: View {
         }
     }
 
+    /// The email body parsed into visible / quoted / attachments. Recomputed
+    /// from `emailContent`; the parse is pure and cheap. Nil until the body
+    /// loads. Signature stays in the body (the sheet is a reader, not a glance).
+    private var parsed: ParsedBody? {
+        emailContent?.parsed(options: .init(separateSignature: false))
+    }
+
+    /// True once we hold an email body that actually carries HTML — the gate
+    /// for offering the Web View toggle and for letting it render.
+    private var hasHTML: Bool {
+        guard case .email = target.kind else { return false }
+        return !(emailContent?.html?.isEmpty ?? true)
+    }
+
+    /// The faithful HTML render is on screen.
+    private var webViewActive: Bool { hasHTML && showWebView }
+
+    /// Stable identity for the web view, so SwiftUI rebuilds it (a fresh
+    /// configuration and cid handler, which can't be re-registered) when the
+    /// detail pane is reused for a different email on iPad.
+    private var emailIdentity: String {
+        if case .email(let email) = target.kind { return email.id }
+        return ""
+    }
+
     @ViewBuilder
     private var previewBody: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -117,23 +152,13 @@ struct MessagePreviewSheet: View {
                     .padding(.bottom, 12)
                 Divider().overlay(Brand.bgDarker)
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    // Invitation chrome (calendar icon + time) is driven
-                    // by the email — `isInvite` is the canonical source
-                    // of truth. The conflict-triangle row inside hides
-                    // itself when `matchingMeeting` is nil or has no
-                    // conflict.
-                    if let invite = inviteData {
-                        meetingInfoRow(start: invite.start, end: invite.end)
-                    }
-                    bodyText
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 4)
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if hasHTML {
+                bodyModeBar
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                Divider().overlay(Brand.bgDarker)
             }
+            bodyRegion
             Divider().overlay(Brand.bgDarker)
             if let meeting = matchingMeeting {
                 switch meeting.responseStatus {
@@ -159,6 +184,85 @@ struct MessagePreviewSheet: View {
             actionBar
                 .padding(.horizontal, 20)
                 .padding(.vertical, 14)
+        }
+    }
+
+    /// The scrollable body. In the default text mode (and for chats) this is a
+    /// SwiftUI `ScrollView`. In HTML mode the body is an `EmailHTMLView`, a web
+    /// view that scrolls its own content, so it fills the region directly
+    /// rather than nesting inside an outer scroll view. The meeting info row
+    /// stays pinned above either way.
+    @ViewBuilder
+    private var bodyRegion: some View {
+        if webViewActive, let content = emailContent {
+            VStack(alignment: .leading, spacing: 12) {
+                if let invite = inviteData {
+                    meetingInfoRow(start: invite.start, end: invite.end)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                }
+                EmailHTMLView(content: content, allowRemoteContent: loadRemoteImages)
+                    .id(emailIdentity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Invitation chrome (calendar icon + time) is driven
+                    // by the email — `isInvite` is the canonical source
+                    // of truth. The conflict-triangle row inside hides
+                    // itself when `matchingMeeting` is nil or has no
+                    // conflict.
+                    if let invite = inviteData {
+                        meetingInfoRow(start: invite.start, end: invite.end)
+                    }
+                    bodyText
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// The pinned control strip shown only when the body carries HTML: a
+    /// toggle between the native text fold and the faithful HTML render, plus
+    /// (in HTML mode, while remote content is still blocked) a one-tap
+    /// "Load images" opt-in for this message.
+    @ViewBuilder
+    private var bodyModeBar: some View {
+        HStack(spacing: 16) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { showWebView.toggle() }
+            } label: {
+                Label(showWebView ? "Text" : "Web View",
+                      systemImage: showWebView ? "textformat" : "globe")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Brand.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(showWebView ? "Show the message as plain text" : "Show the message as formatted HTML")
+
+            Spacer()
+
+            if webViewActive {
+                if loadRemoteImages {
+                    Label("Images loaded", systemImage: "photo")
+                        .font(.caption2)
+                        .foregroundStyle(Brand.textMuted)
+                } else {
+                    Button {
+                        loadRemoteImages = true
+                    } label: {
+                        Label("Load images", systemImage: "photo")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Brand.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Load remote images for this message")
+                }
+            }
         }
     }
 
@@ -262,7 +366,7 @@ struct MessagePreviewSheet: View {
                         .foregroundStyle(Brand.textMuted)
                 }
                 recipientRow(for: email)
-                attachmentIndicator(for: email)
+                attachmentIndicator
             }
         case .chat(let chat):
             // Sender + time are intentionally omitted: the transcript below
@@ -299,23 +403,30 @@ struct MessagePreviewSheet: View {
         }
     }
 
-    /// Paperclip + "Has attachments" caption shown when Graph reports the
-    /// message carries any attachment. Graph's `hasAttachments` flips
-    /// `true` for inline images as well (signatures, embedded HTML
-    /// screenshots), so this is a presence hint, not a guarantee of a
-    /// user-attached file. We avoid loading `/attachments` to keep the
-    /// preview free of extra Graph round-trips.
+    /// Paperclip + the real attachment names, once the body has loaded.
+    /// Driven by Klartext's `userFacing` filter, which excludes truly inline
+    /// parts (signature logos, body-referenced images, tracking pixels) by
+    /// testing whether each part's Content-ID is actually referenced by a
+    /// `cid:` in the HTML — accurate where Graph's `hasAttachments` over-
+    /// reported. Absent until the body loads; nothing flickers in before then.
     @ViewBuilder
-    private func attachmentIndicator(for email: Email) -> some View {
-        if email.hasAttachments {
-            HStack(spacing: 4) {
-                Image(systemName: "paperclip")
-                    .font(.caption)
-                Text("Has attachments")
-                    .font(.caption)
+    private var attachmentIndicator: some View {
+        if let attachments = parsed?.attachments.userFacing, !attachments.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(attachments) { attachment in
+                    HStack(spacing: 4) {
+                        Image(systemName: "paperclip")
+                            .font(.caption)
+                        Text(attachment.filename ?? "Attachment")
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .foregroundStyle(Brand.textMuted)
+                }
             }
-            .foregroundStyle(Brand.textMuted)
             .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(attachments.count) attachment\(attachments.count == 1 ? "" : "s")")
         }
     }
 
@@ -406,7 +517,7 @@ struct MessagePreviewSheet: View {
     private var bodyText: some View {
         switch target.kind {
         case .email:
-            if let parsed = parsedBody {
+            if let parsed {
                 emailBodyContent(parsed)
             } else if bodyFetchFailed {
                 Text("Couldn't load the message body. Pull down to dismiss and try again.")
@@ -674,35 +785,31 @@ struct MessagePreviewSheet: View {
     }
 
     private func loadBodyIfNeeded() async {
-        guard case .email(let email) = target.kind, parsedBody == nil else { return }
+        guard case .email(let email) = target.kind, emailContent == nil else { return }
         do {
-            let raw = try await inbox.fetchEmailBody(emailId: email.id)
+            let content = try await inbox.fetchEmailContent(emailId: email.id)
             #if DEBUG
-            // Diagnostic hook for the "weird wrap / mystery character"
-            // class of problem. `print()` flows through devicectl's
-            // `--console` capture; os.Logger does not. Filter the
-            // launched stream with `grep "CHECKIN-DEBUG"`. Kept in
-            // place rather than re-added per-investigation because
-            // wiring it from scratch under time pressure is annoying.
-            // Also dumps email.preview (Graph's bodyPreview, post-
-            // Klartext preview()) so the summary-row and preview-sheet
-            // sources can be compared in one capture.
-            let visibleRaw = raw
-                .replacingOccurrences(of: "\r\n", with: "[CRLF]")
-                .replacingOccurrences(of: "\n", with: "[LF]")
-                .replacingOccurrences(of: "\r", with: "[CR]")
-            let visiblePreview = email.preview
-                .replacingOccurrences(of: "\r\n", with: "[CRLF]")
-                .replacingOccurrences(of: "\n", with: "[LF]")
-                .replacingOccurrences(of: "\r", with: "[CR]")
-            print("CHECKIN-DEBUG email.preview (len=\(email.preview.count)): \(visiblePreview)")
-            print("CHECKIN-DEBUG email body raw (len=\(raw.count)): \(visibleRaw)")
+            // Diagnostic hook for the "renders as text not HTML" and
+            // "inline image didn't paint" class of problem. `print()` flows
+            // through devicectl's `--console` capture; os.Logger does not.
+            // Filter the launched stream with `grep "CHECKIN-DEBUG"`. Kept in
+            // place rather than re-added per-investigation. Logs the body's
+            // HTML length, how many cid: images it references, and each part's
+            // inline classification, Content-ID, and fetched byte count — so a
+            // logo that fails to paint shows immediately whether the part was
+            // resolved, whether its bytes loaded, and whether the HTML even
+            // references it via cid:.
+            let cidRefs = content.html.map { $0.components(separatedBy: "cid:").count - 1 } ?? 0
+            print("CHECKIN-DEBUG email body html (len=\(content.html?.count ?? -1)) cid:refs=\(cidRefs) parts=\(content.parts.count)")
+            for (i, p) in content.parts.enumerated() {
+                print("CHECKIN-DEBUG  part[\(i)] disp=\(p.disposition) cid=\(p.contentID ?? "nil") mime=\(p.mimeType) bytes=\(p.data?.count ?? -1) name=\(p.filename ?? "nil")")
+            }
             #endif
-            // The sheet is a reader, not a glance: keep the signature with
-            // the new message (separateSignature off) and hold the full
-            // parse so the quoted history is available behind the disclosure.
-            parsedBody = Klartext.parse(plainText: raw, options: .init(separateSignature: false))
+            emailContent = content
         } catch {
+            #if DEBUG
+            print("CHECKIN-DEBUG fetchEmailContent failed: \(error)")
+            #endif
             bodyFetchFailed = true
         }
     }
@@ -727,7 +834,7 @@ struct MessagePreviewSheet: View {
         case .email(let email):
             // Email body has to load before we mark read — otherwise a
             // fetch failure would silently mark unread emails as read.
-            guard parsedBody != nil else { return }
+            guard emailContent != nil else { return }
             didAutoMarkRead = true
             await inbox.markRead(emailId: email.id)
         case .chat(let chat):

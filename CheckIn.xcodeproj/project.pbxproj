@@ -18,6 +18,7 @@
 		6BD126232FC9413A00B6B85F /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 6BD126222FC9413A00B6B85F /* MSAL */; };
 		7A0000000000000000000020 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000010 /* CheckInKit */; };
 		7A0000000000000000000026 /* Klartext in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000016 /* Klartext */; };
+		7A0000000000000000000027 /* KlartextUI in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000017 /* KlartextUI */; };
 		7A0000000000000000000021 /* CheckInGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000011 /* CheckInGraph */; };
 		7A0000000000000000000022 /* CheckInKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000012 /* CheckInKit */; };
 		7A0000000000000000000023 /* CheckInGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000013 /* CheckInGraph */; };
@@ -177,6 +178,7 @@
 				7A0000000000000000000020 /* CheckInKit in Frameworks */,
 				7A0000000000000000000021 /* CheckInGraph in Frameworks */,
 				7A0000000000000000000026 /* Klartext in Frameworks */,
+				7A0000000000000000000027 /* KlartextUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -280,6 +282,7 @@
 				7A0000000000000000000011 /* CheckInGraph */,
 				194F4CCC2FAD3EA70019A39C /* MSAL */,
 				7A0000000000000000000016 /* Klartext */,
+				7A0000000000000000000017 /* KlartextUI */,
 			);
 			productName = CheckIn;
 			productReference = 19C6DDC12FAD391B008DDDF0 /* CheckIn.app */;
@@ -950,7 +953,7 @@
 			repositoryURL = "https://github.com/excelano/klartext";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.3.0;
+				minimumVersion = 1.0.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -1000,6 +1003,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */;
 			productName = Klartext;
+		};
+		7A0000000000000000000017 /* KlartextUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */;
+			productName = KlartextUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

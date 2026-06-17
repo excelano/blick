@@ -7,6 +7,7 @@ import CheckInGraph
 import CheckInKit
 import Foundation
 import Klartext
+import KlartextUI
 import os
 
 /// Bridges the app's `AuthService` to `GraphCore`'s token-provider seam.
@@ -284,7 +285,7 @@ final class GraphClient {
                 "$orderby": "receivedDateTime desc",
                 "$top": "\(top)",
                 "$count": "true",
-                "$select": "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,hasAttachments,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
+                "$select": "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
             ],
             headers: ["ConsistencyLevel": "eventual"]
         )
@@ -311,8 +312,7 @@ final class GraphClient {
                 meetingEnd: meetingEnd,
                 isMailingList: isMailingList,
                 toRecipients: toRecipients,
-                ccRecipients: ccRecipients,
-                hasAttachments: e.hasAttachments ?? false
+                ccRecipients: ccRecipients
             )
         }
         return (emails, data.count ?? emails.count)
@@ -382,18 +382,96 @@ final class GraphClient {
         try await core.patch("/me/messages/\(id)", body: MarkReadBody(isRead: false))
     }
 
-    /// Fetch the full plain-text body of a message for the preview sheet.
-    /// `Prefer: outlook.body-content-type="text"` tells Graph to return
-    /// text in `body.content` rather than HTML, which avoids us having
-    /// to render HTML for the preview. Mail.Read or Mail.ReadWrite
-    /// covers this.
-    func fetchEmailBody(id: String) async throws -> String {
-        let data: EmailBodyResponse = try await core.get(
+    /// Fetch a message's renderable content for the preview sheet: the body
+    /// as HTML plus attachment metadata, packaged as a KlartextUI
+    /// `EmailContent` the sheet's views consume directly. HTML (not text) so
+    /// the rich web view can render the sender's own design; the native fold
+    /// path reduces it back to text through `EmailContent.parsed()`.
+    ///
+    /// `$expand=attachments` selects metadata only — no `contentBytes` — so a
+    /// large real attachment never inflates the body fetch. Inline image bytes
+    /// (small, on-device, needed to paint `cid:` resources) are the one thing
+    /// we hydrate here, one short fetch per inline part. Real attachments
+    /// carry metadata only: the sheet shows their name, never downloads them.
+    /// Mail.Read or Mail.ReadWrite covers all of this.
+    func fetchEmailContent(id: String) async throws -> EmailContent {
+        // The body is essential — fetch it on its own and let a failure
+        // propagate so the sheet shows its error state. (Proven path: the same
+        // `$select=body` call as before, only the Prefer header asks for HTML
+        // instead of text.)
+        let bodyResp: EmailBodyResponse = try await core.get(
             "/me/messages/\(id)",
             query: ["$select": "body"],
-            headers: ["Prefer": "outlook.body-content-type=\"text\""]
+            headers: ["Prefer": "outlook.body-content-type=\"html\""]
         )
-        return data.body.content
+        let isHTML = bodyResp.body.contentType.caseInsensitiveCompare("html") == .orderedSame
+
+        // Attachments are best-effort and live in a separate call: a failure
+        // resolving them (an unusual attachment kind, a transient error) must
+        // never blank the body, so it degrades to no attachment list.
+        var parts: [EmailPart] = []
+        do {
+            parts = try await fetchAttachmentParts(messageId: id)
+        } catch {
+            #if DEBUG
+            print("CHECKIN-DEBUG fetchAttachmentParts failed: \(error)")
+            #endif
+        }
+
+        return EmailContent(
+            html: isHTML ? bodyResp.body.content : nil,
+            plainText: isHTML ? nil : bodyResp.body.content,
+            parts: parts
+        )
+    }
+
+    /// Fetch a message's attachment parts: metadata for all of them, plus the
+    /// raw bytes of inline images only. The metadata `$select` omits
+    /// `contentBytes`, so a large real attachment never rides along; we then
+    /// pull bytes one inline part at a time (logos and embedded images are
+    /// small), which is what the HTML web view needs to paint `cid:` resources.
+    private func fetchAttachmentParts(messageId: String) async throws -> [EmailPart] {
+        // `contentId` is a property of the fileAttachment subtype, not the base
+        // attachment, so it must be selected through the OData type cast — a
+        // bare `$select=contentId` 400s. The response still names the field
+        // `contentId`, so decoding is unaffected.
+        let list: GraphList<AttachmentMetaResponse> = try await core.get(
+            "/me/messages/\(messageId)/attachments",
+            query: ["$select": "id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId"]
+        )
+
+        var parts: [EmailPart] = []
+        for meta in list.value {
+            let isInline = meta.isInline ?? false
+            // Hydrate bytes only for inline parts that name a Content-ID — the
+            // only ones the web view can paint via cid:. Best-effort: a failed
+            // byte pull degrades to the broken-image glyph, not a failed sheet.
+            var bytes: Data?
+            if isInline, meta.contentId != nil {
+                bytes = try? await fetchAttachmentBytes(messageId: messageId, attachmentId: meta.id)
+            }
+            parts.append(EmailPart(
+                filename: meta.name,
+                mimeType: meta.contentType ?? "application/octet-stream",
+                contentID: meta.contentId,
+                disposition: isInline ? .inline : .attachment,
+                data: bytes
+            ))
+        }
+        return parts
+    }
+
+    /// Pull one attachment's raw bytes by decoding Graph's base64
+    /// `contentBytes`. Used for inline images only (see `fetchAttachmentParts`).
+    /// No `$select`: `contentBytes` lives on the fileAttachment subtype, so a
+    /// bare `$select=contentBytes` 400s the same way `contentId` does. Fetching
+    /// the attachment whole returns its bytes, and inline images are small.
+    private func fetchAttachmentBytes(messageId: String, attachmentId: String) async throws -> Data? {
+        let resp: AttachmentBytesResponse = try await core.get(
+            "/me/messages/\(messageId)/attachments/\(attachmentId)"
+        )
+        guard let b64 = resp.contentBytes else { return nil }
+        return Data(base64Encoded: b64)
     }
 
     /// Send a reply-all to a message. Graph stitches the user's comment
