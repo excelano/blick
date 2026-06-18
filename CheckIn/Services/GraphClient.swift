@@ -726,12 +726,18 @@ final class GraphClient {
         for (msg, sent) in newestFirst {
             guard msg.messageType == "message", let user = msg.from?.user else { continue }
             let isMine = user.id == userID
+            let attachments = msg.attachments ?? []
+            let bodyHasImage = msg.body.content.range(of: "<img", options: .caseInsensitive) != nil
+            let hasImage = bodyHasImage || attachments.contains(where: isImageAttachment)
+            let hasFile = attachments.contains { !isImageAttachment($0) }
             collected.append(ChatThreadMessage(
                 id: msg.id,
                 from: user.displayName,
                 isFromMe: isMine,
                 body: Klartext.plainText(fromHTML: msg.body.content),
-                sent: sent
+                sent: sent,
+                hasImage: hasImage,
+                hasFile: hasFile
             ))
             // Include my own message as the top anchor, then stop — it marks
             // where I left off.
@@ -744,6 +750,19 @@ final class GraphClient {
         // means the whole run is shown.
         let hasMore = !reachedMine && collected.count >= cap
         return ChatThread(messages: collected.reversed(), hasMore: hasMore)
+    }
+
+    /// Best-effort guess at whether a chat attachment is an image. Teams
+    /// reports shared files with `contentType: "reference"` rather than a
+    /// real MIME type, so the filename extension is the dependable signal;
+    /// an `image/*` contentType is checked too for the cases that do carry
+    /// one. Misses an extensionless image, but that's rare and only costs us
+    /// the less specific "Attachment" label.
+    private func isImageAttachment(_ attachment: ChatAttachmentResponse) -> Bool {
+        if let type = attachment.contentType?.lowercased(), type.hasPrefix("image/") { return true }
+        guard let name = attachment.name?.lowercased() else { return false }
+        let imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".heic", ".heif", ".webp", ".bmp", ".tiff"]
+        return imageExtensions.contains { name.hasSuffix($0) }
     }
 }
 

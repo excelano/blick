@@ -223,6 +223,20 @@ struct ChatMessageResponse: Decodable {
     let from: ChatFromResponse?
     let createdDateTime: String
     let messageType: String
+    /// File, card, and reference attachments carried on the message. The
+    /// transcript shows the body stripped to plain text, so a non-empty
+    /// list means there is content we aren't rendering. We decode only
+    /// `contentType` and `name`, enough to guess whether an item is an
+    /// image (Teams tags shared files `reference`, so the filename
+    /// extension is the workable signal). Pasted inline images are not
+    /// here — they live in the body HTML as `<img>` and are detected there.
+    let attachments: [ChatAttachmentResponse]?
+}
+
+/// A chat-message attachment, decoded for the unshown-content indicator.
+struct ChatAttachmentResponse: Decodable {
+    let contentType: String?
+    let name: String?
 }
 
 struct ChatFromResponse: Decodable {

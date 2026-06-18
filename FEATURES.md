@@ -76,6 +76,7 @@ What a user can do, mapped to the entry point in the UI.
 | Open a chat in Teams | Long-press a chat row → "Open in Teams" (uses Graph's `chat.webUrl`, which iOS routes to the Teams app via Universal Links) |
 | Copy chat link | Long-press → "Copy chat link". Writes the Teams chat URL to the system pasteboard. |
 | Restore today's chats to unread | Inline "Mark unread: today's chats" button under the Chats section header when the section is empty. Fetches today's read chats and batch-flips them via `markChatUnreadForUser`. Registers an undo. |
+| See when a message carries content beyond text | Each message in the preview transcript shows a muted caption ("Image not shown", "Attachment not shown", or both) when it has content the text-only view drops. Inline/pasted images are detected from `<img>` in the body HTML; file attachments are classified as image vs. other by `image/*` contentType or filename extension (Teams tags shared files `reference`, so the extension is the workable signal). An image- or file-only message shows the indicator in place of a misleading "(no message text)". Detection only; rendering the content stays in Teams. |
 
 ## Teams presence & status
 

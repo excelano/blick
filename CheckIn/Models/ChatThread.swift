@@ -20,6 +20,14 @@ struct ChatThreadMessage: Identifiable {
     /// HTML stripped to plain text, matching the chat preview.
     let body: String
     let sent: Date
+    /// The message carries an image we don't render: a pasted inline image
+    /// (an `<img>` in the body HTML) or an image file attachment. Drives the
+    /// "Image not shown" indicator so the stripped text doesn't read as the
+    /// whole message.
+    let hasImage: Bool
+    /// The message carries a non-image attachment (a shared file, a card).
+    /// Drives the "Attachment not shown" indicator.
+    let hasFile: Bool
 }
 
 /// A chat's walked transcript plus whether older history was left off

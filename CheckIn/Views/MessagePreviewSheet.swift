@@ -634,11 +634,24 @@ struct MessagePreviewSheet: View {
                         .foregroundStyle(Brand.textMuted)
                 }
             }
-            Text(message.body.isEmpty ? "(no message text)" : message.body)
-                .font(.body)
-                .foregroundStyle(.white)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+            // An image- or file-only message has no text to strip, so the
+            // indicator below stands in for the body rather than a misleading
+            // "(no message text)".
+            if !message.body.isEmpty {
+                Text(message.body)
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !message.hasImage && !message.hasFile {
+                Text("(no message text)")
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if message.hasImage || message.hasFile {
+                unshownContentIndicator(image: message.hasImage, file: message.hasFile)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(message.isFromMe ? 8 : 0)
@@ -646,6 +659,28 @@ struct MessagePreviewSheet: View {
             message.isFromMe ? Brand.bgDarker : .clear,
             in: RoundedRectangle(cornerRadius: 8)
         )
+    }
+
+    /// A quiet caption marking content the transcript can't render — a pasted
+    /// image, a shared file — so a stripped-to-text message doesn't read as
+    /// the whole story. Tap-free; the sheet's own "Open in Teams" path is how
+    /// the user actually gets to the content.
+    private func unshownContentIndicator(image: Bool, file: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: image && !file ? "photo" : "paperclip")
+                .font(.caption2)
+            Text(unshownContentLabel(image: image, file: file))
+                .font(.caption)
+        }
+        .foregroundStyle(Brand.textMuted)
+    }
+
+    private func unshownContentLabel(image: Bool, file: Bool) -> String {
+        switch (image, file) {
+        case (true, true): return "Image and attachment not shown"
+        case (true, false): return "Image not shown"
+        default: return "Attachment not shown"
+        }
     }
 
     /// True when `message` begins a new run of messages from a different
