@@ -56,6 +56,11 @@ struct MessagePreviewSheet: View {
     /// The fetched email body (HTML) plus attachment metadata, as a KlartextUI
     /// hand-off. Feeds the native fold (via `parsed`) and the HTML web view.
     @State private var emailContent: EmailContent?
+    /// The email body parsed once into visible / quoted / attachments, cached
+    /// alongside `emailContent` so SwiftUI re-renders (the Web View and Load
+    /// Images toggles each rebuild the body) don't re-run the HTML parse every
+    /// time. Set together with `emailContent` in `loadBodyIfNeeded`.
+    @State private var parsed: ParsedBody?
     @State private var bodyFetchFailed = false
     /// Switches the email body between the native text fold (default) and the
     /// faithful HTML render. Only meaningful when the body has HTML.
@@ -111,13 +116,6 @@ struct MessagePreviewSheet: View {
             await loadChatThreadIfNeeded()
             await autoMarkReadIfNeeded()
         }
-    }
-
-    /// The email body parsed into visible / quoted / attachments. Recomputed
-    /// from `emailContent`; the parse is pure and cheap. Nil until the body
-    /// loads. Signature stays in the body (the sheet is a reader, not a glance).
-    private var parsed: ParsedBody? {
-        emailContent?.parsed(options: .init(separateSignature: false))
     }
 
     /// True once we hold an email body that actually carries HTML — the gate
@@ -542,11 +540,9 @@ struct MessagePreviewSheet: View {
     /// "(no message body)" placeholder stays here — suppressed for invites,
     /// which use the meeting info row above as their content.
     private func emailBodyContent(_ content: EmailContent) -> some View {
-        var options = Options()
-        options.separateSignature = false
-        let parsed = content.parsed(options: options)
-        let visible = parsed.visible.trimmingCharacters(in: .whitespacesAndNewlines)
-        let quoted = parsed.quoted?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let options = Options(separateSignature: false)
+        let visible = parsed?.visible.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let quoted = parsed?.quoted?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let isEmpty = visible.isEmpty && quoted.isEmpty
         return VStack(alignment: .leading, spacing: 12) {
             if isEmpty {
@@ -802,6 +798,7 @@ struct MessagePreviewSheet: View {
             }
             #endif
             emailContent = content
+            parsed = content.parsed(options: Options(separateSignature: false))
         } catch {
             #if DEBUG
             print("CHECKIN-DEBUG fetchEmailContent failed: \(error)")

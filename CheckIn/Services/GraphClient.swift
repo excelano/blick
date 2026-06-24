@@ -440,25 +440,37 @@ final class GraphClient {
             query: ["$select": "id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId"]
         )
 
-        var parts: [EmailPart] = []
-        for meta in list.value {
-            let isInline = meta.isInline ?? false
-            // Hydrate bytes only for inline parts that name a Content-ID — the
-            // only ones the web view can paint via cid:. Best-effort: a failed
-            // byte pull degrades to the broken-image glyph, not a failed sheet.
-            var bytes: Data?
-            if isInline, meta.contentId != nil {
-                bytes = try? await fetchAttachmentBytes(messageId: messageId, attachmentId: meta.id)
+        // Hydrate bytes only for inline parts that name a Content-ID — the only
+        // ones the web view can paint via cid:. A message can carry several
+        // inline logos, so fetch their bytes concurrently rather than awaiting
+        // each in turn. Best-effort: a failed byte pull degrades to the
+        // broken-image glyph, not a failed sheet; non-inline parts never fetch.
+        let metas = list.value
+        var inlineBytes: [Int: Data] = [:]
+        await withTaskGroup(of: (Int, Data?).self) { group in
+            for (index, meta) in metas.enumerated()
+            where (meta.isInline ?? false) && meta.contentId != nil {
+                let attachmentId = meta.id
+                group.addTask {
+                    let bytes = try? await self.fetchAttachmentBytes(messageId: messageId, attachmentId: attachmentId)
+                    return (index, bytes)
+                }
             }
-            parts.append(EmailPart(
+            for await (index, bytes) in group {
+                if let bytes { inlineBytes[index] = bytes }
+            }
+        }
+
+        return metas.enumerated().map { index, meta in
+            let isInline = meta.isInline ?? false
+            return EmailPart(
                 filename: meta.name,
                 mimeType: meta.contentType ?? "application/octet-stream",
                 contentID: meta.contentId,
                 disposition: isInline ? .inline : .attachment,
-                data: bytes
-            ))
+                data: inlineBytes[index]
+            )
         }
-        return parts
     }
 
     /// Pull one attachment's raw bytes by decoding Graph's base64
@@ -728,8 +740,12 @@ final class GraphClient {
             let isMine = user.id == userID
             let attachments = msg.attachments ?? []
             let bodyHasImage = msg.body.content.range(of: "<img", options: .caseInsensitive) != nil
-            let hasImage = bodyHasImage || attachments.contains(where: isImageAttachment)
-            let hasFile = attachments.contains { !isImageAttachment($0) }
+            // Image vs. file classification is delegated to Klartext so the
+            // extension/MIME rules live in one place across the email and chat
+            // transports (Klartext.isImageAttachment, klartext#5).
+            let hasImage = bodyHasImage
+                || attachments.contains { Klartext.isImageAttachment(mimeType: $0.contentType, filename: $0.name) }
+            let hasFile = attachments.contains { !Klartext.isImageAttachment(mimeType: $0.contentType, filename: $0.name) }
             collected.append(ChatThreadMessage(
                 id: msg.id,
                 from: user.displayName,
@@ -750,19 +766,6 @@ final class GraphClient {
         // means the whole run is shown.
         let hasMore = !reachedMine && collected.count >= cap
         return ChatThread(messages: collected.reversed(), hasMore: hasMore)
-    }
-
-    /// Best-effort guess at whether a chat attachment is an image. Teams
-    /// reports shared files with `contentType: "reference"` rather than a
-    /// real MIME type, so the filename extension is the dependable signal;
-    /// an `image/*` contentType is checked too for the cases that do carry
-    /// one. Misses an extensionless image, but that's rare and only costs us
-    /// the less specific "Attachment" label.
-    private func isImageAttachment(_ attachment: ChatAttachmentResponse) -> Bool {
-        if let type = attachment.contentType?.lowercased(), type.hasPrefix("image/") { return true }
-        guard let name = attachment.name?.lowercased() else { return false }
-        let imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".heic", ".heif", ".webp", ".bmp", ".tiff"]
-        return imageExtensions.contains { name.hasSuffix($0) }
     }
 }
 
