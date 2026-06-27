@@ -32,6 +32,30 @@ The watch already carries content, not just counts: the pushed snapshot includes
 
 The one real tradeoff is display privacy rather than data governance. A count is safe to show at a glance; a sender and subject on the wrist are readable by anyone looking over your shoulder, so the open question is whether content is on by default or behind a setting, and how deep it goes — sender only, sender plus subject, or sender plus subject plus preview. The build is the snapshot shape plus a watch view; the decision is how much to reveal by default. Chat first is reasonable since a chat preview is already short, with email following the same pattern.
 
+## Voice catch-up: read unread aloud and act by voice
+
+The killer feature taken to its end: a Siri flow that reads the unread queue aloud, sender and subject and a short preview per item, and after each one offers to reply, mark it read, or move to the next, all spoken. This is catch-up for the moments the app and the CLI both fail you, driving or walking or between meetings, and nothing in Zirbe or blick-cli does it. It stays in posture because the phone already holds the mail and chats; the voice layer reads what is already fetched and routes a reply or a mark-read through the same paths the app uses.
+
+The real constraint is the App Intents spoken-phrase ceiling, which Blick already sits near. So the design rides the existing `WorkdaySummaryIntent` progressive-disclosure shape rather than minting new top-level phrases: "What's my Blick" already drills from headline to who-and-how-many to each remaining meeting, and reading the items aloud is the natural next level of that same disclosure, with reply and mark-read as the spoken follow-ups. Dictated replies go through Siri's own dictation. Phase it: read-aloud first, since it is the hard part and the main value, then spoken reply. Relationship to the Earshot concept ([[teams-voice-app-concept]]): that is ambient, per-contact Teams voices as messages arrive, while this is on-demand "read me what I missed" triage, a different enough experience to belong in Blick.
+
+## Meeting-join nudge
+
+A local notification a few minutes before the next meeting, with a one-tap join straight into Teams. Pure don't-miss-it utility and a daily driver, and fully in posture: the notification is scheduled on-device from the calendar data Blick already fetches, with no server and no push. The work is scheduling notifications off each upcoming event on the refresh cycle (the widget already builds a timeline of upcoming meeting starts, so the data shape exists) and wiring the notification action to the same Teams join path the meeting rows use.
+
+The tradeoff is freshness: the scheduled set is only as current as the last background refresh, so a meeting accepted in the last hour might not have a nudge queued until the next refresh runs. That is acceptable for a reminder rather than a guarantee. It shares the background-refresh and notification scaffolding with the daily brief and the new-message nudge below, so the three are best costed as one investment.
+
+## Morning daily brief
+
+A once-a-day notification that opens the workday: next meeting plus how many remain, unread email and chat counts, and current presence, the same headline `WorkdaySummaryIntent` already speaks, delivered unprompted in the morning. Catch-up framing, and it pairs with the voice work since tapping in could drop straight into the read-aloud flow. In posture as a scheduled local notification fired off a background refresh, no backend.
+
+The open decisions are timing and trigger: a fixed user-set time, or keyed to the first calendar event of the day or the start of Outlook working hours (the same `workingHours` object the auto-presence idea reads). Like the meeting nudge it depends on a fresh-enough background refresh, and it shares that plumbing with the nudge above and the new-message poll below.
+
+## Best-effort new-message nudge
+
+The in-posture answer to "tell me when something lands." A `BGAppRefreshTask` polls Graph on the cadence iOS grants and raises a local notification when new unread mail or a new chat has appeared since the last check. It reuses the background-refresh and notification scaffolding of the two ideas above, so once that exists this is largely a diff against the prior snapshot plus a notification.
+
+The honest caveat, and the reason to write it down rather than expect more, is that timing is entirely OS-controlled and best-effort, not real-time. iOS decides when, and whether, a background refresh runs based on usage and power, so this is "you find out before too long," not "you find out the instant it arrives." That ceiling is structural: the real-time alternative, APNs or Graph change-notification webhooks, requires a server endpoint, which is a backend and a hard stop in the privacy posture. Poll plus local notification is as close as Blick gets without crossing that line, so this entry exists partly to keep real-time push from being re-proposed.
+
 ## Apple Watch Tier 2: independent auth on the wrist
 
 The shipped watch app is Tier 1: it holds no token and makes no Graph call, fed non-credential data the phone pushes over WatchConnectivity. Tier 2 is an opt-in setting (default off) that lets the watch authenticate itself, hold its own device-bound token, and fetch fresh data and perform actions while standalone on cellular out of range of the phone. Even with it on, the phone stays the primary data path when in range; the watch self-fetches only when it cannot reach the phone, and for actions. The privacy line that must hold is that the watch's token is its own, acquired by its own sign-in and stored in the watch's own keychain with iCloud Keychain sync off; the phone's token is never copied to the watch and the watch never gets the phone's keychain access group. Implementation links CheckInGraph into the watch and gives it its own MSAL client and its own Entra redirect URI under the existing app registration.
