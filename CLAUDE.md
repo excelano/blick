@@ -25,8 +25,8 @@ The Apple Watch ships in two tiers. The default tier is read-only: the phone fet
 
 ## Azure / identity
 
-Azure app registration is named `Blick`.
+Azure app registration is named `blick`.
 
 ## Brand
 
-Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/checkin/CheckIn/Assets.xcassets/AppIcon.appiconset/`. The shipped radiant-orb source PNGs are mirrored in `~/checkin/branding/` (1024×1024, no vector master yet).
+Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/checkin/CheckIn/Assets.xcassets/AppIcon.appiconset/`.
