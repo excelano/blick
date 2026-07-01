@@ -53,4 +53,14 @@ enum IntentSpeech {
     static func meetingList(_ meetings: [Meeting]) -> String {
         StatusSpeech.meetingList(meetings.map { (subject: $0.subject, start: $0.start) })
     }
+
+    static func readAloud(chats: [ChatMessage], chatTotal: Int,
+                          emails: [Email], emailTotal: Int) -> (lines: [String], overflow: String?) {
+        StatusSpeech.readAloud(
+            chats: chats.map { (from: $0.from, preview: $0.preview) },
+            chatTotal: chatTotal,
+            emails: emails.map { (from: $0.from, subject: $0.subject, preview: $0.preview) },
+            emailTotal: emailTotal
+        )
+    }
 }

@@ -130,7 +130,83 @@ public enum StatusSpeech {
         return englishList(items) + "."
     }
 
+    // MARK: - Voice catch-up (read-aloud)
+
+    /// How many unread items the read-aloud walk speaks in one session.
+    public static let readAloudCap = 5
+
+    /// Longest spoken preview per item, in characters, trimmed at a word
+    /// boundary. `Email.preview` is Graph `bodyPreview` (~255 chars); a full
+    /// read of untrimmed previews is a minute-plus of speech. Both constants
+    /// live here so they can be tuned in one place after on-device listening.
+    public static let spokenSnippetLimit = 160
+
+    /// Build the read-aloud content: one spoken line per unread item, chats
+    /// first then emails, capped at `readAloudCap` items total. Returns the
+    /// ordered lines (the intent joins them into one spoken block) plus an
+    /// optional overflow tail naming how much went unread past the cap.
+    /// `chatTotal` / `emailTotal` are the true unread counts (the arrays are
+    /// already capped upstream, so the tail is computed from the totals).
+    public static func readAloud(
+        chats: [(from: String, preview: String)],
+        chatTotal: Int,
+        emails: [(from: String, subject: String, preview: String)],
+        emailTotal: Int
+    ) -> (lines: [String], overflow: String?) {
+        let chatsRead = Array(chats.prefix(readAloudCap))
+        let emailsRead = Array(emails.prefix(max(0, readAloudCap - chatsRead.count)))
+
+        let lines = chatsRead.map { chatLine(from: $0.from, preview: $0.preview) }
+            + emailsRead.map { emailLine(from: $0.from, subject: $0.subject, preview: $0.preview) }
+
+        let moreChats = max(0, chatTotal - chatsRead.count)
+        let moreEmails = max(0, emailTotal - emailsRead.count)
+        return (lines, overflowTail(moreChats: moreChats, moreEmails: moreEmails))
+    }
+
     // MARK: - Private list helpers
+
+    private static func chatLine(from: String, preview: String) -> String {
+        let snippet = spokenSnippet(preview)
+        let who = spokenSender(from)
+        return snippet.isEmpty ? "Teams from \(who)." : "Teams from \(who): \(snippet)."
+    }
+
+    private static func emailLine(from: String, subject: String, preview: String) -> String {
+        let who = spokenSender(from)
+        let subj = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let head = subj.isEmpty ? "Email from \(who)" : "Email from \(who), \(subj)"
+        let snippet = spokenSnippet(preview)
+        return snippet.isEmpty ? "\(head)." : "\(head): \(snippet)."
+    }
+
+    private static func spokenSender(_ from: String) -> String {
+        let trimmed = from.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? "someone" : trimmed
+    }
+
+    /// Collapse whitespace, trim to `spokenSnippetLimit` at a word boundary,
+    /// and strip trailing punctuation so the line's own period reads cleanly.
+    /// No ellipsis — Siri voices a trailing "…" as literal noise.
+    private static func spokenSnippet(_ raw: String) -> String {
+        let collapsed = raw.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let clipped: String
+        if collapsed.count > spokenSnippetLimit {
+            let cutoff = collapsed.index(collapsed.startIndex, offsetBy: spokenSnippetLimit)
+            let head = collapsed[..<cutoff]
+            clipped = String(head[..<(head.lastIndex(of: " ") ?? head.endIndex)])
+        } else {
+            clipped = collapsed
+        }
+        return clipped.trimmingCharacters(in: CharacterSet(charactersIn: " .,;:!?"))
+    }
+
+    private static func overflowTail(moreChats: Int, moreEmails: Int) -> String? {
+        var parts: [String] = []
+        if moreChats > 0 { parts.append(moreChats == 1 ? "1 more chat" : "\(moreChats) more chats") }
+        if moreEmails > 0 { parts.append(moreEmails == 1 ? "1 more email" : "\(moreEmails) more emails") }
+        return parts.isEmpty ? nil : "And \(englishList(parts)) unread."
+    }
 
     private static func senderClause(count: Int, noun: String,
                                      senders: [String], capped: Bool) -> String {

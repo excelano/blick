@@ -36,6 +36,104 @@ struct StatusActionsTests {
     }
 }
 
+struct ReadAloudTests {
+    /// Chats read before emails; each medium labels itself; the queue is not
+    /// capped when it fits, so no overflow tail.
+    @Test func ordersChatsThenEmailsWithNoOverflow() {
+        let (lines, overflow) = StatusSpeech.readAloud(
+            chats: [("Bob", "Are you joining standup?"), ("Priya", "Pushed the fix")],
+            chatTotal: 2,
+            emails: [("Sarah", "Q3 budget", "Look before Friday")],
+            emailTotal: 1
+        )
+        #expect(lines == [
+            "Teams from Bob: Are you joining standup.",
+            "Teams from Priya: Pushed the fix.",
+            "Email from Sarah, Q3 budget: Look before Friday."
+        ])
+        #expect(overflow == nil)
+    }
+
+    /// The cap fills with chats first, then as many emails as fit, and the tail
+    /// counts everything past the cap from the true totals.
+    @Test func capsAtFiveAndReportsOverflow() {
+        let (lines, overflow) = StatusSpeech.readAloud(
+            chats: [("A", "one"), ("B", "two"), ("C", "three")],
+            chatTotal: 3,
+            emails: [("D", "s", "four"), ("E", "s", "five"), ("F", "s", "six"), ("G", "s", "seven")],
+            emailTotal: 4
+        )
+        #expect(lines.count == StatusSpeech.readAloudCap)
+        #expect(overflow == "And 2 more emails unread.")
+    }
+
+    /// `emailTotal` is the server-side unread count, which can exceed the
+    /// sampled array — the overflow reflects the total, not the sample.
+    @Test func overflowUsesServerTotalNotSampleSize() {
+        let (_, overflow) = StatusSpeech.readAloud(
+            chats: [("A", "one"), ("B", "two")],
+            chatTotal: 2,
+            emails: [("C", "s", "x"), ("D", "s", "y"), ("E", "s", "z")],
+            emailTotal: 30
+        )
+        // 2 chats + 3 emails read (cap 5); 30 - 3 = 27 emails still unread.
+        #expect(overflow == "And 27 more emails unread.")
+    }
+
+    @Test func singularOverflowGrammar() {
+        let (_, overflow) = StatusSpeech.readAloud(
+            chats: [], chatTotal: 0,
+            emails: [("A", "s", "x")], emailTotal: 2
+        )
+        #expect(overflow == "And 1 more email unread.")
+    }
+
+    @Test func emptyInboxHasNoLinesOrOverflow() {
+        let (lines, overflow) = StatusSpeech.readAloud(
+            chats: [], chatTotal: 0, emails: [], emailTotal: 0
+        )
+        #expect(lines.isEmpty)
+        #expect(overflow == nil)
+    }
+
+    @Test func emptySenderFallsBackToSomeone() {
+        let (lines, _) = StatusSpeech.readAloud(
+            chats: [("   ", "hi there")], chatTotal: 1, emails: [], emailTotal: 0
+        )
+        #expect(lines == ["Teams from someone: hi there."])
+    }
+
+    @Test func emptySubjectDropsTheComma() {
+        let (lines, _) = StatusSpeech.readAloud(
+            chats: [], chatTotal: 0,
+            emails: [("Bob", "", "quick question")], emailTotal: 1
+        )
+        #expect(lines == ["Email from Bob: quick question."])
+    }
+
+    @Test func emptyPreviewYieldsBareLine() {
+        let (lines, _) = StatusSpeech.readAloud(
+            chats: [("Bob", "")], chatTotal: 1, emails: [], emailTotal: 0
+        )
+        #expect(lines == ["Teams from Bob."])
+    }
+
+    /// Long previews trim at a word boundary within the limit, carry no
+    /// ellipsis, and still end in the line's own period.
+    @Test func longPreviewTrimsAtWordBoundary() {
+        let long = String(repeating: "alpha ", count: 50) // 300 chars
+        let (lines, _) = StatusSpeech.readAloud(
+            chats: [("Bob", long)], chatTotal: 1, emails: [], emailTotal: 0
+        )
+        let line = try! #require(lines.first)
+        #expect(line.hasPrefix("Teams from Bob: alpha"))
+        #expect(line.hasSuffix("."))
+        #expect(!line.contains("…"))
+        #expect(!line.contains("  ")) // whitespace collapsed
+        #expect(line.count < 190)     // snippet bounded by the 160-char cap
+    }
+}
+
 struct CheckInSnapshotTests {
     private static let sample = CheckInSnapshot(
         updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
