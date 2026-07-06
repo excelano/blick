@@ -147,6 +147,49 @@ struct ReplyCommentBody: Encodable {
     let comment: String
 }
 
+/// A recipient on an outgoing message. Graph accepts an `emailAddress`
+/// carrying only `address`; the display `name` is optional and we omit it
+/// (the server resolves the name from the directory / the address itself).
+/// The Decodable read side is `EmailAddressEnvelope`; this is its write twin.
+struct OutgoingRecipientBody: Encodable {
+    let emailAddress: OutgoingAddressBody
+}
+
+struct OutgoingAddressBody: Encodable {
+    let address: String
+}
+
+/// Body content envelope for an outgoing message. `contentType` is `Text`
+/// for compose (plain text, matches the reply surface).
+struct OutgoingBodyContent: Encodable {
+    let contentType: String
+    let content: String
+}
+
+/// The message half of a `/me/sendMail` request.
+struct OutgoingMessageBody: Encodable {
+    let subject: String
+    let body: OutgoingBodyContent
+    let toRecipients: [OutgoingRecipientBody]
+    let ccRecipients: [OutgoingRecipientBody]
+    let bccRecipients: [OutgoingRecipientBody]
+}
+
+/// POST body for `/me/sendMail`. `saveToSentItems` keeps a copy in Sent,
+/// which is the expected behavior for a mail client.
+struct SendMailBody: Encodable {
+    let message: OutgoingMessageBody
+    let saveToSentItems: Bool
+}
+
+/// POST body for `/me/messages/{id}/forward`. Graph builds the "Fwd:"
+/// subject and quotes the original body server-side, so we only supply the
+/// added note (`comment`) and the recipients — no need to load the body.
+struct ForwardBody: Encodable {
+    let comment: String
+    let toRecipients: [OutgoingRecipientBody]
+}
+
 /// POST body for `/me/chats/{chatId}/messages`. Graph expects `body`
 /// as a content envelope identical in shape to the lastMessagePreview
 /// body we read elsewhere.

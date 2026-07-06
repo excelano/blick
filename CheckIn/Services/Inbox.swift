@@ -922,6 +922,22 @@ final class Inbox {
         #endif
     }
 
+    /// Compose and send a new email. Unlike reply/forward there is no
+    /// originating row, so nothing in the summary changes — a straight
+    /// pass-through to Graph. Addresses arrive already validated.
+    func sendNewEmail(subject: String, body: String,
+                      to: [String], cc: [String], bcc: [String]) async throws {
+        try await graphClient.sendMail(subject: subject, body: body, to: to, cc: cc, bcc: bcc)
+    }
+
+    /// Forward an email to new recipients with an optional note. The
+    /// original message is untouched — forwarding isn't "handling" it, so
+    /// (unlike reply) the row stays in the summary and the message stays
+    /// unread. Pass-through; a failure surfaces to the caller.
+    func forwardEmail(emailId: String, comment: String, to: [String]) async throws {
+        try await graphClient.forwardEmail(id: emailId, comment: comment, to: to)
+    }
+
     /// Send a reply into an existing Teams chat thread. After success
     /// the chat is dropped from the summary's pending list — same shape
     /// as the email path.

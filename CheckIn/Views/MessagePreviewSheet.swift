@@ -53,6 +53,9 @@ struct MessagePreviewSheet: View {
     let onClose: () -> Void
 
     @State private var showingComposer = false
+    /// Presents the forward composer over the preview. Email-only; the
+    /// original stays unread, so the preview underneath is left intact.
+    @State private var showingForward = false
     /// The fetched email body (HTML) plus attachment metadata, as a KlartextUI
     /// hand-off. Feeds the native fold (via `parsed`) and the HTML web view.
     @State private var emailContent: EmailContent?
@@ -103,6 +106,15 @@ struct MessagePreviewSheet: View {
         .presentationDragIndicator(.visible)
         .sheet(item: $conflictTarget) { meeting in
             ConflictResolutionSheet(inbox: inbox, primaryMeetingId: meeting.id)
+        }
+        .sheet(isPresented: $showingForward) {
+            if let email = forwardEmailTarget {
+                ComposeView(
+                    inbox: inbox,
+                    onClose: { showingForward = false },
+                    mode: .forward(emailId: email.id, subject: email.subject)
+                )
+            }
         }
         .task {
             #if DEBUG
@@ -713,17 +725,34 @@ struct MessagePreviewSheet: View {
     @ViewBuilder
     private var actionBar: some View {
         HStack(spacing: 12) {
+            // Mark unread and Forward are secondary actions; they collapse to
+            // icons so the primary Reply keeps its label without the three
+            // crowding onto one line on a narrow phone.
             if canMarkUnread {
                 Button {
                     Task { await markUnreadAndDismiss() }
                 } label: {
-                    Label("Mark unread", systemImage: markUnreadSymbol)
-                        .font(.subheadline.weight(.medium))
+                    Image(systemName: markUnreadSymbol)
+                        .font(.title2)
+                        .foregroundStyle(Brand.accent)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Brand.accent)
+                .accessibilityLabel("Mark unread")
             }
             Spacer()
+            if forwardEmailTarget != nil {
+                Button {
+                    showingForward = true
+                } label: {
+                    Image(systemName: "arrowshape.turn.up.right")
+                        .font(.title2)
+                        .foregroundStyle(Brand.accent)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Forward")
+            }
             Button {
                 showingComposer = true
             } label: {
@@ -738,6 +767,14 @@ struct MessagePreviewSheet: View {
             .buttonStyle(.plain)
             .disabled(!canReply)
         }
+    }
+
+    /// The email this preview can forward, or nil for chats (Teams has no
+    /// forward). Drives both the action-bar button's visibility and the
+    /// sheet's mode.
+    private var forwardEmailTarget: Email? {
+        if case .email(let email) = target.kind { return email }
+        return nil
     }
 
     /// Email always offers Mark Unread (we auto-marked it on open).

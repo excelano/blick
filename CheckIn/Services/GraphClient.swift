@@ -495,6 +495,38 @@ final class GraphClient {
         try await core.post("/me/messages/\(id)/replyAll", body: ReplyCommentBody(comment: comment))
     }
 
+    /// Compose and send a brand-new email. Graph's `/me/sendMail` delivers
+    /// immediately and (with `saveToSentItems`) files a copy in Sent. Body
+    /// is plain text. `to`/`cc`/`bcc` are already-validated SMTP addresses.
+    /// Mail.Send required.
+    func sendMail(subject: String, body: String,
+                  to: [String], cc: [String], bcc: [String]) async throws {
+        let message = OutgoingMessageBody(
+            subject: subject,
+            body: OutgoingBodyContent(contentType: "Text", content: body),
+            toRecipients: recipientBodies(to),
+            ccRecipients: recipientBodies(cc),
+            bccRecipients: recipientBodies(bcc)
+        )
+        try await core.post("/me/sendMail", body: SendMailBody(message: message, saveToSentItems: true))
+    }
+
+    /// Forward an existing message. Graph builds the "Fwd:" subject and
+    /// quotes the original server-side, so we send only the added note and
+    /// the recipients — the original body is never loaded. The original
+    /// stays unread. Mail.Send required.
+    func forwardEmail(id: String, comment: String, to: [String]) async throws {
+        try await core.post(
+            "/me/messages/\(id)/forward",
+            body: ForwardBody(comment: comment, toRecipients: recipientBodies(to))
+        )
+    }
+
+    /// Wrap validated SMTP addresses in Graph's recipient envelope.
+    private func recipientBodies(_ addresses: [String]) -> [OutgoingRecipientBody] {
+        addresses.map { OutgoingRecipientBody(emailAddress: OutgoingAddressBody(address: $0)) }
+    }
+
     /// Post a new message into an existing chat thread. Chat.ReadWrite
     /// covers this — `ChatMessage.Send` is a more granular scope but
     /// the broader one we already request is a superset.

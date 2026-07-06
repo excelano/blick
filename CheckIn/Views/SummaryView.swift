@@ -16,6 +16,10 @@ struct SummaryView: View {
     var authService: AuthService
 
     @State private var showSettings = false
+    @State private var showCompose = false
+    /// The email a context-menu "Forward" targets. Drives a forward-mode
+    /// `ComposeView` sheet straight from the list, without opening the preview.
+    @State private var forwardEmail: Email?
     @State private var showCustomMessageSheet = false
     /// The meeting whose conflict the user wants to resolve. Driving the
     /// sheet via `.sheet(item:)` (rather than a Bool + separate id) means
@@ -64,6 +68,16 @@ struct SummaryView: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showSettings) {
             SettingsView(authService: authService, inbox: inbox)
+        }
+        .sheet(isPresented: $showCompose) {
+            ComposeView(inbox: inbox, onClose: { showCompose = false })
+        }
+        .sheet(item: $forwardEmail) { email in
+            ComposeView(
+                inbox: inbox,
+                onClose: { forwardEmail = nil },
+                mode: .forward(emailId: email.id, subject: email.subject)
+            )
         }
         .sheet(isPresented: $showCustomMessageSheet) {
             CustomMessageSheet(
@@ -204,6 +218,15 @@ struct SummaryView: View {
                 .foregroundStyle(.white)
 
             HStack {
+                Button {
+                    showCompose = true
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.title2)
+                        .foregroundStyle(Brand.accent)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("New message")
                 Spacer()
                 Button {
                     showSettings = true
@@ -434,6 +457,11 @@ struct SummaryView: View {
                                     previewTarget = .email(email, openComposer: true)
                                 } label: {
                                     Label("Reply", systemImage: "arrowshape.turn.up.left")
+                                }
+                                Button {
+                                    forwardEmail = email
+                                } label: {
+                                    Label("Forward", systemImage: "arrowshape.turn.up.right")
                                 }
                                 Button {
                                     Task { await inbox.markRead(emailId: email.id) }
