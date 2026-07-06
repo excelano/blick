@@ -87,4 +87,25 @@ struct EmailAddressValidationTests {
         #expect(EmailAddressValidation.parseList(" , ; ").valid.isEmpty)
         #expect(EmailAddressValidation.parseList(" , ; ").invalid.isEmpty)
     }
+
+    // MARK: domain / off-domain
+
+    @Test func domainLowercasesAndStripsLocalPart() {
+        #expect(EmailAddressValidation.domain(of: "David@Excelano.COM") == "excelano.com")
+        #expect(EmailAddressValidation.domain(of: "  jane@sub.domain.co.uk  ") == "sub.domain.co.uk")
+        #expect(EmailAddressValidation.domain(of: "not-an-address") == nil)
+    }
+
+    @Test func offDomainFlagsOutsidersNotColleagues() {
+        let result = EmailAddressValidation.offDomainRecipients(
+            in: "colleague@excelano.com, chris@outside.com, JANE@EXCELANO.COM",
+            orgDomain: "excelano.com"
+        )
+        #expect(result == ["chris@outside.com"])
+    }
+
+    @Test func offDomainReturnsEmptyWithoutOrgDomain() {
+        #expect(EmailAddressValidation.offDomainRecipients(in: "chris@outside.com", orgDomain: nil).isEmpty)
+        #expect(EmailAddressValidation.offDomainRecipients(in: "chris@outside.com", orgDomain: "").isEmpty)
+    }
 }

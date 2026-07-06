@@ -147,6 +147,39 @@ final class Inbox {
     var unreadChatCount: Int { summary?.chats.count ?? 0 }
     var remainingMeetingCount: Int { todayMeetingIds.count }
 
+    /// The signed-in user's email domain, or nil before `/me` has loaded.
+    /// Drives the chat composer's in-organization recipient check — a Teams
+    /// chat can only reach a tenant user, so a recipient on another domain is
+    /// probably unreachable.
+    var currentUserDomain: String? {
+        EmailAddressValidation.domain(of: graphClient.currentUserMail)
+    }
+
+    /// Name/address pairs harvested from the people in the fetched mail — every
+    /// sender plus each To/Cc recipient — for composer type-ahead. De-duplicated
+    /// by address (case-insensitive), the signed-in user removed, addressless or
+    /// malformed entries dropped. No Contacts permission and nothing off-device:
+    /// this is only the people already in hand. The Contacts picker covers
+    /// anyone not in this recent set.
+    func recipientSuggestions() -> [AddressBookEntry] {
+        let me = graphClient.currentUserMail.lowercased()
+        var seen = Set<String>()
+        var entries: [AddressBookEntry] = []
+        func add(name: String, address: String) {
+            guard EmailAddressValidation.isValid(address) else { return }
+            let key = address.lowercased()
+            guard key != me, seen.insert(key).inserted else { return }
+            entries.append(AddressBookEntry(name: name.isEmpty ? address : name, address: address))
+        }
+        for email in summary?.emails ?? [] {
+            add(name: email.from, address: email.fromAddress)
+            for recipient in email.toRecipients + email.ccRecipients {
+                add(name: recipient.name, address: recipient.address)
+            }
+        }
+        return entries
+    }
+
     /// Unread emails whose sender name or address contains `query`,
     /// case-insensitively. Accurate only over the loaded set, so callers
     /// refresh with `fetchAllEmails: true` before reading this.
@@ -947,6 +980,24 @@ final class Inbox {
             summary?.chats.remove(at: idx)
             await updateAppBadge()
         }
+    }
+
+    /// Start a brand-new Teams chat with the given recipient email
+    /// addresses and post the first message. The signed-in user is added as
+    /// a member alongside the recipients (Graph needs the creator in the
+    /// list). Recipients bind by email-as-UPN — the cheap path David chose:
+    /// it works when a colleague's email equals their Azure AD
+    /// userPrincipalName, and an alias or external address fails at chat
+    /// creation with a Graph error surfaced to the composer. No list
+    /// mutation: a started chat isn't part of the pending-unread surface.
+    func startChat(withEmails emails: [String], message: String) async throws {
+        let selfId = graphClient.currentUserID
+        guard !selfId.isEmpty else {
+            logger.error("startChat: missing signed-in user id")
+            throw GraphError.invalidResponse
+        }
+        let chatId = try await graphClient.createChat(memberIdentities: [selfId] + emails)
+        try await graphClient.sendChatMessage(chatId: chatId, content: message)
     }
 
     /// Mark a Teams chat as read for the signed-in user. Optimistically

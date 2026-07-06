@@ -40,8 +40,8 @@ struct MessagePreviewTarget: Identifiable {
 }
 
 /// Lean preview of a chat or email. Header at top, scrollable body in
-/// the middle, action bar pinned to the bottom. Email opens swap to
-/// `ReplyComposerView` in place; we don't push a second sheet.
+/// the middle, action bar pinned to the bottom. Reply swaps `ComposeView`
+/// (inline mode) in place of the body; we don't push a second sheet.
 struct MessagePreviewSheet: View {
     var inbox: Inbox
     let target: MessagePreviewTarget
@@ -91,11 +91,12 @@ struct MessagePreviewSheet: View {
         ZStack {
             Brand.bg.ignoresSafeArea()
             if showingComposer {
-                ReplyComposerView(
+                ComposeView(
                     inbox: inbox,
-                    target: target,
-                    onBack: { showingComposer = false },
-                    onSent: { onClose() }
+                    onClose: { showingComposer = false },
+                    onSent: { onClose() },
+                    mode: .reply(replyContext),
+                    presentation: .inline
                 )
             } else {
                 previewBody
@@ -775,6 +776,54 @@ struct MessagePreviewSheet: View {
     private var forwardEmailTarget: Email? {
         if case .email(let email) = target.kind { return email }
         return nil
+    }
+
+    /// Flatten the preview target into the reply payload `ComposeView` needs,
+    /// so the composer never reaches back into the message models. Email
+    /// carries the sender's address (its likely UPN) so an email reply can
+    /// cross to a chat; a chat carries no address, so a chat reply stays chat.
+    private var replyContext: ComposeView.Mode.Reply {
+        switch target.kind {
+        case .email(let email):
+            return .init(
+                source: .email,
+                emailId: email.id,
+                chatId: nil,
+                senderName: email.from,
+                senderAddress: email.fromAddress,
+                reference: email.subject,
+                emailReplyAllTail: emailReplyAllTail(email),
+                chatOthersTail: ""
+            )
+        case .chat(let chat):
+            return .init(
+                source: .chat,
+                emailId: nil,
+                chatId: chat.chatId,
+                senderName: chat.from,
+                senderAddress: nil,
+                reference: chat.topic,
+                emailReplyAllTail: "",
+                chatOthersTail: othersTail(chat.otherParticipants.count)
+            )
+        }
+    }
+
+    /// " and N others" for a reply-all's fan-out — everyone on the To/Cc lines
+    /// besides the sender and the signed-in user (Graph's `/replyAll` drops the
+    /// current user, so we filter the same way), else "".
+    private func emailReplyAllTail(_ email: Email) -> String {
+        let me = inbox.currentUserMail.lowercased()
+        let sender = email.fromAddress.lowercased()
+        let others = (email.toRecipients + email.ccRecipients).filter {
+            let address = $0.address.lowercased()
+            return address != me && address != sender
+        }
+        return othersTail(others.count)
+    }
+
+    private func othersTail(_ count: Int) -> String {
+        count == 0 ? "" : " and \(count) other\(count == 1 ? "" : "s")"
     }
 
     /// Email always offers Mark Unread (we auto-marked it on open).

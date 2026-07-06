@@ -26,10 +26,14 @@ public enum GraphScopes {
     ]
 
     /// Chat.ReadWrite drives the Teams pending-chat surface including
-    /// posting replies into existing threads. Presence.ReadWrite drives
-    /// the presence picker and Control Center / widget quick-sets.
+    /// posting replies into existing threads. Chat.Create is the one extra
+    /// permission starting a brand-new chat needs (`POST /chats`) — posting
+    /// into an existing thread rides Chat.ReadWrite, but creating one does
+    /// not. Presence.ReadWrite drives the presence picker and Control
+    /// Center / widget quick-sets.
     public static let teams = [
         "Chat.ReadWrite",
+        "Chat.Create",
         "Presence.ReadWrite",
     ]
 

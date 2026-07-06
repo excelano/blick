@@ -72,4 +72,24 @@ public enum EmailAddressValidation {
         }
         return (valid, invalid)
     }
+
+    /// The lowercased domain of an address (everything after the last `@`), or
+    /// nil if it doesn't validate. Drives the chat composer's "is this
+    /// recipient in my organization" check: a Teams chat can only reach a
+    /// tenant user, so an address on a different domain than the signed-in
+    /// user's is probably unreachable. Case-folded because domains are
+    /// case-insensitive.
+    public static func domain(of raw: String) -> String? {
+        guard let clean = normalized(raw), let at = clean.lastIndex(of: "@") else { return nil }
+        return String(clean[clean.index(after: at)...]).lowercased()
+    }
+
+    /// From a free-typed recipient line, the valid addresses whose domain
+    /// differs from `orgDomain` — the ones a Teams chat likely can't reach.
+    /// Returns empty when `orgDomain` is nil/blank (we can't judge without the
+    /// signed-in user's own domain, so we don't guess).
+    public static func offDomainRecipients(in raw: String, orgDomain: String?) -> [String] {
+        guard let org = orgDomain?.lowercased(), !org.isEmpty else { return [] }
+        return parseList(raw).valid.filter { domain(of: $0) != org }
+    }
 }

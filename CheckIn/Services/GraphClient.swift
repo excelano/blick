@@ -539,6 +539,24 @@ final class GraphClient {
         )
     }
 
+    /// Create a new Teams chat with the given member identities (UPNs or
+    /// AAD ids) and return its id. The list must include the signed-in user
+    /// — Graph does not add the creator implicitly — so the caller passes
+    /// `[self] + recipients`. Two members create a 1:1 chat (idempotent, so
+    /// re-chatting the same person reuses the thread); three or more create
+    /// a group. An unknown or external identity fails here with a Graph
+    /// error the caller surfaces. Requires the `Chat.Create` scope.
+    func createChat(memberIdentities: [String]) async throws -> String {
+        let chatType = memberIdentities.count > 2 ? "group" : "oneOnOne"
+        let members = memberIdentities.map {
+            CreateChatMemberBody(userRef: "https://graph.microsoft.com/v1.0/users('\($0)')")
+        }
+        let chat: ChatResponse = try await core.postDecoded(
+            "/chats", body: CreateChatBody(chatType: chatType, members: members)
+        )
+        return chat.id
+    }
+
     /// Mark a chat as read for the signed-in user — advances the
     /// per-user `viewpoint.lastMessageReadDateTime`, which is what we
     /// now key the chat-list filter off. Chat.ReadWrite required.

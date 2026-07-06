@@ -202,6 +202,33 @@ struct ChatMessageSendContent: Encodable {
     let content: String
 }
 
+/// POST body for `/chats` — creates a new Teams chat and names its members.
+/// `chatType` is "oneOnOne" for exactly two members (the signed-in user plus
+/// one other) or "group" for more; a 1:1 create is idempotent, returning the
+/// existing thread rather than a duplicate.
+struct CreateChatBody: Encodable {
+    let chatType: String
+    let members: [CreateChatMemberBody]
+}
+
+/// One member of a new chat. Graph binds a member to an Azure AD user by an
+/// odata reference; the `@`-keyed JSON names (`@odata.type`,
+/// `user@odata.bind`) aren't legal Swift identifiers, so `CodingKeys` maps
+/// them. `userRef` is the full `/users('{upn-or-id}')` URL — we bind the
+/// signed-in user by their `/me` id and each recipient by email-as-UPN
+/// (the cheap path: an alias or external address fails at create time).
+struct CreateChatMemberBody: Encodable {
+    let odataType = "#microsoft.graph.aadUserConversationMember"
+    let roles = ["owner"]
+    let userRef: String
+
+    enum CodingKeys: String, CodingKey {
+        case odataType = "@odata.type"
+        case roles
+        case userRef = "user@odata.bind"
+    }
+}
+
 /// POST body for `/chats/{id}/markChatReadForUser`. The user identity
 /// requires both id and tenantId — tenantId comes from MSAL's
 /// homeAccountId, id from /me.
