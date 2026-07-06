@@ -22,7 +22,9 @@ struct CheckInWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WatchGlanceView(receiver: receiver)
+            NavigationStack {
+                WatchGlanceView(receiver: receiver)
+            }
         }
     }
 }

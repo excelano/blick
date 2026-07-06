@@ -169,8 +169,18 @@ struct WatchGlanceView: View {
             refreshButton
             Spacer()
             if let snapshot = receiver.snapshot {
-                countChip(symbol: "envelope.fill", value: snapshot.unreadEmailCount)
-                countChip(symbol: "bubble.left.fill", value: snapshot.chatCount)
+                NavigationLink {
+                    WatchEmailListView(receiver: receiver)
+                } label: {
+                    countChip(symbol: "envelope.fill", value: snapshot.unreadEmailCount)
+                }
+                .buttonStyle(.plain)
+                NavigationLink {
+                    WatchChatListView(receiver: receiver)
+                } label: {
+                    countChip(symbol: "bubble.left.fill", value: snapshot.chatCount)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 4)

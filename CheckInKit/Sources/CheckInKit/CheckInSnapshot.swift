@@ -58,6 +58,43 @@ public struct SnapshotMeeting: Codable, Hashable {
     }
 }
 
+/// One unread email in the snapshot, carried to the watch so its glance can
+/// show mail as content rather than a bare count. `id` is the Graph message id,
+/// used to relay a full-body request back to the phone. No credentials — just
+/// the sender, subject, and the server-truncated preview the phone already has.
+public struct SnapshotEmail: Codable, Hashable, Identifiable {
+    public let id: String
+    public let sender: String
+    public let subject: String
+    public let preview: String
+    public let received: Date
+
+    public init(id: String, sender: String, subject: String, preview: String, received: Date) {
+        self.id = id
+        self.sender = sender
+        self.subject = subject
+        self.preview = preview
+        self.received = received
+    }
+}
+
+/// One pending Teams chat in the snapshot. `id` is the Graph chat id, used to
+/// relay a thread-read request back to the phone. Only chats that carry a
+/// chat id make it here — the watch can't act on one without it.
+public struct SnapshotChat: Codable, Hashable, Identifiable {
+    public let id: String
+    public let sender: String
+    public let preview: String
+    public let sent: Date
+
+    public init(id: String, sender: String, preview: String, sent: Date) {
+        self.id = id
+        self.sender = sender
+        self.preview = preview
+        self.sent = sent
+    }
+}
+
 public struct CheckInSnapshot: Codable {
     /// When the main app last refreshed and wrote this snapshot.
     public let updatedAt: Date
@@ -88,6 +125,12 @@ public struct CheckInSnapshot: Codable {
     /// order. Empty when none remain or when an older publisher wrote the
     /// snapshot before this field existed.
     public let laterMeetings: [SnapshotMeeting]
+    /// The top unread emails, newest first, for the watch's mail list. Capped
+    /// small so the WatchConnectivity payload stays light. Empty for an older
+    /// publisher that predates the field.
+    public let topEmails: [SnapshotEmail]
+    /// The top pending chats, newest first, for the watch's chat list.
+    public let topChats: [SnapshotChat]
 
     public init(
         updatedAt: Date,
@@ -100,7 +143,9 @@ public struct CheckInSnapshot: Codable {
         chatCount: Int,
         presence: Presence,
         isOutOfOffice: Bool,
-        laterMeetings: [SnapshotMeeting] = []
+        laterMeetings: [SnapshotMeeting] = [],
+        topEmails: [SnapshotEmail] = [],
+        topChats: [SnapshotChat] = []
     ) {
         self.updatedAt = updatedAt
         self.nextMeetingSubject = nextMeetingSubject
@@ -113,6 +158,8 @@ public struct CheckInSnapshot: Codable {
         self.presence = presence
         self.isOutOfOffice = isOutOfOffice
         self.laterMeetings = laterMeetings
+        self.topEmails = topEmails
+        self.topChats = topChats
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -127,6 +174,8 @@ public struct CheckInSnapshot: Codable {
         case presence
         case isOutOfOffice
         case laterMeetings
+        case topEmails
+        case topChats
     }
 
     /// Custom decode so a snapshot written before `laterMeetings` or
@@ -147,6 +196,8 @@ public struct CheckInSnapshot: Codable {
         presence = try c.decode(Presence.self, forKey: .presence)
         isOutOfOffice = try c.decode(Bool.self, forKey: .isOutOfOffice)
         laterMeetings = try c.decodeIfPresent([SnapshotMeeting].self, forKey: .laterMeetings) ?? []
+        topEmails = try c.decodeIfPresent([SnapshotEmail].self, forKey: .topEmails) ?? []
+        topChats = try c.decodeIfPresent([SnapshotChat].self, forKey: .topChats) ?? []
     }
 
     /// A copy with only the presence and Out-of-Office fields replaced.
@@ -165,7 +216,9 @@ public struct CheckInSnapshot: Codable {
             chatCount: chatCount,
             presence: presence,
             isOutOfOffice: isOutOfOffice,
-            laterMeetings: laterMeetings
+            laterMeetings: laterMeetings,
+            topEmails: topEmails,
+            topChats: topChats
         )
     }
 

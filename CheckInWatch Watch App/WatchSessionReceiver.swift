@@ -63,6 +63,19 @@ final class WatchSessionReceiver: NSObject {
         ])
     }
 
+    /// Tell the phone the user read an email on the watch (opening it there
+    /// marks it read, as on the phone). Fire-and-forget: queued via
+    /// `transferUserInfo` if the phone is away, and the phone re-pushes a
+    /// snapshot so the unread list drops it.
+    func sendMarkEmailRead(id: String) {
+        send([WireKey.actionKind: ActionKind.markEmailRead.rawValue, WireKey.id: id])
+    }
+
+    /// Tell the phone the user read a chat on the watch. Same semantics.
+    func sendMarkChatRead(id: String) {
+        send([WireKey.actionKind: ActionKind.markChatRead.rawValue, WireKey.id: id])
+    }
+
     /// Outcome of a watch-initiated refresh request, used by the glance
     /// to decide whether to surface a "Phone unreachable" hint after
     /// the pull-to-refresh spinner finishes.
@@ -122,6 +135,45 @@ final class WatchSessionReceiver: NSObject {
         return .timedOut
     }
 
+    /// Ask the phone for a full email body. Returns the text, or nil when the
+    /// phone isn't reachable or the fetch fails — the reader then falls back to
+    /// the snapshot preview it already has.
+    @MainActor
+    func requestEmailBody(id: String) async -> String? {
+        await requestBody(kind: .fetchEmailBody, id: id)
+    }
+
+    /// Ask the phone for a chat's recent transcript. Same fallback semantics.
+    @MainActor
+    func requestChatBody(id: String) async -> String? {
+        await requestBody(kind: .fetchChatBody, id: id)
+    }
+
+    @MainActor
+    private func requestBody(kind: ActionKind, id: String) async -> String? {
+        guard WCSession.isSupported() else { return nil }
+        let session = WCSession.default
+        // Same activation/reachability grace window the refresh request uses:
+        // the link often comes up a beat after a view appears.
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            if session.activationState == .activated, session.isReachable { break }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        guard session.activationState == .activated, session.isReachable else { return nil }
+        return await withCheckedContinuation { continuation in
+            session.sendMessage(
+                [WireKey.actionKind: kind.rawValue, WireKey.id: id],
+                replyHandler: { reply in
+                    continuation.resume(returning: reply[WireKey.body] as? String)
+                },
+                errorHandler: { _ in
+                    continuation.resume(returning: nil)
+                }
+            )
+        }
+    }
+
     private func send(_ payload: [String: Any]) {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
@@ -162,12 +214,18 @@ final class WatchSessionReceiver: NSObject {
         static let actionKind = "kind"
         static let presence = "presence"
         static let outOfOfficeOn = "on"
+        static let id = "id"
+        static let body = "body"
     }
 
     enum ActionKind: String {
         case setPresence
         case setOutOfOffice
         case refresh
+        case fetchEmailBody
+        case fetchChatBody
+        case markEmailRead
+        case markChatRead
     }
 }
 

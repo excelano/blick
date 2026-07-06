@@ -304,6 +304,12 @@ final class Inbox {
     private static let fullEmailCap = 999
     private var emailTop: Int { showingAllEmails ? Self.fullEmailCap : 20 }
 
+    /// How many unread emails / pending chats and how much preview text ride
+    /// to the watch in the snapshot. Small so the WatchConnectivity payload
+    /// stays well under its ceiling.
+    private static let watchListCap = 15
+    private static let watchPreviewCap = 140
+
     /// How long an undoable bulk action stays offered before it expires
     /// silently. Long enough to catch a "wait, undo that" reflex,
     /// short enough that an old action doesn't surprise the user when
@@ -477,6 +483,28 @@ final class Inbox {
                 joinUrl: $0.joinUrl
             )
         }
+        // Carry the top unread emails and pending chats to the watch so its
+        // glance shows content, not just counts. Capped so the WatchConnectivity
+        // payload stays light; previews truncated for the same reason. Chats
+        // without a chat id are skipped — the watch can't relay a read for them.
+        let topEmails = summary.emails.prefix(Self.watchListCap).map { email in
+            SnapshotEmail(
+                id: email.id,
+                sender: email.from,
+                subject: email.subject,
+                preview: String(email.preview.prefix(Self.watchPreviewCap)),
+                received: email.received
+            )
+        }
+        let topChats = summary.chats.prefix(Self.watchListCap).compactMap { chat -> SnapshotChat? in
+            guard let chatId = chat.chatId else { return nil }
+            return SnapshotChat(
+                id: chatId,
+                sender: chat.from,
+                preview: String(chat.preview.prefix(Self.watchPreviewCap)),
+                sent: chat.sent
+            )
+        }
         let snapshot = CheckInSnapshot(
             updatedAt: Date(),
             nextMeetingSubject: next?.subject,
@@ -488,7 +516,9 @@ final class Inbox {
             chatCount: summary.chats.count,
             presence: currentPresence,
             isOutOfOffice: isOutOfOffice,
-            laterMeetings: laterSnapshot
+            laterMeetings: laterSnapshot,
+            topEmails: Array(topEmails),
+            topChats: topChats
         )
         if !snapshot.saveToAppGroup() {
             logger.error("publishStatusSnapshot: couldn't encode or open App Group defaults")
@@ -1022,6 +1052,54 @@ final class Inbox {
     /// pass-through fetched lazily when the sheet opens.
     func fetchChatThread(chatId: String) async throws -> ChatThread {
         try await graphClient.fetchChatThread(chatId: chatId)
+    }
+
+    /// Plain-text body of an email, for the watch reader (which can't render
+    /// HTML and receives text over WatchConnectivity). Returns the new message
+    /// content, falling back to the quoted history, then a placeholder.
+    func emailPlainText(emailId: String) async throws -> String {
+        let content = try await graphClient.fetchEmailContent(id: emailId)
+        let parsed = content.parsed(options: Options(separateSignature: false))
+        let visible = parsed.visible.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !visible.isEmpty { return visible }
+        let quoted = parsed.quoted?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return quoted.isEmpty ? "(no message body)" : quoted
+    }
+
+    /// A chat's recent transcript rendered as plain text for the watch reader,
+    /// oldest first, one "Sender: message" line per entry.
+    func chatThreadText(chatId: String) async throws -> String {
+        let thread = try await graphClient.fetchChatThread(chatId: chatId)
+        let lines = thread.messages.map { message -> String in
+            let who = message.isFromMe ? "You" : message.from
+            let text = message.body.isEmpty ? "(no text)" : message.body
+            return "\(who): \(text)"
+        }
+        return lines.isEmpty ? "(no messages)" : lines.joined(separator: "\n\n")
+    }
+
+    /// Mark an email read on behalf of the watch (opening it there implies
+    /// reading it, same as the phone), then re-push the snapshot so the watch's
+    /// unread list drops it and the count falls.
+    func markEmailReadFromWatch(emailId: String) async {
+        await markRead(emailId: emailId)
+        publishStatusSnapshot()
+    }
+
+    /// Mark a chat read on behalf of the watch, by id (the watch has no
+    /// `ChatMessage`), then re-push the snapshot.
+    func markChatReadFromWatch(chatId: String) async {
+        guard let (userId, tenantId) = chatIdentity(context: "markChatReadFromWatch") else { return }
+        if let idx = summary?.chats.firstIndex(where: { $0.chatId == chatId }) {
+            summary?.chats.remove(at: idx)
+        }
+        do {
+            try await graphClient.markChatRead(chatId: chatId, userId: userId, tenantId: tenantId)
+        } catch {
+            logger.error("markChatReadFromWatch failed: \(error.localizedDescription, privacy: .public)")
+        }
+        await updateAppBadge()
+        publishStatusSnapshot()
     }
 
     /// Send a reply-all to an email. After success the email is

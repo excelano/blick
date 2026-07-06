@@ -36,7 +36,11 @@ struct CheckInApp: App {
         inbox.phoneConnectivity = PhoneConnectivity(
             setPresence: { [inbox] in try await inbox.applyPresence($0) },
             setOutOfOffice: { [inbox] in try await inbox.applyOutOfOffice($0) },
-            refresh: { [inbox] in await inbox.refresh() }
+            refresh: { [inbox] in await inbox.refresh() },
+            fetchEmailBody: { [inbox] in try? await inbox.emailPlainText(emailId: $0) },
+            fetchChatBody: { [inbox] in try? await inbox.chatThreadText(chatId: $0) },
+            markEmailRead: { [inbox] in await inbox.markEmailReadFromWatch(emailId: $0) },
+            markChatRead: { [inbox] in await inbox.markChatReadFromWatch(chatId: $0) }
         )
         UNUserNotificationCenter.current().delegate = NotificationCenterDelegate.shared
         // Expose the live services to App Intents. The system runs this

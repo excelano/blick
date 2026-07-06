@@ -23,16 +23,28 @@ final class PhoneConnectivity: NSObject {
     private let setPresence: (Presence) async throws -> Void
     private let setOutOfOffice: (Bool) async throws -> Void
     private let refresh: () async -> Void
+    private let fetchEmailBody: (String) async -> String?
+    private let fetchChatBody: (String) async -> String?
+    private let markEmailRead: (String) async -> Void
+    private let markChatRead: (String) async -> Void
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "phone-connectivity")
 
     init(
         setPresence: @escaping (Presence) async throws -> Void,
         setOutOfOffice: @escaping (Bool) async throws -> Void,
-        refresh: @escaping () async -> Void
+        refresh: @escaping () async -> Void,
+        fetchEmailBody: @escaping (String) async -> String?,
+        fetchChatBody: @escaping (String) async -> String?,
+        markEmailRead: @escaping (String) async -> Void,
+        markChatRead: @escaping (String) async -> Void
     ) {
         self.setPresence = setPresence
         self.setOutOfOffice = setOutOfOffice
         self.refresh = refresh
+        self.fetchEmailBody = fetchEmailBody
+        self.fetchChatBody = fetchChatBody
+        self.markEmailRead = markEmailRead
+        self.markChatRead = markChatRead
         super.init()
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
@@ -110,6 +122,50 @@ final class PhoneConnectivity: NSObject {
             Task { @MainActor in
                 await self.refresh()
             }
+        case .markEmailRead:
+            guard let id = payload[WireKey.id] as? String else {
+                logger.error("handleAction(markEmailRead): missing id")
+                return
+            }
+            Task { @MainActor in await self.markEmailRead(id) }
+        case .markChatRead:
+            guard let id = payload[WireKey.id] as? String else {
+                logger.error("handleAction(markChatRead): missing id")
+                return
+            }
+            Task { @MainActor in await self.markChatRead(id) }
+        case .fetchEmailBody, .fetchChatBody:
+            // Data requests are served by `handleRequest` over the
+            // reply-handler path; if one arrives without a reply handler
+            // there's nowhere to return the body, so ignore it.
+            break
+        }
+    }
+
+    /// Handle a watch request that expects data back (a full email body or
+    /// chat transcript), replying with the text or an empty dictionary on
+    /// failure so the watch falls back to its snapshot preview. Non-fetch
+    /// messages route to the fire-and-forget action path.
+    fileprivate func handleRequest(_ payload: [String: Any],
+                                   reply: @escaping ([String: Any]) -> Void) async {
+        guard let kindRaw = payload[WireKey.actionKind] as? String,
+              let kind = ActionKind(rawValue: kindRaw) else {
+            reply([:])
+            return
+        }
+        switch kind {
+        case .fetchEmailBody, .fetchChatBody:
+            guard let id = payload[WireKey.id] as? String else {
+                reply([:])
+                return
+            }
+            let body = kind == .fetchEmailBody
+                ? await fetchEmailBody(id)
+                : await fetchChatBody(id)
+            reply(body.map { [WireKey.body: $0] } ?? [:])
+        default:
+            handleAction(payload)
+            reply([:])
         }
     }
 
@@ -118,12 +174,18 @@ final class PhoneConnectivity: NSObject {
         static let actionKind = "kind"
         static let presence = "presence"
         static let outOfOfficeOn = "on"
+        static let id = "id"
+        static let body = "body"
     }
 
     enum ActionKind: String {
         case setPresence
         case setOutOfOffice
         case refresh
+        case fetchEmailBody
+        case fetchChatBody
+        case markEmailRead
+        case markChatRead
     }
 }
 
@@ -156,9 +218,8 @@ extension PhoneConnectivity: WCSessionDelegate {
                              didReceiveMessage message: [String: Any],
                              replyHandler: @escaping ([String: Any]) -> Void) {
         Task { @MainActor in
-            self.handleAction(message)
+            await self.handleRequest(message, reply: replyHandler)
         }
-        replyHandler([:])
     }
 
     nonisolated func session(_ session: WCSession,
