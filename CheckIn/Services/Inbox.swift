@@ -155,6 +155,96 @@ final class Inbox {
         EmailAddressValidation.domain(of: graphClient.currentUserMail)
     }
 
+    /// Full-text search across the whole mailbox. Results are transient — they
+    /// aren't merged into the unread summary, so the caller owns the returned
+    /// list and its own loading/empty state. No new scope (Mail.ReadWrite).
+    func searchEmails(_ query: String) async throws -> [Email] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        return try await graphClient.searchEmails(query: trimmed)
+    }
+
+    /// The recent inbox (read and unread, newest first) for the browse view,
+    /// as opposed to the unread-only triage list on the summary. Transient —
+    /// the caller owns the result.
+    func recentInbox() async throws -> [Email] {
+        try await graphClient.recentInbox()
+    }
+
+    /// Recent chats (read and unread, newest first) for the chat browse view,
+    /// as opposed to the unread-only pending list on the summary. Transient.
+    func recentChats() async throws -> [ChatMessage] {
+        try await graphClient.recentChats()
+    }
+
+    // MARK: - Browse read/flag (transient full-inbox and search lists)
+    //
+    // These serve the browse/search screens, which carry read-and-unread
+    // messages from every folder — unlike the summary mutators (markRead /
+    // markUnread / setFlagged), which own the unread glance's optimistic state.
+    // They ALWAYS hit Graph and keep the glance consistent WITHOUT injecting
+    // strangers: marking read drops a message from the glance when it's there;
+    // marking unread only reaches Graph (a browse row can be a read Sent/Archive
+    // item that doesn't belong in the inbox glance), so the glance reconciles on
+    // its next refresh. They throw so the browse view can revert its own row.
+
+    func setEmailReadFromBrowse(_ isRead: Bool, emailId: String, wasUnread: Bool) async throws {
+        if isRead {
+            try await graphClient.markEmailRead(id: emailId)
+            if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }) {
+                summary?.emails.remove(at: idx)
+            }
+            // Decrement when the row was genuinely unread — even off the visible
+            // page — so the badge (a server $count) doesn't drift high.
+            if wasUnread {
+                summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 0) - 1)
+            }
+            await updateAppBadge()
+        } else {
+            try await graphClient.markEmailUnread(id: emailId)
+        }
+    }
+
+    func setEmailFlaggedFromBrowse(_ flagged: Bool, emailId: String) async throws {
+        if flagged {
+            try await graphClient.flagEmail(id: emailId)
+        } else {
+            try await graphClient.unflagEmail(id: emailId)
+        }
+        // Keep the glance's flag icon in sync when the message is on it.
+        if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
+           let original = summary?.emails[idx] {
+            summary?.emails[idx] = original.with(isFlagged: flagged)
+        }
+    }
+
+    /// A chat has no Sent/Archive equivalent — every chat is "inbox" — so unlike
+    /// email, a browse chat marked unread does belong in the glance and is
+    /// inserted (unread-styled) when absent.
+    func setChatReadFromBrowse(_ isRead: Bool, chat: ChatMessage) async throws {
+        guard let chatId = chat.chatId else { throw GraphError.invalidResponse }
+        guard let (userId, tenantId) = chatIdentity(context: "setChatReadFromBrowse") else {
+            throw GraphError.invalidResponse
+        }
+        if isRead {
+            try await graphClient.markChatRead(chatId: chatId, userId: userId, tenantId: tenantId)
+            if let idx = summary?.chats.firstIndex(where: { $0.chatId == chatId }) {
+                summary?.chats.remove(at: idx)
+            }
+            await updateAppBadge()
+        } else {
+            try await graphClient.markChatUnread(chatId: chatId, userId: userId, tenantId: tenantId)
+            if summary?.chats.contains(where: { $0.chatId == chatId }) == false {
+                var unread = chat
+                unread.isRead = false
+                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
+                    ?? summary?.chats.count ?? 0
+                summary?.chats.insert(unread, at: insertAt)
+            }
+            await updateAppBadge()
+        }
+    }
+
     /// Name/address pairs harvested from the people in the fetched mail — every
     /// sender plus each To/Cc recipient — for composer type-ahead. De-duplicated
     /// by address (case-insensitive), the signed-in user removed, addressless or
@@ -874,17 +964,28 @@ final class Inbox {
 /// Optimistic: drops the row immediately, restores it (in received-time
     /// order) if the Graph PATCH fails.
     func markRead(emailId: String) async {
-        guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
-              let removed = summary?.emails.remove(at: idx) else { return }
-        summary?.totalUnreadEmails -= 1
+        // Optimistically drop from the unread front when it's there — but a
+        // browse/search list can mark read a message that isn't in the summary
+        // (already read, or past the unread cap), so the Graph call must run
+        // regardless, not be gated on summary membership.
+        let removed: (email: Email, index: Int)?
+        if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
+           let email = summary?.emails[idx] {
+            removed = (email, idx)
+            summary?.emails.remove(at: idx)
+            summary?.totalUnreadEmails -= 1
+        } else {
+            removed = nil
+        }
         defer { Task { await updateAppBadge() } }
         do {
             try await graphClient.markEmailRead(id: emailId)
         } catch {
             logger.error("markRead failed: \(error.localizedDescription, privacy: .public)")
-            let insertAt = summary?.emails.firstIndex(where: { $0.received < removed.received })
+            guard let removed else { return }
+            let insertAt = summary?.emails.firstIndex(where: { $0.received < removed.email.received })
                 ?? summary?.emails.count ?? 0
-            summary?.emails.insert(removed, at: insertAt)
+            summary?.emails.insert(removed.email, at: insertAt)
             summary?.totalUnreadEmails += 1
         }
     }

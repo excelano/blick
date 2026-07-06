@@ -27,6 +27,10 @@ struct Email: Identifiable {
     /// truncated to ~255 chars on the server.
     let preview: String
     let received: Date
+    /// Graph `isRead`. Always false in the unread summary (that fetch filters
+    /// on it); meaningful in the full inbox browse and search results, which
+    /// carry read and unread messages side by side.
+    let isRead: Bool
     /// Mirrors Graph `flag.flagStatus == "flagged"`.
     let isFlagged: Bool
     /// Graph's `inferenceClassification`: "focused" or "other". Drives the
@@ -62,6 +66,7 @@ struct Email: Identifiable {
          fromAddress: String,
          preview: String,
          received: Date,
+         isRead: Bool = false,
          isFlagged: Bool = false,
          inferenceClassification: String? = nil,
          meetingMessageType: String? = nil,
@@ -76,6 +81,7 @@ struct Email: Identifiable {
         self.fromAddress = fromAddress
         self.preview = preview
         self.received = received
+        self.isRead = isRead
         self.isFlagged = isFlagged
         self.inferenceClassification = inferenceClassification
         self.meetingMessageType = meetingMessageType
@@ -89,7 +95,20 @@ struct Email: Identifiable {
     func with(isFlagged: Bool) -> Email {
         Email(id: id, subject: subject, from: from,
               fromAddress: fromAddress, preview: preview,
-              received: received, isFlagged: isFlagged,
+              received: received, isRead: isRead, isFlagged: isFlagged,
+              inferenceClassification: inferenceClassification,
+              meetingMessageType: meetingMessageType,
+              meetingStart: meetingStart,
+              meetingEnd: meetingEnd,
+              isMailingList: isMailingList,
+              toRecipients: toRecipients,
+              ccRecipients: ccRecipients)
+    }
+
+    func with(isRead: Bool) -> Email {
+        Email(id: id, subject: subject, from: from,
+              fromAddress: fromAddress, preview: preview,
+              received: received, isRead: isRead, isFlagged: isFlagged,
               inferenceClassification: inferenceClassification,
               meetingMessageType: meetingMessageType,
               meetingStart: meetingStart,

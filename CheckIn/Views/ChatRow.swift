@@ -13,12 +13,14 @@ struct ChatRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .foregroundStyle(Brand.accent)
+                Image(systemName: chat.isRead ? "bubble.left" : "bubble.left.and.bubble.right")
+                    .foregroundStyle(chat.isRead ? Brand.textMuted : Brand.accent)
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
-                        Text(chat.from).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        Text(chat.from)
+                            .font(.subheadline.weight(chat.isRead ? .regular : .semibold))
+                            .foregroundStyle(chat.isRead ? Brand.textMuted : .white)
                         Spacer()
                         Text(relativeTime(chat.sent))
                             .font(.caption)

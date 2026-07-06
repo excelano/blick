@@ -71,11 +71,15 @@ struct SingleValueExtPropResponse: Decodable {
 struct EmailResponse: Decodable {
     let id: String
     let subject: String
-    let from: EmailAddressEnvelope
+    /// Optional because search spans all folders, and a Draft carries no
+    /// sender until it's sent — a non-optional `from` would fail the whole
+    /// list decode on one draft in the results.
+    let from: EmailAddressEnvelope?
     let toRecipients: [EmailAddressEnvelope]?
     let ccRecipients: [EmailAddressEnvelope]?
     let bodyPreview: String
     let receivedDateTime: String
+    let isRead: Bool?
     let flag: FlagResponse?
     let inferenceClassification: String?
     let meetingMessageType: String?

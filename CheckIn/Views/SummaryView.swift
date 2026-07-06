@@ -17,6 +17,10 @@ struct SummaryView: View {
 
     @State private var showSettings = false
     @State private var showCompose = false
+    /// Full email screen (with search) and full chat list, opened by tapping
+    /// their section headers.
+    @State private var showEmailList = false
+    @State private var showChatList = false
     /// The email a context-menu "Forward" targets. Drives a forward-mode
     /// `ComposeView` sheet straight from the list, without opening the preview.
     @State private var forwardEmail: Email?
@@ -71,6 +75,12 @@ struct SummaryView: View {
         }
         .sheet(isPresented: $showCompose) {
             ComposeView(inbox: inbox, onClose: { showCompose = false })
+        }
+        .sheet(isPresented: $showEmailList) {
+            EmailListView(inbox: inbox, onClose: { showEmailList = false })
+        }
+        .sheet(isPresented: $showChatList) {
+            ChatListView(inbox: inbox, onClose: { showChatList = false })
         }
         .sheet(item: $forwardEmail) { email in
             ComposeView(
@@ -367,7 +377,8 @@ struct SummaryView: View {
                         }
                 }
             } header: {
-                sectionHeader(title: "Chats", count: summary.chats.count) {
+                sectionHeader(title: "Chats", count: summary.chats.count,
+                              onOpen: { showChatList = true }) {
                     HStack(spacing: 8) {
                         Button {
                             showCustomMessageSheet = true
@@ -504,6 +515,7 @@ struct SummaryView: View {
                     sectionHeader(
                         title: "Email",
                         count: summary.emails.count,
+                        onOpen: { showEmailList = true },
                         subtitle: {
                             if extras > 0 {
                                 Text("+ \(extras) more unread")
@@ -579,18 +591,41 @@ struct SummaryView: View {
     private func sectionHeader<Trailing: View>(
         title: String,
         count: Int,
+        onOpen: (() -> Void)? = nil,
         @ViewBuilder trailing: () -> Trailing
     ) -> some View {
-        sectionHeader(title: title, count: count, subtitle: { EmptyView() }, trailing: trailing)
+        sectionHeader(title: title, count: count, onOpen: onOpen,
+                      subtitle: { EmptyView() }, trailing: trailing)
     }
 
     private func sectionHeader<Subtitle: View, Trailing: View>(
         title: String,
         count: Int,
+        onOpen: (() -> Void)? = nil,
         @ViewBuilder subtitle: () -> Subtitle,
         @ViewBuilder trailing: () -> Trailing
     ) -> some View {
         HStack {
+            if let onOpen {
+                Button(action: onOpen) {
+                    titleCluster(title: title, count: count, tappable: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Open the full \(title.lowercased()) list")
+            } else {
+                titleCluster(title: title, count: count, tappable: false)
+            }
+            subtitle()
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .transaction { $0.animation = nil }
+    }
+
+    /// The title + count badge, with a trailing chevron when the header opens
+    /// a full list on tap.
+    private func titleCluster(title: String, count: Int, tappable: Bool) -> some View {
+        HStack(spacing: 8) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Brand.textMuted)
@@ -602,11 +637,12 @@ struct SummaryView: View {
                 .padding(.vertical, 1)
                 .background(Brand.bgDarker)
                 .clipShape(Capsule())
-            subtitle()
-            Spacer(minLength: 8)
-            trailing()
+            if tappable {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Brand.textMuted)
+            }
         }
-        .transaction { $0.animation = nil }
     }
 
     @ViewBuilder

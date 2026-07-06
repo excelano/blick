@@ -15,6 +15,24 @@ import Foundation
 /// real user message (not a join/leave/rename system event), and a last
 /// message newer than the user's last-read mark. There is no age cutoff — an
 /// unread chat counts however old its last message is.
+/// Whether a chat should appear at all: not hidden in Teams, and its last
+/// activity is a real message (not a join/leave/rename) from a user. This is
+/// the read-agnostic gate — the unread triage adds the timestamp test on top,
+/// while a read-and-unread browse keeps everything that passes here.
+public func isDisplayableChat(
+    isHidden: Bool?,
+    messageType: String,
+    hasSenderUser: Bool,
+    sent: Date?
+) -> Bool {
+    if isHidden == true { return false }
+    // Keep regular messages (and the rare empty-string messageType); drop
+    // everything else — joins, leaves, renames, etc.
+    guard messageType.isEmpty || messageType == "message" else { return false }
+    guard hasSenderUser, sent != nil else { return false }
+    return true
+}
+
 public func isUnreadChat(
     isHidden: Bool?,
     messageType: String,
@@ -22,11 +40,9 @@ public func isUnreadChat(
     sent: Date?,
     lastRead: Date?
 ) -> Bool {
-    if isHidden == true { return false }
-    // Keep regular messages (and the rare empty-string messageType); drop
-    // everything else — joins, leaves, renames, etc.
-    guard messageType.isEmpty || messageType == "message" else { return false }
-    guard hasSenderUser, let sent else { return false }
+    guard isDisplayableChat(isHidden: isHidden, messageType: messageType,
+                            hasSenderUser: hasSenderUser, sent: sent),
+          let sent else { return false }
     // `lastRead` is nil for chats never opened; .distantPast makes any real
     // message read as unread, matching Graph's "0001-01-01" sentinel.
     return sent > (lastRead ?? .distantPast)

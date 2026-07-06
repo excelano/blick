@@ -277,6 +277,13 @@ final class GraphClient {
     /// future-dated invitations (observed via diagnostic). Matching the
     /// resulting `meetingStart` against `calendarView` recovers the real
     /// event id.
+    ///
+    /// The `$select` field list every email fetch shares. A message field the
+    /// `makeEmail` mapper reads must be requested here, so keeping one copy stops
+    /// the unread / search / browse fetches from drifting (a missed field would
+    /// decode as nil on just one screen).
+    private static let emailSelect = "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,isRead,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
+
     func unreadEmails(top: Int = 20) async throws -> (emails: [Email], totalCount: Int) {
         let data: GraphList<EmailResponse> = try await core.get(
             "/me/mailFolders/inbox/messages",
@@ -285,37 +292,81 @@ final class GraphClient {
                 "$orderby": "receivedDateTime desc",
                 "$top": "\(top)",
                 "$count": "true",
-                "$select": "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
+                "$select": Self.emailSelect
             ],
             headers: ["ConsistencyLevel": "eventual"]
         )
 
-        let emails = data.value.map { e in
-            let isMailingList = (e.internetMessageHeaders ?? []).contains { h in
-                h.name.caseInsensitiveCompare("List-Unsubscribe") == .orderedSame
-            }
-            let meetingStart = e.startDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
-            let meetingEnd = e.endDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
-            let toRecipients = (e.toRecipients ?? []).compactMap(Self.makeRecipient)
-            let ccRecipients = (e.ccRecipients ?? []).compactMap(Self.makeRecipient)
-            return Email(
-                id: e.id,
-                subject: e.subject,
-                from: e.from.emailAddress.name,
-                fromAddress: e.from.emailAddress.address ?? "",
-                preview: Klartext.parse(plainText: e.bodyPreview).preview(),
-                received: parseISO8601(e.receivedDateTime) ?? Date(),
-                isFlagged: e.flag?.flagStatus == "flagged",
-                inferenceClassification: e.inferenceClassification,
-                meetingMessageType: e.meetingMessageType,
-                meetingStart: meetingStart,
-                meetingEnd: meetingEnd,
-                isMailingList: isMailingList,
-                toRecipients: toRecipients,
-                ccRecipients: ccRecipients
-            )
-        }
+        let emails = data.value.map(makeEmail)
         return (emails, data.count ?? emails.count)
+    }
+
+    /// Full-text search across the whole mailbox (all folders, read and
+    /// unread), newest-relevance first. `$search` can't be combined with
+    /// `$orderby`, so Graph ranks by relevance rather than date — which is what
+    /// a search wants. Rides `Mail.ReadWrite`, no new scope. Hits the search
+    /// index, so a just-arrived message can lag a few seconds before it's
+    /// findable (same eventual-consistency wrinkle as the unread count).
+    func searchEmails(query: String, top: Int = 25) async throws -> [Email] {
+        // The query is wrapped in double quotes to form a KQL phrase; a literal
+        // quote inside would break that, and KQL has no clean escape for it, so
+        // drop embedded quotes rather than emit malformed search syntax.
+        let sanitized = query.replacingOccurrences(of: "\"", with: " ")
+        let data: GraphList<EmailResponse> = try await core.get(
+            "/me/messages",
+            query: [
+                "$search": "\"\(sanitized)\"",
+                "$top": "\(top)",
+                "$select": Self.emailSelect
+            ]
+        )
+        return data.value.map(makeEmail)
+    }
+
+    /// The most recent inbox messages, read and unread, newest first — the
+    /// "browse the inbox" list behind the email screen (as opposed to
+    /// `unreadEmails`, which is the triage front). No `$filter` on `isRead`,
+    /// so it's the whole recent inbox. Rides `Mail.ReadWrite`, no new scope.
+    func recentInbox(top: Int = 50) async throws -> [Email] {
+        let data: GraphList<EmailResponse> = try await core.get(
+            "/me/mailFolders/inbox/messages",
+            query: [
+                "$orderby": "receivedDateTime desc",
+                "$top": "\(top)",
+                "$select": Self.emailSelect
+            ]
+        )
+        return data.value.map(makeEmail)
+    }
+
+    /// Map a Graph message envelope into our `Email` model. Shared by the
+    /// unread fetch and search so the two never drift on how a message's
+    /// fields (mailing-list detection, meeting-cast times, recipients) resolve.
+    private func makeEmail(_ e: EmailResponse) -> Email {
+        let isMailingList = (e.internetMessageHeaders ?? []).contains { h in
+            h.name.caseInsensitiveCompare("List-Unsubscribe") == .orderedSame
+        }
+        let meetingStart = e.startDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
+        let meetingEnd = e.endDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
+        let toRecipients = (e.toRecipients ?? []).compactMap(Self.makeRecipient)
+        let ccRecipients = (e.ccRecipients ?? []).compactMap(Self.makeRecipient)
+        return Email(
+            id: e.id,
+            subject: e.subject,
+            from: e.from?.emailAddress.name ?? "",
+            fromAddress: e.from?.emailAddress.address ?? "",
+            preview: Klartext.parse(plainText: e.bodyPreview).preview(),
+            received: parseISO8601(e.receivedDateTime) ?? Date(),
+            isRead: e.isRead ?? false,
+            isFlagged: e.flag?.flagStatus == "flagged",
+            inferenceClassification: e.inferenceClassification,
+            meetingMessageType: e.meetingMessageType,
+            meetingStart: meetingStart,
+            meetingEnd: meetingEnd,
+            isMailingList: isMailingList,
+            toRecipients: toRecipients,
+            ccRecipients: ccRecipients
+        )
     }
 
     /// Map a Graph recipient envelope into our `Recipient` model. Skips
@@ -739,24 +790,59 @@ final class GraphClient {
                 lastRead: chat.viewpoint?.lastMessageReadDateTime.flatMap(parseISO8601)
             ), let from = preview.from?.user else { continue }
 
-            let others: [String] = (chat.members ?? []).compactMap { m in
-                guard let uid = m.userId, let name = m.displayName, !name.isEmpty else { return nil }
-                if uid == userID || uid == from.id { return nil }
-                return name
-            }
-
-            messages.append(ChatMessage(
-                chatId: chat.id,
-                topic: chat.topic ?? "",
-                from: from.displayName,
-                preview: Klartext.plainText(fromHTML: preview.body.content),
-                sent: sent,
-                otherParticipants: others,
-                webUrl: chat.webUrl
-            ))
+            messages.append(makeChatMessage(chat, sent: sent, sender: from, isRead: false))
         }
 
         return messages
+    }
+
+    /// Recent chats, read and unread, newest first — the "browse chats" list
+    /// behind the Chats header, as opposed to `pendingChats` (unread only).
+    /// Same display gate as the unread fetch; each chat's read state comes from
+    /// the per-user `viewpoint.lastMessageReadDateTime`.
+    func recentChats() async throws -> [ChatMessage] {
+        let data: GraphList<ChatResponse> = try await core.get("/me/chats", query: [
+            "$select": "id,topic,webUrl,lastMessagePreview,viewpoint",
+            "$expand": "lastMessagePreview,members",
+            "$top": "50"
+        ])
+
+        var messages: [ChatMessage] = []
+        for chat in data.value {
+            guard let preview = chat.lastMessagePreview,
+                  let sent = parseISO8601(preview.createdDateTime),
+                  isDisplayableChat(isHidden: chat.viewpoint?.isHidden,
+                                    messageType: preview.messageType,
+                                    hasSenderUser: preview.from?.user != nil,
+                                    sent: sent),
+                  let from = preview.from?.user else { continue }
+            let lastRead = chat.viewpoint?.lastMessageReadDateTime.flatMap(parseISO8601)
+            let isRead = !(sent > (lastRead ?? .distantPast))
+            messages.append(makeChatMessage(chat, sent: sent, sender: from, isRead: isRead))
+        }
+        return messages.sorted { $0.sent > $1.sent }
+    }
+
+    /// Build a `ChatMessage` from a chat, its resolved last-message time and
+    /// sender, and a read flag. Shared by the unread and browse fetches so the
+    /// two never drift on participant filtering or body handling.
+    private func makeChatMessage(_ chat: ChatResponse, sent: Date,
+                                 sender: ChatUserResponse, isRead: Bool) -> ChatMessage {
+        let others: [String] = (chat.members ?? []).compactMap { m in
+            guard let uid = m.userId, let name = m.displayName, !name.isEmpty else { return nil }
+            if uid == userID || uid == sender.id { return nil }
+            return name
+        }
+        return ChatMessage(
+            chatId: chat.id,
+            topic: chat.topic ?? "",
+            from: sender.displayName,
+            preview: Klartext.plainText(fromHTML: chat.lastMessagePreview?.body.content ?? ""),
+            sent: sent,
+            otherParticipants: others,
+            webUrl: chat.webUrl,
+            isRead: isRead
+        )
     }
 
     /// Fetch a chat's recent transcript for the preview sheet: the run of

@@ -23,4 +23,21 @@ struct ChatMessage: Identifiable {
     /// routes it to the Teams app when installed. Optional because legacy
     /// chats and some tenants don't populate it.
     let webUrl: String?
+    /// Always false in the unread pending list; meaningful in the full chat
+    /// browse, which carries read and unread threads side by side. `var` so a
+    /// browse row can flip in place on mark read/unread without changing its
+    /// identity (`id` is a per-instance UUID, so reconstructing would reorder).
+    var isRead: Bool
+
+    init(chatId: String?, topic: String, from: String, preview: String, sent: Date,
+         otherParticipants: [String], webUrl: String?, isRead: Bool = false) {
+        self.chatId = chatId
+        self.topic = topic
+        self.from = from
+        self.preview = preview
+        self.sent = sent
+        self.otherParticipants = otherParticipants
+        self.webUrl = webUrl
+        self.isRead = isRead
+    }
 }

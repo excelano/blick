@@ -28,12 +28,14 @@ struct EmailRow: View {
             // can take its own tap reliably — nested SwiftUI Buttons
             // have inconsistent behavior across iOS versions.
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "envelope")
-                    .foregroundStyle(Brand.accent)
+                Image(systemName: email.isRead ? "envelope.open" : "envelope")
+                    .foregroundStyle(email.isRead ? Brand.textMuted : Brand.accent)
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(email.from).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                        Text(email.from)
+                            .font(.subheadline.weight(email.isRead ? .regular : .semibold))
+                            .foregroundStyle(email.isRead ? Brand.textMuted : .white)
                         if email.isFlagged {
                             Image(systemName: "flag.fill")
                                 .font(.caption)
