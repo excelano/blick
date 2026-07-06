@@ -309,6 +309,10 @@ final class Inbox {
     /// stays well under its ceiling.
     private static let watchListCap = 15
     private static let watchPreviewCap = 140
+    /// How many messages the on-demand "load more" relay returns to the watch —
+    /// the recent inbox (read + unread), a deeper browse than the pushed
+    /// unread front. Still small enough for a single WatchConnectivity reply.
+    private static let watchExtendedCap = 40
 
     /// How long an undoable bulk action stays offered before it expires
     /// silently. Long enough to catch a "wait, undo that" reflex,
@@ -493,7 +497,9 @@ final class Inbox {
                 sender: email.from,
                 subject: email.subject,
                 preview: String(email.preview.prefix(Self.watchPreviewCap)),
-                received: email.received
+                received: email.received,
+                isFlagged: email.isFlagged,
+                isRead: email.isRead
             )
         }
         let topChats = summary.chats.prefix(Self.watchListCap).compactMap { chat -> SnapshotChat? in
@@ -502,7 +508,8 @@ final class Inbox {
                 id: chatId,
                 sender: chat.from,
                 preview: String(chat.preview.prefix(Self.watchPreviewCap)),
-                sent: chat.sent
+                sent: chat.sent,
+                isRead: chat.isRead
             )
         }
         let snapshot = CheckInSnapshot(
@@ -1100,6 +1107,116 @@ final class Inbox {
         }
         await updateAppBadge()
         publishStatusSnapshot()
+    }
+
+    /// Mark an email unread on behalf of the watch. The user opened it there
+    /// (which marked it read) and wants it back in their queue. The Graph state
+    /// flips immediately; the phone's unread list and count reconcile on the
+    /// next refresh — the message was dropped from the summary when it was
+    /// opened, and the watch doesn't carry the full `Email` needed to re-insert
+    /// it here.
+    func markEmailUnreadFromWatch(emailId: String) async {
+        do {
+            try await graphClient.markEmailUnread(id: emailId)
+        } catch {
+            logger.error("markEmailUnreadFromWatch failed: \(error.localizedDescription, privacy: .public)")
+        }
+        publishStatusSnapshot()
+    }
+
+    /// Mark a chat unread on behalf of the watch, by id. Same
+    /// eventual-consistency shape as the email path.
+    func markChatUnreadFromWatch(chatId: String) async {
+        guard let (userId, tenantId) = chatIdentity(context: "markChatUnreadFromWatch") else { return }
+        do {
+            try await graphClient.markChatUnread(chatId: chatId, userId: userId, tenantId: tenantId)
+        } catch {
+            logger.error("markChatUnreadFromWatch failed: \(error.localizedDescription, privacy: .public)")
+        }
+        publishStatusSnapshot()
+    }
+
+    /// Flag or unflag an email on behalf of the watch, syncing the glance's
+    /// flag icon when the message is still on it, then re-push.
+    func setEmailFlaggedFromWatch(emailId: String, isFlagged: Bool) async {
+        do {
+            if isFlagged {
+                try await graphClient.flagEmail(id: emailId)
+            } else {
+                try await graphClient.unflagEmail(id: emailId)
+            }
+            if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
+               let original = summary?.emails[idx] {
+                summary?.emails[idx] = original.with(isFlagged: isFlagged)
+            }
+        } catch {
+            logger.error("setEmailFlaggedFromWatch failed: \(error.localizedDescription, privacy: .public)")
+        }
+        publishStatusSnapshot()
+    }
+
+    /// Send a reply-all to an email on behalf of the watch. Returns whether the
+    /// send succeeded so the watch can confirm or surface a failure, and
+    /// re-pushes the snapshot on success (`replyAllToEmail` drops the handled
+    /// row from the unread list).
+    func replyToEmailFromWatch(emailId: String, text: String) async -> Bool {
+        do {
+            try await replyAllToEmail(emailId: emailId, comment: text)
+            publishStatusSnapshot()
+            return true
+        } catch {
+            logger.error("replyToEmailFromWatch failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Send a reply into an existing Teams chat on behalf of the watch. Same
+    /// success semantics as the email reply.
+    func replyToChatFromWatch(chatId: String, text: String) async -> Bool {
+        do {
+            try await sendChatMessage(chatId: chatId, content: text)
+            publishStatusSnapshot()
+            return true
+        } catch {
+            logger.error("replyToChatFromWatch failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// The recent inbox (read + unread) mapped to snapshot rows for the watch's
+    /// on-demand "load more" — a deeper browse than the pushed unread front.
+    /// Fetched fresh from Graph, not merged into the summary; returns empty on
+    /// failure so the watch keeps showing what it already has.
+    func recentEmailsForWatch() async -> [SnapshotEmail] {
+        guard let emails = try? await graphClient.recentInbox() else { return [] }
+        return emails.prefix(Self.watchExtendedCap).map { email in
+            SnapshotEmail(
+                id: email.id,
+                sender: email.from,
+                subject: email.subject,
+                preview: String(email.preview.prefix(Self.watchPreviewCap)),
+                received: email.received,
+                isFlagged: email.isFlagged,
+                isRead: email.isRead
+            )
+        }
+    }
+
+    /// The recent chats (read + unread) mapped to snapshot rows for the watch's
+    /// "load more". Chats without a chat id are skipped — the watch can't act
+    /// on them. Same failure semantics as the email path.
+    func recentChatsForWatch() async -> [SnapshotChat] {
+        guard let chats = try? await graphClient.recentChats() else { return [] }
+        return chats.prefix(Self.watchExtendedCap).compactMap { chat -> SnapshotChat? in
+            guard let chatId = chat.chatId else { return nil }
+            return SnapshotChat(
+                id: chatId,
+                sender: chat.from,
+                preview: String(chat.preview.prefix(Self.watchPreviewCap)),
+                sent: chat.sent,
+                isRead: chat.isRead
+            )
+        }
     }
 
     /// Send a reply-all to an email. After success the email is

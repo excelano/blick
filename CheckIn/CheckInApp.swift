@@ -40,7 +40,14 @@ struct CheckInApp: App {
             fetchEmailBody: { [inbox] in try? await inbox.emailPlainText(emailId: $0) },
             fetchChatBody: { [inbox] in try? await inbox.chatThreadText(chatId: $0) },
             markEmailRead: { [inbox] in await inbox.markEmailReadFromWatch(emailId: $0) },
-            markChatRead: { [inbox] in await inbox.markChatReadFromWatch(chatId: $0) }
+            markChatRead: { [inbox] in await inbox.markChatReadFromWatch(chatId: $0) },
+            markEmailUnread: { [inbox] in await inbox.markEmailUnreadFromWatch(emailId: $0) },
+            markChatUnread: { [inbox] in await inbox.markChatUnreadFromWatch(chatId: $0) },
+            setEmailFlagged: { [inbox] in await inbox.setEmailFlaggedFromWatch(emailId: $0, isFlagged: $1) },
+            replyEmail: { [inbox] in await inbox.replyToEmailFromWatch(emailId: $0, text: $1) },
+            replyChat: { [inbox] in await inbox.replyToChatFromWatch(chatId: $0, text: $1) },
+            fetchMoreEmails: { [inbox] in await inbox.recentEmailsForWatch() },
+            fetchMoreChats: { [inbox] in await inbox.recentChatsForWatch() }
         )
         UNUserNotificationCenter.current().delegate = NotificationCenterDelegate.shared
         // Expose the live services to App Intents. The system runs this

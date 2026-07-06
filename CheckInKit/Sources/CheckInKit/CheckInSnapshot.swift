@@ -68,13 +68,40 @@ public struct SnapshotEmail: Codable, Hashable, Identifiable {
     public let subject: String
     public let preview: String
     public let received: Date
+    /// Whether the message carries a follow-up flag, so the watch reader can
+    /// show Flag vs Unflag correctly instead of guessing.
+    public let isFlagged: Bool
+    /// Whether the message is read. Always false for the pushed top list (it's
+    /// the unread front), but the on-demand "load more" relay brings back the
+    /// recent inbox — read and unread — so the rows need to tell them apart.
+    public let isRead: Bool
 
-    public init(id: String, sender: String, subject: String, preview: String, received: Date) {
+    public init(id: String, sender: String, subject: String, preview: String, received: Date, isFlagged: Bool = false, isRead: Bool = false) {
         self.id = id
         self.sender = sender
         self.subject = subject
         self.preview = preview
         self.received = received
+        self.isFlagged = isFlagged
+        self.isRead = isRead
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, sender, subject, preview, received, isFlagged, isRead
+    }
+
+    /// Backward-compat decode for snapshots written before `isFlagged` /
+    /// `isRead` existed (an early dev build of the watch reader) — falls back
+    /// to unflagged / unread so a cached snapshot still decodes.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        sender = try c.decode(String.self, forKey: .sender)
+        subject = try c.decode(String.self, forKey: .subject)
+        preview = try c.decode(String.self, forKey: .preview)
+        received = try c.decode(Date.self, forKey: .received)
+        isFlagged = try c.decodeIfPresent(Bool.self, forKey: .isFlagged) ?? false
+        isRead = try c.decodeIfPresent(Bool.self, forKey: .isRead) ?? false
     }
 }
 
@@ -86,12 +113,31 @@ public struct SnapshotChat: Codable, Hashable, Identifiable {
     public let sender: String
     public let preview: String
     public let sent: Date
+    /// Whether the chat is read. False for the pushed pending list; the "load
+    /// more" relay brings back recent read and unread chats to browse deeper.
+    public let isRead: Bool
 
-    public init(id: String, sender: String, preview: String, sent: Date) {
+    public init(id: String, sender: String, preview: String, sent: Date, isRead: Bool = false) {
         self.id = id
         self.sender = sender
         self.preview = preview
         self.sent = sent
+        self.isRead = isRead
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, sender, preview, sent, isRead
+    }
+
+    /// Backward-compat decode for snapshots written before `isRead` existed —
+    /// falls back to unread so a cached snapshot still decodes.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        sender = try c.decode(String.self, forKey: .sender)
+        preview = try c.decode(String.self, forKey: .preview)
+        sent = try c.decode(Date.self, forKey: .sent)
+        isRead = try c.decodeIfPresent(Bool.self, forKey: .isRead) ?? false
     }
 }
 

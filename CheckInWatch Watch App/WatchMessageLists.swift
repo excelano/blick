@@ -12,17 +12,23 @@ import SwiftUI
 /// asks the phone for the full body.
 struct WatchEmailListView: View {
     let receiver: WatchSessionReceiver
+    @State private var extended: [SnapshotEmail]?
+    @State private var loadingMore = false
+    @State private var loadFailed = false
 
-    private var emails: [SnapshotEmail] { receiver.snapshot?.topEmails ?? [] }
+    private var pushed: [SnapshotEmail] { receiver.snapshot?.topEmails ?? [] }
+    /// The unread front until the user loads more, then the recent inbox
+    /// (read + unread) the phone relayed.
+    private var displayed: [SnapshotEmail] { extended ?? pushed }
 
     var body: some View {
         List {
-            if emails.isEmpty {
+            if displayed.isEmpty {
                 Text("No unread mail")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(emails) { email in
+                ForEach(displayed) { email in
                     NavigationLink {
                         WatchEmailReaderView(receiver: receiver, email: email)
                     } label: {
@@ -30,17 +36,36 @@ struct WatchEmailListView: View {
                     }
                 }
             }
+            LoadMoreRow(
+                hidden: extended != nil,
+                loading: loadingMore,
+                failed: loadFailed,
+                action: { Task { await loadMore() } }
+            )
         }
         .navigationTitle("Email")
+    }
+
+    private func loadMore() async {
+        loadingMore = true
+        loadFailed = false
+        let more = await receiver.requestMoreEmails()
+        loadingMore = false
+        if let more {
+            extended = more
+        } else {
+            loadFailed = true
+        }
     }
 
     private func emailRow(_ email: SnapshotEmail) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(email.sender)
-                .font(.caption.weight(.semibold))
+                .font(.caption.weight(email.isRead ? .regular : .semibold))
                 .lineLimit(1)
             Text(email.subject)
                 .font(.caption2)
+                .foregroundStyle(email.isRead ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                 .lineLimit(1)
             if !email.preview.isEmpty {
                 Text(email.preview)
@@ -55,17 +80,21 @@ struct WatchEmailListView: View {
 /// The watch's pending-chat list, reached from the chat chip.
 struct WatchChatListView: View {
     let receiver: WatchSessionReceiver
+    @State private var extended: [SnapshotChat]?
+    @State private var loadingMore = false
+    @State private var loadFailed = false
 
-    private var chats: [SnapshotChat] { receiver.snapshot?.topChats ?? [] }
+    private var pushed: [SnapshotChat] { receiver.snapshot?.topChats ?? [] }
+    private var displayed: [SnapshotChat] { extended ?? pushed }
 
     var body: some View {
         List {
-            if chats.isEmpty {
+            if displayed.isEmpty {
                 Text("No pending chats")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(chats) { chat in
+                ForEach(displayed) { chat in
                     NavigationLink {
                         WatchChatReaderView(receiver: receiver, chat: chat)
                     } label: {
@@ -73,14 +102,32 @@ struct WatchChatListView: View {
                     }
                 }
             }
+            LoadMoreRow(
+                hidden: extended != nil,
+                loading: loadingMore,
+                failed: loadFailed,
+                action: { Task { await loadMore() } }
+            )
         }
         .navigationTitle("Chats")
+    }
+
+    private func loadMore() async {
+        loadingMore = true
+        loadFailed = false
+        let more = await receiver.requestMoreChats()
+        loadingMore = false
+        if let more {
+            extended = more
+        } else {
+            loadFailed = true
+        }
     }
 
     private func chatRow(_ chat: SnapshotChat) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(chat.sender)
-                .font(.caption.weight(.semibold))
+                .font(.caption.weight(chat.isRead ? .regular : .semibold))
                 .lineLimit(1)
             if !chat.preview.isEmpty {
                 Text(chat.preview)
@@ -92,15 +139,56 @@ struct WatchChatListView: View {
     }
 }
 
+/// The "Load more" affordance at the foot of a watch list — pulls the recent
+/// inbox (read + unread) from the phone on demand, so the wrist can browse
+/// deeper than the pushed unread front without a separate screen. Disappears
+/// once the deeper set is loaded.
+private struct LoadMoreRow: View {
+    let hidden: Bool
+    let loading: Bool
+    let failed: Bool
+    let action: () -> Void
+
+    var body: some View {
+        if !hidden {
+            Button(action: action) {
+                if loading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label("Load more", systemImage: "arrow.down.circle")
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .disabled(loading)
+            if failed {
+                Text("Couldn't load — open iPhone.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 /// Reads a single email on the wrist. Shows the snapshot preview immediately,
 /// then asks the phone for the full body and swaps it in. If the phone can't be
-/// reached the preview stays with a quiet "open on iPhone" note. Slice 4 marks
-/// the message read on open.
+/// reached the preview stays with a quiet "open on iPhone" note. Opening marks
+/// the message read; the action row below relays reply / flag / mark-unread.
 struct WatchEmailReaderView: View {
     let receiver: WatchSessionReceiver
     let email: SnapshotEmail
+    @Environment(\.dismiss) private var dismiss
     @State private var fullBody: String?
     @State private var loaded = false
+    @State private var isFlagged: Bool
+    @State private var showReply = false
+
+    init(receiver: WatchSessionReceiver, email: SnapshotEmail) {
+        self.receiver = receiver
+        self.email = email
+        _isFlagged = State(initialValue: email.isFlagged)
+    }
 
     var body: some View {
         ScrollView {
@@ -118,6 +206,7 @@ struct WatchEmailReaderView: View {
                 Text(fullBody ?? email.preview)
                     .font(.caption)
                 MessageBodyStatus(loaded: loaded, haveFullBody: fullBody != nil)
+                actions
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 4)
@@ -129,6 +218,38 @@ struct WatchEmailReaderView: View {
             fullBody = await receiver.requestEmailBody(id: email.id)
             loaded = true
         }
+        .sheet(isPresented: $showReply) {
+            WatchReplyView(receiver: receiver, target: .email(email.id))
+        }
+    }
+
+    private var actions: some View {
+        VStack(spacing: 6) {
+            Button { showReply = true } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left")
+                    .frame(maxWidth: .infinity)
+            }
+            Button { toggleFlag() } label: {
+                Label(isFlagged ? "Unflag" : "Flag", systemImage: isFlagged ? "flag.slash" : "flag")
+                    .frame(maxWidth: .infinity)
+            }
+            Button { markUnread() } label: {
+                Label("Mark Unread", systemImage: "envelope.badge")
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .buttonStyle(.bordered)
+        .padding(.top, 8)
+    }
+
+    private func toggleFlag() {
+        isFlagged.toggle()
+        receiver.sendSetEmailFlag(id: email.id, flagged: isFlagged)
+    }
+
+    private func markUnread() {
+        receiver.sendMarkEmailUnread(id: email.id)
+        dismiss()
     }
 }
 
@@ -137,8 +258,10 @@ struct WatchEmailReaderView: View {
 struct WatchChatReaderView: View {
     let receiver: WatchSessionReceiver
     let chat: SnapshotChat
+    @Environment(\.dismiss) private var dismiss
     @State private var thread: String?
     @State private var loaded = false
+    @State private var showReply = false
 
     var body: some View {
         ScrollView {
@@ -153,6 +276,7 @@ struct WatchChatReaderView: View {
                 Text(thread ?? chat.preview)
                     .font(.caption)
                 MessageBodyStatus(loaded: loaded, haveFullBody: thread != nil)
+                actions
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 4)
@@ -162,6 +286,101 @@ struct WatchChatReaderView: View {
             receiver.sendMarkChatRead(id: chat.id)
             thread = await receiver.requestChatBody(id: chat.id)
             loaded = true
+        }
+        .sheet(isPresented: $showReply) {
+            WatchReplyView(receiver: receiver, target: .chat(chat.id))
+        }
+    }
+
+    private var actions: some View {
+        VStack(spacing: 6) {
+            Button { showReply = true } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left")
+                    .frame(maxWidth: .infinity)
+            }
+            Button { markUnread() } label: {
+                Label("Mark Unread", systemImage: "message.badge")
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .buttonStyle(.bordered)
+        .padding(.top, 8)
+    }
+
+    private func markUnread() {
+        receiver.sendMarkChatUnread(id: chat.id)
+        dismiss()
+    }
+}
+
+/// Where a wrist-composed reply is headed. Same-channel only: an email reply
+/// relays reply-all, a chat reply posts into the existing Teams thread.
+enum WatchReplyTarget {
+    case email(String)
+    case chat(String)
+}
+
+/// The wrist reply composer. A single `TextField` gives the standard watchOS
+/// input surface — scribble, dictation, keyboard, emoji — the same one Messages
+/// uses; there are no canned responses. Send relays to the phone and waits for
+/// its ack: a real send is never queued silently, so if the phone is out of
+/// reach the user is told to open the iPhone rather than left guessing.
+struct WatchReplyView: View {
+    let receiver: WatchSessionReceiver
+    let target: WatchReplyTarget
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var sending = false
+    @State private var failed = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Reply", text: $text, axis: .vertical)
+                        .lineLimit(1...6)
+                    Button {
+                        Task { await send() }
+                    } label: {
+                        if sending {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text("Send")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(trimmed.isEmpty || sending)
+                    if failed {
+                        Text("Couldn't send — open iPhone.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            .navigationTitle("Reply")
+        }
+    }
+
+    private var trimmed: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func send() async {
+        sending = true
+        failed = false
+        let ok: Bool
+        switch target {
+        case .email(let id): ok = await receiver.sendReplyEmail(id: id, text: trimmed)
+        case .chat(let id): ok = await receiver.sendReplyChat(id: id, text: trimmed)
+        }
+        sending = false
+        if ok {
+            dismiss()
+        } else {
+            failed = true
         }
     }
 }

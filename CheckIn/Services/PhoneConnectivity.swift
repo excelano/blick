@@ -27,6 +27,13 @@ final class PhoneConnectivity: NSObject {
     private let fetchChatBody: (String) async -> String?
     private let markEmailRead: (String) async -> Void
     private let markChatRead: (String) async -> Void
+    private let markEmailUnread: (String) async -> Void
+    private let markChatUnread: (String) async -> Void
+    private let setEmailFlagged: (String, Bool) async -> Void
+    private let replyEmail: (String, String) async -> Bool
+    private let replyChat: (String, String) async -> Bool
+    private let fetchMoreEmails: () async -> [SnapshotEmail]
+    private let fetchMoreChats: () async -> [SnapshotChat]
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "phone-connectivity")
 
     init(
@@ -36,7 +43,14 @@ final class PhoneConnectivity: NSObject {
         fetchEmailBody: @escaping (String) async -> String?,
         fetchChatBody: @escaping (String) async -> String?,
         markEmailRead: @escaping (String) async -> Void,
-        markChatRead: @escaping (String) async -> Void
+        markChatRead: @escaping (String) async -> Void,
+        markEmailUnread: @escaping (String) async -> Void,
+        markChatUnread: @escaping (String) async -> Void,
+        setEmailFlagged: @escaping (String, Bool) async -> Void,
+        replyEmail: @escaping (String, String) async -> Bool,
+        replyChat: @escaping (String, String) async -> Bool,
+        fetchMoreEmails: @escaping () async -> [SnapshotEmail],
+        fetchMoreChats: @escaping () async -> [SnapshotChat]
     ) {
         self.setPresence = setPresence
         self.setOutOfOffice = setOutOfOffice
@@ -45,6 +59,13 @@ final class PhoneConnectivity: NSObject {
         self.fetchChatBody = fetchChatBody
         self.markEmailRead = markEmailRead
         self.markChatRead = markChatRead
+        self.markEmailUnread = markEmailUnread
+        self.markChatUnread = markChatUnread
+        self.setEmailFlagged = setEmailFlagged
+        self.replyEmail = replyEmail
+        self.replyChat = replyChat
+        self.fetchMoreEmails = fetchMoreEmails
+        self.fetchMoreChats = fetchMoreChats
         super.init()
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
@@ -134,10 +155,30 @@ final class PhoneConnectivity: NSObject {
                 return
             }
             Task { @MainActor in await self.markChatRead(id) }
-        case .fetchEmailBody, .fetchChatBody:
-            // Data requests are served by `handleRequest` over the
-            // reply-handler path; if one arrives without a reply handler
-            // there's nowhere to return the body, so ignore it.
+        case .markEmailUnread:
+            guard let id = payload[WireKey.id] as? String else {
+                logger.error("handleAction(markEmailUnread): missing id")
+                return
+            }
+            Task { @MainActor in await self.markEmailUnread(id) }
+        case .markChatUnread:
+            guard let id = payload[WireKey.id] as? String else {
+                logger.error("handleAction(markChatUnread): missing id")
+                return
+            }
+            Task { @MainActor in await self.markChatUnread(id) }
+        case .setEmailFlagged:
+            guard let id = payload[WireKey.id] as? String,
+                  let flagged = payload[WireKey.flagged] as? Bool else {
+                logger.error("handleAction(setEmailFlagged): missing id or flag")
+                return
+            }
+            Task { @MainActor in await self.setEmailFlagged(id, flagged) }
+        case .fetchEmailBody, .fetchChatBody, .replyEmail, .replyChat,
+             .fetchMoreEmails, .fetchMoreChats:
+            // Data / acknowledged requests are served by `handleRequest` over
+            // the reply-handler path; if one arrives without a reply handler
+            // there's nowhere to return the result, so ignore it.
             break
         }
     }
@@ -163,6 +204,25 @@ final class PhoneConnectivity: NSObject {
                 ? await fetchEmailBody(id)
                 : await fetchChatBody(id)
             reply(body.map { [WireKey.body: $0] } ?? [:])
+        case .replyEmail, .replyChat:
+            // A watch reply is a real send that needs the phone, so it comes
+            // over the reply-handler path for an ack — the watch tells the
+            // user "sent" or "couldn't send" rather than silently queueing.
+            guard let id = payload[WireKey.id] as? String,
+                  let text = payload[WireKey.text] as? String else {
+                reply([WireKey.ok: false])
+                return
+            }
+            let ok = kind == .replyEmail
+                ? await replyEmail(id, text)
+                : await replyChat(id, text)
+            reply([WireKey.ok: ok])
+        case .fetchMoreEmails:
+            let items = await fetchMoreEmails()
+            reply((try? JSONEncoder().encode(items)).map { [WireKey.items: $0] } ?? [:])
+        case .fetchMoreChats:
+            let items = await fetchMoreChats()
+            reply((try? JSONEncoder().encode(items)).map { [WireKey.items: $0] } ?? [:])
         default:
             handleAction(payload)
             reply([:])
@@ -176,6 +236,10 @@ final class PhoneConnectivity: NSObject {
         static let outOfOfficeOn = "on"
         static let id = "id"
         static let body = "body"
+        static let flagged = "flagged"
+        static let text = "text"
+        static let ok = "ok"
+        static let items = "items"
     }
 
     enum ActionKind: String {
@@ -186,6 +250,13 @@ final class PhoneConnectivity: NSObject {
         case fetchChatBody
         case markEmailRead
         case markChatRead
+        case markEmailUnread
+        case markChatUnread
+        case setEmailFlagged
+        case replyEmail
+        case replyChat
+        case fetchMoreEmails
+        case fetchMoreChats
     }
 }
 

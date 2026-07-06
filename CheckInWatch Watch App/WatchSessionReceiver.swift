@@ -76,6 +76,28 @@ final class WatchSessionReceiver: NSObject {
         send([WireKey.actionKind: ActionKind.markChatRead.rawValue, WireKey.id: id])
     }
 
+    /// Flip an email back to unread from the wrist. Fire-and-forget, like the
+    /// mark-read path; the Graph state changes right away and the phone's list
+    /// reconciles on its next refresh.
+    func sendMarkEmailUnread(id: String) {
+        send([WireKey.actionKind: ActionKind.markEmailUnread.rawValue, WireKey.id: id])
+    }
+
+    /// Flip a chat back to unread from the wrist. Same semantics.
+    func sendMarkChatUnread(id: String) {
+        send([WireKey.actionKind: ActionKind.markChatUnread.rawValue, WireKey.id: id])
+    }
+
+    /// Flag or unflag an email from the wrist. Fire-and-forget; the phone runs
+    /// the Graph call and re-pushes the snapshot.
+    func sendSetEmailFlag(id: String, flagged: Bool) {
+        send([
+            WireKey.actionKind: ActionKind.setEmailFlagged.rawValue,
+            WireKey.id: id,
+            WireKey.flagged: flagged
+        ])
+    }
+
     /// Outcome of a watch-initiated refresh request, used by the glance
     /// to decide whether to surface a "Phone unreachable" hint after
     /// the pull-to-refresh spinner finishes.
@@ -149,6 +171,84 @@ final class WatchSessionReceiver: NSObject {
         await requestBody(kind: .fetchChatBody, id: id)
     }
 
+    /// Ask the phone for the recent inbox (read + unread) to browse deeper than
+    /// the pushed unread front. Returns nil when the phone isn't reachable or
+    /// the fetch fails, so the list keeps showing what it already has.
+    @MainActor
+    func requestMoreEmails() async -> [SnapshotEmail]? {
+        guard let data = await requestItems(kind: .fetchMoreEmails) else { return nil }
+        return try? JSONDecoder().decode([SnapshotEmail].self, from: data)
+    }
+
+    /// Ask the phone for recent chats (read + unread). Same semantics.
+    @MainActor
+    func requestMoreChats() async -> [SnapshotChat]? {
+        guard let data = await requestItems(kind: .fetchMoreChats) else { return nil }
+        return try? JSONDecoder().decode([SnapshotChat].self, from: data)
+    }
+
+    @MainActor
+    private func requestItems(kind: ActionKind) async -> Data? {
+        guard WCSession.isSupported() else { return nil }
+        let session = WCSession.default
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            if session.activationState == .activated, session.isReachable { break }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        guard session.activationState == .activated, session.isReachable else { return nil }
+        return await withCheckedContinuation { continuation in
+            session.sendMessage(
+                [WireKey.actionKind: kind.rawValue],
+                replyHandler: { reply in
+                    continuation.resume(returning: reply[WireKey.items] as? Data)
+                },
+                errorHandler: { _ in
+                    continuation.resume(returning: nil)
+                }
+            )
+        }
+    }
+
+    /// Send an email reply-all from the wrist and wait for the phone's ack.
+    /// Returns true when the phone confirms the send, false when it fails or
+    /// the phone isn't reachable — a reply is a real send, so we never queue it
+    /// silently; the caller tells the user to open the iPhone instead.
+    @MainActor
+    func sendReplyEmail(id: String, text: String) async -> Bool {
+        await sendReply(kind: .replyEmail, id: id, text: text)
+    }
+
+    /// Send a Teams chat reply from the wrist. Same ack semantics.
+    @MainActor
+    func sendReplyChat(id: String, text: String) async -> Bool {
+        await sendReply(kind: .replyChat, id: id, text: text)
+    }
+
+    @MainActor
+    private func sendReply(kind: ActionKind, id: String, text: String) async -> Bool {
+        guard WCSession.isSupported() else { return false }
+        let session = WCSession.default
+        // Same activation/reachability grace window the body fetch uses.
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            if session.activationState == .activated, session.isReachable { break }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        guard session.activationState == .activated, session.isReachable else { return false }
+        return await withCheckedContinuation { continuation in
+            session.sendMessage(
+                [WireKey.actionKind: kind.rawValue, WireKey.id: id, WireKey.text: text],
+                replyHandler: { reply in
+                    continuation.resume(returning: reply[WireKey.ok] as? Bool ?? false)
+                },
+                errorHandler: { _ in
+                    continuation.resume(returning: false)
+                }
+            )
+        }
+    }
+
     @MainActor
     private func requestBody(kind: ActionKind, id: String) async -> String? {
         guard WCSession.isSupported() else { return nil }
@@ -216,6 +316,10 @@ final class WatchSessionReceiver: NSObject {
         static let outOfOfficeOn = "on"
         static let id = "id"
         static let body = "body"
+        static let flagged = "flagged"
+        static let text = "text"
+        static let ok = "ok"
+        static let items = "items"
     }
 
     enum ActionKind: String {
@@ -226,6 +330,13 @@ final class WatchSessionReceiver: NSObject {
         case fetchChatBody
         case markEmailRead
         case markChatRead
+        case markEmailUnread
+        case markChatUnread
+        case setEmailFlagged
+        case replyEmail
+        case replyChat
+        case fetchMoreEmails
+        case fetchMoreChats
     }
 }
 
