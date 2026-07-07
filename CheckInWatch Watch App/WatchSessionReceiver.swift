@@ -32,6 +32,15 @@ final class WatchSessionReceiver: NSObject {
 
     override init() {
         super.init()
+        #if DEBUG
+        // Demo/screenshot mode: show the sample day directly, no phone link.
+        if DemoMode.isActive {
+            let demo = DemoSnapshot.snapshot
+            Task { @MainActor in self.snapshot = demo }
+            demo.saveToAppGroup(suite: CheckInSnapshot.watchAppGroupIdentifier)
+            return
+        }
+        #endif
         // Load any previously-pushed snapshot so the glance has something
         // to show on cold launch before a fresh push arrives.
         let initial = CheckInSnapshot.loadFromAppGroup(suite: CheckInSnapshot.watchAppGroupIdentifier)

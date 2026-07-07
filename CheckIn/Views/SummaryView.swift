@@ -113,6 +113,22 @@ struct SummaryView: View {
                 try? await Task.sleep(for: .seconds(30))
             }
         }
+        #if DEBUG
+        // Demo/screenshot mode on iPad: open the top email in the detail pane so
+        // the split view shows a real reader instead of the empty state. Runs
+        // once the sample summary is loaded; iPhone (compact) is left on the
+        // list, since there the preview is a sheet.
+        .task(id: inbox.summary != nil) {
+            guard DemoMode.isActive, isRegularWidth, previewTarget == nil,
+                  let email = inbox.summary?.emails.first else { return }
+            previewTarget = .email(email)
+        }
+        // Demo/screenshot capture: open the full email list on launch when asked.
+        .task {
+            guard DemoMode.opensEmailList, !showEmailList else { return }
+            showEmailList = true
+        }
+        #endif
     }
 
     /// The status panel: title bar, failure banner, the item list, and the

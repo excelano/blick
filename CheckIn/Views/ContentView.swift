@@ -14,7 +14,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if authService.isAuthenticated {
+            if DemoMode.isActive || authService.isAuthenticated {
                 SummaryView(inbox: inbox, authService: authService)
                     .task {
                         // .task re-fires when sheets dismiss; the nil-guard

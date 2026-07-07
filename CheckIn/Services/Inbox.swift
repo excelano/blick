@@ -161,6 +161,16 @@ final class Inbox {
     func searchEmails(_ query: String) async throws -> [Email] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
+        #if DEBUG
+        if DemoMode.isActive {
+            let needle = trimmed.lowercased()
+            return DemoData.browseEmails.filter {
+                $0.subject.lowercased().contains(needle)
+                    || $0.from.lowercased().contains(needle)
+                    || $0.preview.lowercased().contains(needle)
+            }
+        }
+        #endif
         return try await graphClient.searchEmails(query: trimmed)
     }
 
@@ -168,7 +178,10 @@ final class Inbox {
     /// as opposed to the unread-only triage list on the summary. Transient —
     /// the caller owns the result.
     func recentInbox() async throws -> [Email] {
-        try await graphClient.recentInbox()
+        #if DEBUG
+        if DemoMode.isActive { return DemoData.browseEmails }
+        #endif
+        return try await graphClient.recentInbox()
     }
 
     /// Recent chats (read and unread, newest first) for the chat browse view,
@@ -429,6 +442,12 @@ final class Inbox {
     /// preference. Intents that filter `summary.emails` (e.g. by sender)
     /// pass `true` so the match isn't limited to the visible window.
     func refresh(fetchAllEmails: Bool = false) async {
+        #if DEBUG
+        // In demo/screenshot mode every refresh path (first load, pull to
+        // refresh, scene-active) just reloads the sample data. Graph is never
+        // called and the real account is never involved.
+        if DemoMode.isActive { loadDemo(); return }
+        #endif
         var anyFailed = false
         // `fetchUserID` powers two features now: Teams unread-chat
         // filtering (only when teamsEnabled) and external-sender
@@ -470,6 +489,22 @@ final class Inbox {
         await rescheduleMeetingNotificationsIfEnabled()
         publishStatusSnapshot()
     }
+
+    #if DEBUG
+    /// Seed the summary, presence, status message, and today's meetings with the
+    /// sample data, then publish the matching App Group snapshot so the widget
+    /// and watch show the same demo day. No Graph, no auth — for App Store
+    /// screenshots only. Compiled out of release builds.
+    func loadDemo() {
+        summary = DemoData.summary
+        currentPresence = DemoData.presence
+        customStatusMessage = DemoData.customStatusMessage
+        isOutOfOffice = DemoData.isOutOfOffice
+        loadTodayMeetings(next: DemoData.nextMeeting, laterToday: DemoData.laterMeetings)
+        lastRefreshFailed = false
+        publishStatusSnapshot()
+    }
+    #endif
 
     /// Serialize the current summary into the App Group container the
     /// widget and Control Center controls read from, then nudge them to
@@ -1001,6 +1036,11 @@ final class Inbox {
 /// Optimistic: drops the row immediately, restores it (in received-time
     /// order) if the Graph PATCH fails.
     func markRead(emailId: String) async {
+        #if DEBUG
+        // Demo mode: opening a message shouldn't mutate the sample inbox or call
+        // Graph, so the mail stays put for the screenshot.
+        if DemoMode.isActive { return }
+        #endif
         // Optimistically drop from the unread front when it's there — but a
         // browse/search list can mark read a message that isn't in the summary
         // (already read, or past the unread cap), so the Graph call must run
@@ -1051,7 +1091,10 @@ final class Inbox {
     /// image bytes hydrated) that drives both the native fold and the rich
     /// HTML web view.
     func fetchEmailContent(emailId: String) async throws -> EmailContent {
-        try await graphClient.fetchEmailContent(id: emailId)
+        #if DEBUG
+        if DemoMode.isActive { return DemoData.emailContent(for: emailId) }
+        #endif
+        return try await graphClient.fetchEmailContent(id: emailId)
     }
 
     /// Used by the preview sheet to render a chat's recent transcript back

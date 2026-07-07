@@ -16,6 +16,9 @@ struct SettingsView: View {
     @AppStorage(AppStorageKey.customClientID) private var storedClientID: String = ""
     @AppStorage(AppStorageKey.customTenantID) private var storedTenantID: String = ""
     @AppStorage(AppStorageKey.meetingNotifications) private var meetingNotificationsEnabled: Bool = false
+    #if DEBUG
+    @AppStorage(DemoMode.userDefaultsKey) private var demoMode: Bool = false
+    #endif
 
     /// Edits go into the draft fields; they only land in `@AppStorage` when
     /// the user taps Save or Reset, so dismissing without saving discards.
@@ -30,6 +33,9 @@ struct SettingsView: View {
                 if authService.isAuthenticated {
                     signOutSection
                 }
+                #if DEBUG
+                demoSection
+                #endif
                 versionSection
             }
             .scrollContentBackground(.hidden)
@@ -56,6 +62,18 @@ struct SettingsView: View {
         }
         .preferredColorScheme(.dark)
     }
+
+    #if DEBUG
+    private var demoSection: some View {
+        Section {
+            Toggle("Demo mode", isOn: $demoMode)
+        } header: {
+            Text("Developer")
+        } footer: {
+            Text("Replaces your account with generic sample data for App Store screenshots. Relaunch the app to apply. Your real account is left untouched.")
+        }
+    }
+    #endif
 
     private var notificationsSection: some View {
         Section {
