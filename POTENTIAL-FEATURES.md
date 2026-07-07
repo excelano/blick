@@ -4,12 +4,6 @@ Ideas under consideration, not yet committed to the build. Each entry notes the 
 
 Blick's goal is a full personal Microsoft 365 client across every Apple surface — see and act on presence, meetings, mail, and Teams; read, reply, and initiate — with nothing leaving the user's own devices. The privacy posture is the only hard boundary: no backend, no third-party SDK, no new external destination, no token movement off the device that obtained it.
 
-## Maintenance: migrate the deprecated `requestConfirmation` AppIntents calls
-
-Not a feature — tech debt, parked at the top so it isn't lost. Four call sites use `requestConfirmation(result:confirmationActionName:showPrompt:)`, which Apple deprecated in favour of `requestConfirmation(conditions:actionName:dialog:)` / `requestConfirmation(conditions:actionName:dialog:showDialogAsPrompt:content:)`. They are `WorkdaySummaryIntent.swift` (lines 52, 72, 93) and `CurrentPresenceIntent.swift` (line 35). Deprecated-not-broken today, so it ships as-is in 1.5/build 10; left long enough a future SDK removes the old signature and the build breaks.
-
-The reason it's a deliberate change rather than a quick sweep: these calls drive device-verified Siri flows — the read-aloud progressive-disclosure gates in `WorkdaySummaryIntent` (who-from, then "want me to read them?", then meeting times) and the read-then-flip confirmation in `CurrentPresenceIntent`. The new signature can shift the spoken prompt/dialog behavior, so the migration needs an on-device Siri re-verification pass, not just a clean compile. Batch it into the next build and re-verify the gates on the phone.
-
 ## Voice catch-up: interactive read-aloud and voice reply (in-app surface)
 
 Phase 1 shipped on Siri: "Catch me up in Blick" (via `WorkdaySummaryIntent`) now reads the unread queue aloud as one capped block after a spoken "Want me to read them?" (see FEATURES.md). What Phase 1 proved on-device is that Siri's App Intents dialog **cannot** carry the interactive part of this feature: the framework identifies each prompt by its source call site, so a dynamic per-item loop ("read one, then let me reply / mark-read / next") collapses to a single identity and repeats endlessly. That is structural, not a bug. So the block read is as far as the Siri surface goes.

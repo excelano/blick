@@ -33,7 +33,7 @@ struct CurrentPresenceIntent: AppIntent {
         let target: Presence = presence == .available ? .doNotDisturb : .available
 
         try await requestConfirmation(
-            result: .result(dialog: "\(statement) Shall I change it to \(target.displayName)?")
+            dialog: "\(statement) Shall I change it to \(target.displayName)?"
         )
 
         // Confirmed — apply it (read-back + widget/watch sync) and report the new state.

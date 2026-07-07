@@ -49,7 +49,7 @@ struct WorkdaySummaryIntent: AppIntent {
         }
 
         // Offer Level 2.
-        try await requestConfirmation(result: .result(dialog: "\(headline) Want to hear the breakdown?"))
+        try await requestConfirmation(dialog: "\(headline) Want to hear the breakdown?")
 
         // Level 2: who the unread messages are from. The read offer follows
         // this digest directly so "read them?" clearly refers to the messages;
@@ -69,7 +69,7 @@ struct WorkdaySummaryIntent: AppIntent {
         // were none (so the who-from line still gets spoken).
         let afterRead: String
         if emails + chats > 0 {
-            try await requestConfirmation(result: .result(dialog: "\(senders) Want me to read them?"))
+            try await requestConfirmation(dialog: "\(senders) Want me to read them?")
 
             let (lines, overflow) = IntentSpeech.readAloud(
                 chats: rows?.chats ?? [], chatTotal: chats,
@@ -90,7 +90,7 @@ struct WorkdaySummaryIntent: AppIntent {
 
         // Level 4: the meeting count and the times, gated.
         let meetings = "\(IntentSpeech.remainingMeetings(remaining.count)) Want the meeting times?"
-        try await requestConfirmation(result: .result(dialog: "\(afterRead) \(meetings)"))
+        try await requestConfirmation(dialog: "\(afterRead) \(meetings)")
         return .result(dialog: "\(IntentSpeech.meetingList(remaining))")
     }
 }

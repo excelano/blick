@@ -8,7 +8,7 @@ import PackageDescription
 let package = Package(
     name: "CheckInGraph",
     platforms: [
-        .iOS("17.6")
+        .iOS("18.0")
     ],
     products: [
         .library(name: "CheckInGraph", targets: ["CheckInGraph"])

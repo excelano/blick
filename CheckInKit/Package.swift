@@ -8,7 +8,7 @@ import PackageDescription
 let package = Package(
     name: "CheckInKit",
     platforms: [
-        .iOS("17.6"),
+        .iOS("18.0"),
         .watchOS("11.6")
     ],
     products: [

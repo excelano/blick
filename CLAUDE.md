@@ -14,7 +14,7 @@ Repo's canonical docs are `FEATURES.md` (shipped functionality), `POTENTIAL-FEAT
 
 ## Tech Stack
 
-- Swift + SwiftUI, iOS 17+.
+- Swift + SwiftUI, iOS 18+.
 - Microsoft Graph for mail / Teams / calendar; MSAL for Swift / Apple's auth.
 
 ## Privacy posture (non-negotiable)
