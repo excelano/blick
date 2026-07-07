@@ -105,7 +105,7 @@ public struct SnapshotEmail: Codable, Hashable, Identifiable {
     }
 }
 
-/// One pending Teams chat in the snapshot. `id` is the Graph chat id, used to
+/// One unread Teams chat in the snapshot. `id` is the Graph chat id, used to
 /// relay a thread-read request back to the phone. Only chats that carry a
 /// chat id make it here — the watch can't act on one without it.
 public struct SnapshotChat: Codable, Hashable, Identifiable {
@@ -113,7 +113,7 @@ public struct SnapshotChat: Codable, Hashable, Identifiable {
     public let sender: String
     public let preview: String
     public let sent: Date
-    /// Whether the chat is read. False for the pushed pending list; the "load
+    /// Whether the chat is read. False for the pushed unread list; the "load
     /// more" relay brings back recent read and unread chats to browse deeper.
     public let isRead: Bool
 
@@ -159,7 +159,7 @@ public struct CheckInSnapshot: Codable {
     public let nextMeetingJoinUrl: String?
     /// Number of unread emails in the inbox (total, not just the visible ones).
     public let unreadEmailCount: Int
-    /// Number of pending Teams chats waiting on a reply.
+    /// Number of unread Teams chats waiting on a reply.
     public let chatCount: Int
     /// Last-known Microsoft 365 presence, so controls can show the
     /// current state without a Graph call.
@@ -175,7 +175,7 @@ public struct CheckInSnapshot: Codable {
     /// small so the WatchConnectivity payload stays light. Empty for an older
     /// publisher that predates the field.
     public let topEmails: [SnapshotEmail]
-    /// The top pending chats, newest first, for the watch's chat list.
+    /// The top unread chats, newest first, for the watch's chat list.
     public let topChats: [SnapshotChat]
 
     public init(

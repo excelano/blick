@@ -37,7 +37,7 @@ final class GraphClient {
     }
 
     /// Fetch the signed-in user's ID and mail address. ID powers the Teams
-    /// pending-chat self-filter; mail powers external-sender detection.
+    /// unread-chat self-filter; mail powers external-sender detection.
     /// Some accounts (personal/MSA, occasionally) don't populate `mail`,
     /// so we fall back to `userPrincipalName`.
     func fetchUserID() async throws {
@@ -768,7 +768,7 @@ final class GraphClient {
     /// here would fight against the "Mark today's chats unread" bulk
     /// action (which flips viewpoint back to unread; the explicit
     /// skip would re-hide those chats).
-    func pendingChats() async throws -> [ChatMessage] {
+    func unreadChats() async throws -> [ChatMessage] {
         let data: GraphList<ChatResponse> = try await core.get("/me/chats", query: [
             "$select": "id,topic,webUrl,lastMessagePreview,viewpoint",
             "$expand": "lastMessagePreview,members",
@@ -797,7 +797,7 @@ final class GraphClient {
     }
 
     /// Recent chats, read and unread, newest first — the "browse chats" list
-    /// behind the Chats header, as opposed to `pendingChats` (unread only).
+    /// behind the Chats header, as opposed to `unreadChats`.
     /// Same display gate as the unread fetch; each chat's read state comes from
     /// the per-user `viewpoint.lastMessageReadDateTime`.
     func recentChats() async throws -> [ChatMessage] {
@@ -853,7 +853,7 @@ final class GraphClient {
     /// The endpoint returns newest-first by default, but doesn't guarantee
     /// order, so we sort client-side; the page size (50) sits well above
     /// the cap so the true newest messages are present to sort. System-event
-    /// messages are dropped and bodies HTML-stripped, matching `pendingChats`.
+    /// messages are dropped and bodies HTML-stripped, matching `unreadChats`.
     /// The result is ordered oldest-first for display, with `hasMore` set
     /// when the cap truncated the run.
     func fetchChatThread(chatId: String, cap: Int = 20) async throws -> ChatThread {

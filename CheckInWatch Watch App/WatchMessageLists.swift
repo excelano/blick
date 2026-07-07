@@ -77,7 +77,7 @@ struct WatchEmailListView: View {
     }
 }
 
-/// The watch's pending-chat list, reached from the chat chip.
+/// The watch's unread-chat list, reached from the chat chip.
 struct WatchChatListView: View {
     let receiver: WatchSessionReceiver
     @State private var extended: [SnapshotChat]?
@@ -90,7 +90,7 @@ struct WatchChatListView: View {
     var body: some View {
         List {
             if displayed.isEmpty {
-                Text("No pending chats")
+                Text("No unread chats")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

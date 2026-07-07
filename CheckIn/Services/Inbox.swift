@@ -172,7 +172,7 @@ final class Inbox {
     }
 
     /// Recent chats (read and unread, newest first) for the chat browse view,
-    /// as opposed to the unread-only pending list on the summary. Transient.
+    /// as opposed to the unread-only list on the summary. Transient.
     func recentChats() async throws -> [ChatMessage] {
         try await graphClient.recentChats()
     }
@@ -304,7 +304,7 @@ final class Inbox {
     private static let fullEmailCap = 999
     private var emailTop: Int { showingAllEmails ? Self.fullEmailCap : 20 }
 
-    /// How many unread emails / pending chats and how much preview text ride
+    /// How many unread emails / unread chats and how much preview text ride
     /// to the watch in the snapshot. Small so the WatchConnectivity payload
     /// stays well under its ceiling.
     private static let watchListCap = 15
@@ -430,7 +430,7 @@ final class Inbox {
     /// pass `true` so the match isn't limited to the visible window.
     func refresh(fetchAllEmails: Bool = false) async {
         var anyFailed = false
-        // `fetchUserID` powers two features now: Teams pending-chat
+        // `fetchUserID` powers two features now: Teams unread-chat
         // filtering (only when teamsEnabled) and external-sender
         // detection (always useful). Always fetch on first refresh.
         if !didFetchUserID {
@@ -487,7 +487,7 @@ final class Inbox {
                 joinUrl: $0.joinUrl
             )
         }
-        // Carry the top unread emails and pending chats to the watch so its
+        // Carry the top unread emails and unread chats to the watch so its
         // glance shows content, not just counts. Capped so the WatchConnectivity
         // payload stays light; previews truncated for the same reason. Chats
         // without a chat id are skipped — the watch can't relay a read for them.
@@ -700,7 +700,7 @@ final class Inbox {
         }
     }
 
-    /// Sets the iOS app-icon badge to `unread emails + pending chats`. The
+    /// Sets the iOS app-icon badge to `unread emails + unread chats`. The
     /// first call requests notification permission (badge-only). Silent
     /// no-op if denied. Meetings are intentionally excluded — they're
     /// scheduled, not items to triage.
@@ -1268,7 +1268,7 @@ final class Inbox {
     }
 
     /// Send a reply into an existing Teams chat thread. After success
-    /// the chat is dropped from the summary's pending list — same shape
+    /// the chat is dropped from the summary's unread list — same shape
     /// as the email path.
     func sendChatMessage(chatId: String, content: String) async throws {
         try await graphClient.sendChatMessage(chatId: chatId, content: content)
@@ -1285,7 +1285,7 @@ final class Inbox {
     /// it works when a colleague's email equals their Azure AD
     /// userPrincipalName, and an alias or external address fails at chat
     /// creation with a Graph error surfaced to the composer. No list
-    /// mutation: a started chat isn't part of the pending-unread surface.
+    /// mutation: a started chat isn't part of the unread surface.
     func startChat(withEmails emails: [String], message: String) async throws {
         let selfId = graphClient.currentUserID
         guard !selfId.isEmpty else {
@@ -1298,7 +1298,7 @@ final class Inbox {
 
     /// Mark a Teams chat as read for the signed-in user. Optimistically
     /// drops the chat from the summary. Requires the chat to have a
-    /// `chatId` (set by `pendingChats`); otherwise no-op. Mirrors the
+    /// `chatId` (set by `unreadChats`); otherwise no-op. Mirrors the
     /// email `markRead` shape — no undo banner (the Mark Unread button
     /// on the preview sheet covers the recovery path).
     /// The (userId, tenantId) pair the Teams chat read/unread endpoints
@@ -1368,13 +1368,13 @@ final class Inbox {
         }
     }
 
-    /// Re-fetch the pending-chats list and slot it back into the
+    /// Re-fetch the unread-chats list and slot it back into the
     /// summary. Used after bulk read-state mutations so the visible
     /// list reflects the new server-side viewpoint.
     private func refreshChats() async {
         guard teamsEnabled else { return }
         do {
-            let chats = try await graphClient.pendingChats()
+            let chats = try await graphClient.unreadChats()
             summary?.chats = chats
         } catch {
             logger.error("refreshChats failed: \(error.localizedDescription, privacy: .public)")
@@ -1753,15 +1753,15 @@ final class Inbox {
     }
 
     /// Returns an empty array when Teams is disabled or `fetchUserID` failed
-    /// — the pending-chat heuristic compares against the signed-in user's
+    /// — the unread-chat heuristic compares against the signed-in user's
     /// ID, so without that the call can't be made meaningfully. The early
     /// returns aren't treated as failures.
     private func fetchChats(userIDReady: Bool) async -> (chats: [ChatMessage], failed: Bool) {
         guard teamsEnabled, userIDReady else { return ([], false) }
         do {
-            return (try await graphClient.pendingChats(), false)
+            return (try await graphClient.unreadChats(), false)
         } catch {
-            logger.error("pendingChats failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("unreadChats failed: \(error.localizedDescription, privacy: .public)")
             return ([], true)
         }
     }

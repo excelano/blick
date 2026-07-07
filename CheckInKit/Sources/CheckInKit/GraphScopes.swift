@@ -25,7 +25,7 @@ public enum GraphScopes {
         "MailboxSettings.ReadWrite",
     ]
 
-    /// Chat.ReadWrite drives the Teams pending-chat surface including
+    /// Chat.ReadWrite drives the Teams unread-chat surface including
     /// posting replies into existing threads. Chat.Create is the one extra
     /// permission starting a brand-new chat needs (`POST /chats`) — posting
     /// into an existing thread rides Chat.ReadWrite, but creating one does

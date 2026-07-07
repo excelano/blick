@@ -14,13 +14,13 @@ import Foundation
 /// self-fetched snapshot reads the same as an app-written one.
 public extension GraphCore {
     /// Fetch everything the snapshot surfaces (today's meetings, unread email
-    /// count, pending chat count, presence, Out of Office) and assemble it.
+    /// count, unread chat count, presence, Out of Office) and assemble it.
     /// Calls run sequentially; the widget's timeline-reload budget, not these
     /// round-trips, is the binding constraint.
     func fetchSnapshot() async throws -> CheckInSnapshot {
         let meetings = try await fetchTodayMeetings()
         let unreadEmailCount = try await fetchUnreadEmailCount()
-        let chatCount = try await fetchPendingChatCount()
+        let chatCount = try await fetchUnreadChatCount()
         let presence = try await fetchPresence().presence
         let isOutOfOffice = try await fetchAutomaticRepliesEnabled()
 
@@ -91,12 +91,12 @@ public extension GraphCore {
     }
 
     /// Count of chats with unread activity, applying the same filter as
-    /// `GraphClient.pendingChats`: skip hidden chats and non-message events,
+    /// `GraphClient.unreadChats`: skip hidden chats and non-message events,
     /// and count a chat only when it's unread per the user's viewpoint. No
     /// age cutoff — an unread chat counts however old its last message is.
-    /// The self-filter on participant names that `pendingChats` does isn't
+    /// The self-filter on participant names that `unreadChats` does isn't
     /// needed here — it affects display, not the count.
-    private func fetchPendingChatCount() async throws -> Int {
+    private func fetchUnreadChatCount() async throws -> Int {
         let data: GraphList<SnapshotChat> = try await get("/me/chats", query: [
             "$select": "id,lastMessagePreview,viewpoint",
             "$expand": "lastMessagePreview",
