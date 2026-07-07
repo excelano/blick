@@ -61,6 +61,9 @@ What a user can do, mapped to the entry point in the UI.
 | Restore today's emails to unread | Same menu → "Mark unread: today's emails", OR (when the email list is empty) the inline "Mark unread: today's emails" button under the section header. Fetches Inbox messages received between local midnight and now that are currently read, batch-marks them unread, refreshes. Registers an undo. |
 | Copy the sender's email address | Long-press an email row → "Copy sender address". Writes the SMTP address to the system pasteboard. |
 | Undo a bulk action | Floating "Undo" banner at the bottom of the screen for 8 seconds after any bulk mark-read / flag / mark-today-unread. |
+| Open the full email list | Email section header → chevron. Opens a full-screen list in its own `NavigationStack`. |
+| Search your whole mailbox | Search field on the full email list. A query runs Graph's `$search` across all folders (read + unread), relevance-ranked, top 25; an empty query shows the recent inbox. Debounced with a generation counter so a slower earlier lookup can't overwrite a newer keystroke's results. |
+| Browse the recent inbox (read + unread) | The full email list shows the recent inbox newest-first, including already-read mail, not just the unread front. Read rows render lighter (open envelope, regular weight). Tap a row to preview; swipe to toggle read/unread or to flag. |
 
 ## Teams chats
 
@@ -77,6 +80,22 @@ What a user can do, mapped to the entry point in the UI.
 | Copy chat link | Long-press → "Copy chat link". Writes the Teams chat URL to the system pasteboard. |
 | Restore today's chats to unread | Inline "Mark unread: today's chats" button under the Chats section header when the section is empty. Fetches today's read chats and batch-flips them via `markChatUnreadForUser`. Registers an undo. |
 | See when a message carries content beyond text | Each message in the preview transcript shows a muted caption ("Image not shown", "Attachment not shown", or both) when it has content the text-only view drops. Inline/pasted images are detected from `<img>` in the body HTML; file attachments are classified as image vs. other by `image/*` contentType or filename extension (Teams tags shared files `reference`, so the extension is the workable signal). An image- or file-only message shows the indicator in place of a misleading "(no message text)". Detection only; rendering the content stays in Teams. |
+| Open the full chat list and browse recent chats | Chats section header → chevron. Opens a full-screen list showing recent chats newest-first, including already-read ones, not just those with unread activity. Tap a row to preview; swipe to toggle read/unread. (No chat search yet.) |
+
+## Compose
+
+Blick's composer is one channel-agnostic surface: the channel (email vs Teams chat) is a switchable dimension chosen during composition, and the body carries across the switch untouched.
+
+| Function | Triggered by |
+|---|---|
+| Compose a brand-new message | `square.and.pencil` button at the top-left of the summary. Opens the composer, which defaults to a Teams chat (the lossless-to-switch direction); a segmented toggle flips it to email. Subject/Cc/Bcc reflow out in chat mode, their contents preserved if you switch back. |
+| Send a new email | Composer in Email mode: To always shown, a Cc/Bcc reveal, subject, plain-text body. Typed addresses are validated on Send (empty-To and invalid-address guards surface inline, preserving what you typed). Sends via `Mail.Send`; lands in Outlook Sent Items. |
+| Start a new Teams chat | Composer in Chat mode (the default): pick recipients, type a message, Send. Creates the chat via `POST /chats` (`Chat.Create`) — one-on-one, or a group when more than one recipient is chosen — and posts the first message. Recipients bind by email-as-UPN. |
+| Pick recipients from Contacts | `plus.circle` on any To/Cc/Bcc row opens the system contact picker (`CNContactPickerViewController`, out of process — no Contacts permission, no `People.Read`). No-email contacts are greyed out; a multi-email contact drills to the specific address. |
+| Type-ahead recipient suggestions | Typing a fragment into To/Cc/Bcc surfaces tappable name-and-address matches beneath the field and completes the token on tap. Sourced from senders and recipients already in the fetched mail (recents), so no Contacts permission. |
+| See a warning for off-organization chat recipients | When a chat recipient's email domain differs from the signed-in user's, an orange inline warning flags it — a warning, not a block, since guests are legitimate. |
+| Forward an email | Forward button in an email's preview sheet, or its long-press menu. Opens the composer in forward mode (To-only plus an optional note); Graph's `/forward` builds the "Fwd:" subject and quotes the original server-side. Leaves the original unread. |
+| Reply across channels | The composer is the single reply surface for both email (reply-all thread semantics) and chat (posts into the thread). An email reply can switch to a Teams chat before sending (email→chat), carrying a one-line `Re: <subject>` reference rather than the full quoted body. Chat replies stay chat-only for now. |
 
 ## Teams presence & status
 
@@ -143,11 +162,13 @@ Because the app name "Blick" is a real noun, the `\(.applicationName)` token App
 | Add Blick to a watch face or the Smart Stack | Four widget families share the same pushed snapshot. Corner complication shows a presence-colored circle with a cutout glyph and a curved countdown to the next meeting. Smart Stack rectangular tile shows the three-row meeting pattern with the count chips alongside. Circular complication shows a presence-tinted ring with the unread email count centered. Inline complication shows "Status sync in 12m" or "Inbox: 7 unread" depending on what's next. |
 | Set Teams presence from the watch | Glance → presence menu. Same six presences plus OOO and Reset to auto. Tap relays the action to the phone via `WCSession.sendMessage` (live, when the phone is reachable) with `transferUserInfo` fallback. The phone executes the Graph PATCH and pushes a fresh snapshot back. |
 | Trigger a refresh from the watch | Glance → refresh button (gray circle in the pinned counts row). Asks the phone to refresh and pushes the updated snapshot back. Auto-refreshes when the glance opens if the snapshot is over 60 seconds old. Surfaces "Phone unreachable" inline when WatchConnectivity can't deliver the request. |
+| Read an email or Teams chat on the wrist | Tap the email or chat count chip → a list of unread mail / pending chats (3-line rows) → tap one to open a reader. The reader shows the snapshot preview instantly, then the phone relays the full body over WatchConnectivity. Opening marks it read. Out of phone range it keeps the preview with an "open on iPhone" note. The watch still holds no token and makes no Graph call. |
+| Reply, flag, or mark unread from the wrist | In a watch reader: Reply uses the standard watchOS text input (dictation, scribble, keyboard — no canned responses), relays reply-all for email or a thread post for chat, and waits for the phone's send acknowledgement, so a real send is never queued silently (an unreachable phone shows "open iPhone"). Flag/unflag and Mark Unread relay to the phone too. |
+| Browse deeper than the unread front on the watch | A "Load more" row at the foot of the email or chat list pulls the recent inbox (read + unread, up to 40) from the phone into the same list. |
 | Use Siri or Shortcuts from the wrist | The watch app carries the same App Intents as the phone (set presence, toggle Out of Office, current presence, next meeting, the unread counts, remaining meetings, and the work-day overview), with the same phrases. Read intents answer locally from the last pushed snapshot, so they work without a live phone connection; write intents (set presence, toggle Out of Office) queue to the phone over WatchConnectivity and the phone runs the Graph call. The watch still holds no token and makes no Graph call. |
 
 ## Not yet supported
 
-- Compose a brand-new email from scratch (only Reply-all from existing messages)
 - Move emails between folders / archive
 - View past meetings (the calendar view is "today only")
 - Open the specific calendar event for non-Teams meetings (only the calendar at large, via Teams)
