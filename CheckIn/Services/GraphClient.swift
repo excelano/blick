@@ -372,7 +372,7 @@ final class GraphClient {
     /// Map a Graph recipient envelope into our `Recipient` model. Skips
     /// envelopes that carry no address — those are unusable for both
     /// reply targeting and display.
-    private static func makeRecipient(_ envelope: EmailAddressEnvelope) -> Recipient? {
+    private nonisolated static func makeRecipient(_ envelope: EmailAddressEnvelope) -> Recipient? {
         guard let address = envelope.emailAddress.address, !address.isEmpty else { return nil }
         return Recipient(name: envelope.emailAddress.name, address: address)
     }
