@@ -144,11 +144,24 @@ struct AttachmentBytesResponse: Decodable {
     let contentBytes: String?
 }
 
-/// POST body for `/me/messages/{id}/replyAll` — Graph wraps the user's
-/// short message in `comment` and stitches it onto the original
-/// conversation with proper `In-Reply-To` / `References` threading.
-struct ReplyCommentBody: Encodable {
-    let comment: String
+/// An empty JSON POST body (`{}`) for Graph actions that take no
+/// parameters — `createReplyAll` (defaults) and `/send`.
+struct EmptyBody: Encodable {}
+
+/// The draft that `createReplyAll` / `createForward` returns: its `id` (to
+/// PATCH then send) and its `body`, which already carries the quoted
+/// original as HTML. We prepend the user's comment to `body.content`
+/// ourselves so plain-text newlines survive as `<br>` — Graph's `replyAll`
+/// / `forward` `comment` shortcut drops them into the HTML body as-is and
+/// the line breaks collapse.
+struct DraftMessageResponse: Decodable {
+    let id: String
+    let body: BodyContentResponse
+}
+
+/// PATCH body that sets a draft message's `body` before sending it.
+struct DraftBodyPatch: Encodable {
+    let body: OutgoingBodyContent
 }
 
 /// A recipient on an outgoing message. Graph accepts an `emailAddress`
@@ -186,11 +199,12 @@ struct SendMailBody: Encodable {
     let saveToSentItems: Bool
 }
 
-/// POST body for `/me/messages/{id}/forward`. Graph builds the "Fwd:"
-/// subject and quotes the original body server-side, so we only supply the
-/// added note (`comment`) and the recipients — no need to load the body.
-struct ForwardBody: Encodable {
-    let comment: String
+/// Body for `/me/messages/{id}/createForward`. Graph builds the "Fwd:"
+/// subject and quotes the original body into the draft server-side; we set
+/// the recipients here and prepend the note to the draft body ourselves (so
+/// its newlines survive), then send. No `comment` field: passing it through
+/// the shortcut is exactly the newline-collapsing bug this avoids.
+struct CreateForwardBody: Encodable {
     let toRecipients: [OutgoingRecipientBody]
 }
 

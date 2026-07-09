@@ -537,13 +537,42 @@ final class GraphClient {
         return Data(base64Encoded: b64)
     }
 
-    /// Send a reply-all to a message. Graph stitches the user's comment
-    /// onto the original conversation with proper `In-Reply-To` /
-    /// `References` headers and includes the quoted history. For
-    /// single-recipient messages this degrades gracefully to reply-to-
-    /// sender. Mail.Send required.
+    /// Send a reply-all to a message, preserving the plain-text newlines the
+    /// composer captured. Graph's `replyAll` `comment` shortcut drops the
+    /// comment into the (HTML) reply body as-is, so line breaks collapse — the
+    /// bug this replaces. Instead we let Graph build the draft (quoted history,
+    /// `In-Reply-To` / `References` threading, reply-to-sender fallback for a
+    /// single recipient), then prepend our comment to the draft body ourselves,
+    /// converting newlines to `<br>` for an HTML draft (the usual case) or
+    /// keeping them literal for a plain-text one, and send. Mail.ReadWrite +
+    /// Mail.Send required.
     func replyAllToEmail(id: String, comment: String) async throws {
-        try await core.post("/me/messages/\(id)/replyAll", body: ReplyCommentBody(comment: comment))
+        let draft: DraftMessageResponse = try await core.postDecoded(
+            "/me/messages/\(id)/createReplyAll", body: EmptyBody()
+        )
+        let isHTML = draft.body.contentType.caseInsensitiveCompare("html") == .orderedSame
+        let prefix = isHTML ? Self.htmlComment(comment) : comment + "\n\n"
+        try await core.patch(
+            "/me/messages/\(draft.id)",
+            body: DraftBodyPatch(body: OutgoingBodyContent(
+                contentType: draft.body.contentType,
+                content: prefix + draft.body.content))
+        )
+        try await core.post("/me/messages/\(draft.id)/send", body: EmptyBody())
+    }
+
+    /// Escape a plain-text comment for insertion into an HTML reply body and
+    /// turn its newlines into `<br>` so they render. `&` is escaped first so
+    /// the `<`/`>` escapes aren't double-encoded; CRLF/CR normalize to LF.
+    private static func htmlComment(_ comment: String) -> String {
+        let escaped = comment
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\n", with: "<br>")
+        return escaped + "<br><br>"
     }
 
     /// Compose and send a brand-new email. Graph's `/me/sendMail` delivers
@@ -562,15 +591,30 @@ final class GraphClient {
         try await core.post("/me/sendMail", body: SendMailBody(message: message, saveToSentItems: true))
     }
 
-    /// Forward an existing message. Graph builds the "Fwd:" subject and
-    /// quotes the original server-side, so we send only the added note and
-    /// the recipients — the original body is never loaded. The original
-    /// stays unread. Mail.Send required.
+    /// Forward an existing message, preserving the note's plain-text newlines.
+    /// Like reply, the `/forward` shortcut would collapse them in the HTML
+    /// body, so we go through the draft: `createForward` sets the recipients
+    /// and quotes the original server-side, we prepend the note to the draft
+    /// body (newlines → `<br>` for HTML), then send. The original stays
+    /// unread — createForward touches only the new draft. Mail.ReadWrite +
+    /// Mail.Send required.
     func forwardEmail(id: String, comment: String, to: [String]) async throws {
-        try await core.post(
-            "/me/messages/\(id)/forward",
-            body: ForwardBody(comment: comment, toRecipients: recipientBodies(to))
+        let draft: DraftMessageResponse = try await core.postDecoded(
+            "/me/messages/\(id)/createForward",
+            body: CreateForwardBody(toRecipients: recipientBodies(to))
         )
+        // A forward can carry an empty note; only prepend when there's text.
+        if !comment.isEmpty {
+            let isHTML = draft.body.contentType.caseInsensitiveCompare("html") == .orderedSame
+            let prefix = isHTML ? Self.htmlComment(comment) : comment + "\n\n"
+            try await core.patch(
+                "/me/messages/\(draft.id)",
+                body: DraftBodyPatch(body: OutgoingBodyContent(
+                    contentType: draft.body.contentType,
+                    content: prefix + draft.body.content))
+            )
+        }
+        try await core.post("/me/messages/\(draft.id)/send", body: EmptyBody())
     }
 
     /// Wrap validated SMTP addresses in Graph's recipient envelope.
