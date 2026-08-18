@@ -28,6 +28,8 @@ What a user can do, mapped to the entry point in the UI.
 | See when an invitation is no longer actionable | "Removed" pill on the invite-email row and preview sheet when the invitation references an event that no longer exists in the calendar — declined, deleted from the calendar, or cancelled by the organizer. Graph data can't distinguish those causes, so the label describes the observable rather than guessing. No RSVP buttons in this state. |
 | Auto-mark matching invite emails read after RSVP | After a successful RSVP from any surface, unread emails whose subject matches the meeting subject (or "Updated: ..." / "Cancelled: ...", or organizer + meetingMessageType contains-match) are marked read. |
 | See meeting metadata on an invitation email | Calendar icon + "Today at 3:00 PM" / "Tomorrow at 9:30 AM" / "May 26 at 2:00 PM" line on the invite-email row and preview sheet, plus the orange conflict triangle on the subject line when applicable. |
+| Copy a meeting's join link or organizer email | Long-press the meeting card or a "Later today" row → "Copy join link" (when the meeting has a Teams join URL) or "Copy organizer email". The same long-press menu also mirrors Resolve conflict and Accept / Tentative / Decline. |
+| Delete a meeting from the day | Long-press the meeting card or a "Later today" row → "Delete" (destructive). Offered only when Decline isn't available, since declining does the same thing from your view (gets it off the day). Optimistically removes the event and `DELETE`s it via Graph. |
 
 ## Notifications
 
@@ -44,7 +46,11 @@ What a user can do, mapped to the entry point in the UI.
 | Lift the 20-email cap to see everything unread | Email section header → ⋯ menu → "Show all N" (only when there are emails beyond the cap). Persists across launches. Toggle back via "Show top 20". |
 | See each email's sender, subject, and preview | Each row shows sender + relative time, subject, and Graph's `bodyPreview` (up to 4 lines) |
 | See a flag indicator on flagged emails | Orange flag icon next to the sender name |
-| Preview an email | Tap an email row. Opens a sheet with the full message body (plain text via `Prefer: outlook.body-content-type="text"`). Email auto-marks-as-read on open. Body is cleaned via the same stripper used for summary previews (salutations, signatures, quoted replies, etc.). |
+| Preview an email | Tap an email row. Opens a sheet with the full message body, fetched as HTML (`Prefer: outlook.body-content-type="html"`) and rendered by default as cleaned native text (the same Klartext stripper used for summary previews: salutations, signatures, quoted replies, etc.). Email auto-marks-as-read on open. |
+| See an email as formatted HTML or as plain text | Preview sheet → "Web View" / "Text" toggle. "Web View" shows a faithful HTML render of the message; "Text" shows the cleaned native fold. Defaults to text. |
+| Load remote images for a message | Preview sheet (in Web View mode) → "Load images". Remote images are blocked by default and treated as tracking pixels — nothing is fetched from an external host until you opt in, per message. Inline `cid:` images always render. |
+| See an email's attachments | Preview sheet header shows a paperclip plus each real attachment's filename (inline signature logos and tracking pixels filtered out via Klartext's `userFacing` check). Listing only for now — names are shown, not downloaded or openable. |
+| See the other recipients of an email | Preview sheet → collapsed "also to: Alice, Bob +3" line (you're filtered out); tap to expand into stacked To/Cc lines. |
 | Mark an email read | Swipe right-to-left on the row, OR auto on preview-sheet open, OR long-press → "Mark read" (optimistic, reverts on failure) |
 | Mark an email back to unread | Preview sheet → "Mark unread" button (re-inserts the row in received-time order; also rolls back the server's read state) |
 | Reply to an email | Preview sheet → "Reply" (swaps in a composer with a TextEditor), OR long-press an email row → "Reply" (opens the preview sheet straight into the composer). Replies default to Reply-all; Graph degrades to reply-to-sender for single-recipient messages. Lands in the user's Outlook Sent Items folder. |
@@ -59,6 +65,7 @@ What a user can do, mapped to the entry point in the UI.
 | Bulk flag all unflagged visible emails | Same menu → "Flag N" (visible only when there are unflagged emails). |
 | Bulk unflag all flagged visible emails | Same menu → "Unflag N" (visible only when there are flagged emails). |
 | Restore today's emails to unread | Same menu → "Mark unread: today's emails", OR (when the email list is empty) the inline "Mark unread: today's emails" button under the section header. Fetches Inbox messages received between local midnight and now that are currently read, batch-marks them unread, refreshes. Registers an undo. |
+| Restore flagged emails to unread | Same menu → "Mark unread: flagged emails". Flips read-and-flagged Inbox mail back to unread, with an undo. |
 | Copy the sender's email address | Long-press an email row → "Copy sender address". Writes the SMTP address to the system pasteboard. |
 | Undo a bulk action | Floating "Undo" banner at the bottom of the screen for 8 seconds after any bulk mark-read / flag / mark-today-unread. |
 | Open the full email list | Email section header → chevron. Opens a full-screen list in its own `NavigationStack`. |
@@ -121,8 +128,7 @@ Blick's composer is one channel-agnostic surface: the channel (email vs Teams ch
 |---|---|
 | Glance at next meeting + unread counts from the home screen | Add the Blick widget (medium size). Three-row meeting layout (calendar + time range / subject / countdown + organizer), unread email count, unread chat count. Refreshed by the main app on every refresh via `WidgetCenter`. Pre-generated timeline entries at each upcoming meeting start so back-to-back transitions don't require an app refresh. |
 | Join the next meeting directly from the widget | Tap the "Join meeting" pill on the widget (visible within five minutes of the meeting's start when a join URL exists). Rewrites to `msteams:/` so iOS routes to Teams. |
-| Set Teams presence from the widget | Tap any of the six presence pills on the medium widget (Available, Busy, Do not disturb, Be right back, Away, Offline). Runs in the widget extension via a shared `StatusActions`; uses the device's cached MSAL token to PATCH Graph; reloads the widget and Control Center controls when it returns. Optimistic UI; falls back to opening the app if silent token refresh fails. |
-| Toggle Out of Office from the widget | Tap the OOO pill on the medium widget. Same execution path as the presence pills; flips Outlook auto-replies and clears any presence override. |
+| Toggle your availability from the widget | Tap the availability toggle on the medium widget: on sets Available, off sets Busy. Any other state (Away, Do Not Disturb, Out of Office) reads as off. WidgetKit flips the knob optimistically before the Graph call returns; the set runs in the widget extension on the device's cached MSAL token, reloads the widget and Control Center controls when it returns, and falls back to opening the app if silent token refresh fails. For the full six presences plus Out of Office, use the Control Center controls below. |
 
 ## Control Center controls (iOS 18+)
 

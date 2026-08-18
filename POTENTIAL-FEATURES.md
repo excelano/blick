@@ -42,7 +42,7 @@ Blick shows the next meeting plus "later today"; a full-day agenda would render 
 
 ## Save and open email attachments
 
-Blick renders attachments inline; this adds listing a message's attachments and saving one or opening it elsewhere. iOS has no user-facing filesystem, so the equivalent is routing an attachment to the share sheet or Files to save, and Quick Look or the owning app to open — over `Mail.ReadWrite`, already held, no new scope. Because inline rendering already covers the common "just let me see it" case, this is the most optional item here: it matters only for attachments the user wants to keep or hand to another app.
+Blick already **lists** a message's attachments in the preview (paperclip + filename, inline logos and tracking pixels filtered out) and already renders inline `cid:` images in the HTML body. What's missing is acting on a real, non-inline attachment: the listed rows are non-interactive and their bytes are never fetched. This feature makes those rows tappable, fetches the attachment bytes on demand (the attachment `$value`, over `Mail.ReadWrite` already held, no new scope), and routes the file out — the share sheet or Files to save, Quick Look or the owning app to open, since iOS has no user-facing filesystem. This has bitten the author in real use, so it is the next feature area rather than the optional item it once was. Scope is contained: fetch-and-share plumbing plus wiring the rows that already exist, no new Graph scope and no new UI surface. Privacy note: bytes are fetched to the authenticated device and handed to Apple's own share sheet / Quick Look — no new external destination, posture unchanged.
 
 ## Morning daily brief
 
