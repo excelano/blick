@@ -87,6 +87,15 @@ struct MessagePreviewSheet: View {
     @State private var chatThread: ChatThread?
     @State private var threadFetchFailed = false
 
+    /// Attachment save/open state. `downloadingAttachmentID` is the resolved
+    /// attachment's `id` currently downloading (drives the per-row spinner);
+    /// `attachmentPreview` non-nil presents Quick Look; `attachmentError` non-nil
+    /// raises a one-line alert when a download fails or an attachment kind can't
+    /// be opened.
+    @State private var downloadingAttachmentID: String?
+    @State private var attachmentPreview: AttachmentPreviewItem?
+    @State private var attachmentError: String?
+
     var body: some View {
         ZStack {
             Brand.bg.ignoresSafeArea()
@@ -116,6 +125,17 @@ struct MessagePreviewSheet: View {
                     mode: .forward(emailId: email.id, subject: email.subject)
                 )
             }
+        }
+        .sheet(item: $attachmentPreview) { item in
+            QuickLookPreview(fileURL: item.url)
+        }
+        .alert("Attachment", isPresented: Binding(
+            get: { attachmentError != nil },
+            set: { if !$0 { attachmentError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(attachmentError ?? "")
         }
         .task {
             #if DEBUG
@@ -419,21 +439,65 @@ struct MessagePreviewSheet: View {
     @ViewBuilder
     private var attachmentIndicator: some View {
         if let attachments = parsed?.attachments.userFacing, !attachments.isEmpty {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 ForEach(attachments) { attachment in
-                    HStack(spacing: 4) {
-                        Image(systemName: "paperclip")
-                            .font(.caption)
-                        Text(attachment.filename ?? "Attachment")
-                            .font(.caption)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .foregroundStyle(Brand.textMuted)
+                    attachmentRow(attachment)
                 }
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(attachments.count) attachment\(attachments.count == 1 ? "" : "s")")
+        }
+    }
+
+    /// One tappable attachment row: paperclip + filename, swapped for a spinner
+    /// while its bytes download. Tapping downloads on demand and opens Quick Look
+    /// (which carries its own Share / Save to Files). Accent color signals the row
+    /// is actionable, unlike the muted static list it replaced.
+    @ViewBuilder
+    private func attachmentRow(_ attachment: Attachment) -> some View {
+        let isDownloading = downloadingAttachmentID == attachment.id
+        Button {
+            Task { await openAttachment(attachment) }
+        } label: {
+            HStack(spacing: 4) {
+                if isDownloading {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "paperclip").font(.caption)
+                }
+                Text(attachment.filename ?? "Attachment")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .foregroundStyle(Brand.accent)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDownloading)
+        .accessibilityLabel("Attachment, \(attachment.filename ?? "unnamed")")
+        .accessibilityHint("Opens the attachment")
+    }
+
+    /// Download an attachment's bytes and hand them to Quick Look. `sourceId` is
+    /// the Graph attachment id carried through Klartext; a nil one (nothing to
+    /// fetch against) or a kind with no bytes — a cloud `referenceAttachment` or
+    /// an embedded `itemAttachment` — surfaces the one-line error rather than a
+    /// crash. Byte fetch stays on the authenticated device; the file goes only to
+    /// Apple's own Quick Look / share sheet, so the privacy posture is unchanged.
+    @MainActor
+    private func openAttachment(_ attachment: Attachment) async {
+        guard case .email(let email) = target.kind else { return }
+        guard let attachmentId = attachment.sourceId else {
+            attachmentError = "This attachment can't be opened."
+            return
+        }
+        downloadingAttachmentID = attachment.id
+        defer { downloadingAttachmentID = nil }
+        do {
+            let data = try await inbox.downloadAttachment(
+                emailId: email.id, attachmentId: attachmentId)
+            let url = try AttachmentPreviewFile.write(data, filename: attachment.filename)
+            attachmentPreview = AttachmentPreviewItem(url: url)
+        } catch {
+            attachmentError = "Couldn't open \(attachment.filename ?? "this attachment")."
         }
     }
 

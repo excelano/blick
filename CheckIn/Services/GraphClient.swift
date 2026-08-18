@@ -519,7 +519,11 @@ final class GraphClient {
                 mimeType: meta.contentType ?? "application/octet-stream",
                 contentID: meta.contentId,
                 disposition: isInline ? .inline : .attachment,
-                data: inlineBytes[index]
+                data: inlineBytes[index],
+                // Carry the Graph attachment id through Klartext untouched so a
+                // tapped attachment can be downloaded on demand without a fragile
+                // filename join (KlartextUI `sourceId` passthrough, package v1.5).
+                sourceId: meta.id
             )
         }
     }
@@ -535,6 +539,21 @@ final class GraphClient {
         )
         guard let b64 = resp.contentBytes else { return nil }
         return Data(base64Encoded: b64)
+    }
+
+    /// Download one real (non-inline) attachment's bytes on demand, for the
+    /// save/open flow — the user-initiated counterpart to the inline-image
+    /// hydration above. Same `contentBytes` decode path; throws
+    /// `GraphError.invalidResponse` when the attachment carries no bytes
+    /// (a `referenceAttachment` or `itemAttachment` the caller should have
+    /// filtered out — only `fileAttachment` has `contentBytes`).
+    func downloadAttachment(messageId: String, attachmentId: String) async throws -> Data {
+        guard let data = try await fetchAttachmentBytes(
+            messageId: messageId, attachmentId: attachmentId
+        ) else {
+            throw GraphError.invalidResponse
+        }
+        return data
     }
 
     /// Send a reply-all to a message, preserving the plain-text newlines the

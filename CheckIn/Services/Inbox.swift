@@ -1097,6 +1097,16 @@ final class Inbox {
         return try await graphClient.fetchEmailContent(id: emailId)
     }
 
+    /// Download one email attachment's bytes on demand, for the preview sheet's
+    /// tap-to-open / save flow. `attachmentId` is the Graph attachment id carried
+    /// through Klartext as the resolved attachment's `sourceId`.
+    func downloadAttachment(emailId: String, attachmentId: String) async throws -> Data {
+        #if DEBUG
+        if DemoMode.isActive { return Data("This is a demo attachment.".utf8) }
+        #endif
+        return try await graphClient.downloadAttachment(messageId: emailId, attachmentId: attachmentId)
+    }
+
     /// Used by the preview sheet to render a chat's recent transcript back
     /// to the user's last reply. Mirrors `fetchEmailContent`: a thin
     /// pass-through fetched lazily when the sheet opens.
