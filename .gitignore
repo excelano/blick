@@ -4,6 +4,8 @@ Azure-Application-ID.txt
 
 # Protected deliverable docs (never commit)
 app-store-connect-metadata.md
+# Per-release App Store Connect paste sheets, staged in the repo root
+Blick-*-ASC-paste.md
 
 # Xcode
 *.xcodeproj/xcuserdata/

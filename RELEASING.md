@@ -70,7 +70,9 @@ Metadata that must be right on a feature release, learned from 1.1:
 
 The store listing text and reviewer notes are kept out of git in
 `app-store-connect-metadata.md` (gitignored). Per-release paste sheets are staged
-on the Desktop and discarded after use.
+in the repo root as `Blick-<version>-ASC-paste.md` (gitignored via the
+`Blick-*-ASC-paste.md` rule) and discarded after use — keep credentials out of
+them and point to the metadata file instead.
 
 ## Tag the release
 
