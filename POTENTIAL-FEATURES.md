@@ -44,21 +44,15 @@ Blick shows the next meeting plus "later today"; a full-day agenda would render 
 
 Blick renders attachments inline; this adds listing a message's attachments and saving one or opening it elsewhere. iOS has no user-facing filesystem, so the equivalent is routing an attachment to the share sheet or Files to save, and Quick Look or the owning app to open — over `Mail.ReadWrite`, already held, no new scope. Because inline rendering already covers the common "just let me see it" case, this is the most optional item here: it matters only for attachments the user wants to keep or hand to another app.
 
-## Meeting-join nudge
-
-A local notification a few minutes before the next meeting, with a one-tap join straight into Teams. Pure don't-miss-it utility and a daily driver, and fully in posture: the notification is scheduled on-device from the calendar data Blick already fetches, with no server and no push. The work is scheduling notifications off each upcoming event on the refresh cycle (the widget already builds a timeline of upcoming meeting starts, so the data shape exists) and wiring the notification action to the same Teams join path the meeting rows use.
-
-The tradeoff is freshness: the scheduled set is only as current as the last background refresh, so a meeting accepted in the last hour might not have a nudge queued until the next refresh runs. That is acceptable for a reminder rather than a guarantee. It shares the background-refresh and notification scaffolding with the daily brief and the new-message nudge below, so the three are best costed as one investment.
-
 ## Morning daily brief
 
 A once-a-day notification that opens the workday: next meeting plus how many remain, unread email and chat counts, and current presence, the same headline `WorkdaySummaryIntent` already speaks, delivered unprompted in the morning. Catch-up framing, and it pairs with the voice work since tapping in could drop straight into the read-aloud flow. In posture as a scheduled local notification fired off a background refresh, no backend.
 
-The open decisions are timing and trigger: a fixed user-set time, or keyed to the first calendar event of the day or the start of Outlook working hours (the same `workingHours` object the auto-presence idea reads). Like the meeting nudge it depends on a fresh-enough background refresh, and it shares that plumbing with the nudge above and the new-message poll below.
+The open decisions are timing and trigger: a fixed user-set time, or keyed to the first calendar event of the day or the start of Outlook working hours (the same `workingHours` object the auto-presence idea reads). Like the shipped meeting reminders it depends on a fresh-enough background refresh, and it shares that notification plumbing (already in the app) with the new-message poll below.
 
 ## Best-effort new-message nudge
 
-The in-posture answer to "tell me when something lands." A `BGAppRefreshTask` polls Graph on the cadence iOS grants and raises a local notification when new unread mail or a new chat has appeared since the last check. It reuses the background-refresh and notification scaffolding of the two ideas above, so once that exists this is largely a diff against the prior snapshot plus a notification.
+The in-posture answer to "tell me when something lands." A `BGAppRefreshTask` polls Graph on the cadence iOS grants and raises a local notification when new unread mail or a new chat has appeared since the last check. It reuses the background-refresh and notification scaffolding already shipped for meeting reminders (and shared with the brief above), so this is largely a diff against the prior snapshot plus a notification.
 
 The honest caveat, and the reason to write it down rather than expect more, is that timing is entirely OS-controlled and best-effort, not real-time. iOS decides when, and whether, a background refresh runs based on usage and power, so this is "you find out before too long," not "you find out the instant it arrives." That ceiling is structural: the real-time alternative, APNs or Graph change-notification webhooks, requires a server endpoint, which is a backend and a hard stop in the privacy posture. Poll plus local notification is as close as Blick gets without crossing that line, so this entry exists partly to keep real-time push from being re-proposed.
 
