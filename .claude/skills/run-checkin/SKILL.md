@@ -31,7 +31,7 @@ scheme builds them per-consumer-platform in one pass. No pre-build
 step is needed.
 
 ```bash
-xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
+xcodebuild -project /Users/anderix/blick/CheckIn.xcodeproj \
   -scheme CheckIn -configuration Debug \
   -destination "platform=iOS,id=00008120-001019EA18834032" \
   -allowProvisioningUpdates build
@@ -148,7 +148,7 @@ unlock. devicectl needs the device unlocked to install apps.
 For the common "build, install, launch, get out" pattern:
 
 ```bash
-xcodebuild -project /Users/anderix/checkin/CheckIn.xcodeproj \
+xcodebuild -project /Users/anderix/blick/CheckIn.xcodeproj \
   -scheme CheckIn -configuration Debug \
   -destination "platform=iOS,id=00008120-001019EA18834032" \
   -allowProvisioningUpdates build 2>&1 | tail -3 \
