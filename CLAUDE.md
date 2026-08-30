@@ -1,12 +1,13 @@
-# CLAUDE.md — Blick (excelano/checkin)
+# CLAUDE.md — Blick (excelano/blick)
 
-Project-specific guidance for Blick. General working style, writing standards,
-language preferences, and Mac/Xcode notes live in the home-root `~/CLAUDE.md`,
-which loads alongside this file.
+Project-specific guidance for Blick. Global working style, writing standards, and
+language preferences live in `~/.claude/CLAUDE.md` (loads in every session); the
+Apple-apps notes (Xcode, signing, Swift attribution header) live in the
+email-family `~/email/CLAUDE.md`. Both load alongside this file.
 
 ---
 
-Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/checkin/` (local dir stays `checkin`; the GitHub repo is `excelano/blick`).
+Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/email/blick/` (the GitHub repo is `excelano/blick`; the Xcode project is still named `CheckIn.xcodeproj` and code identifiers stay `checkin`).
 
 ## Status
 
@@ -29,4 +30,4 @@ Azure app registration is named `blick`.
 
 ## Brand
 
-Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/checkin/CheckIn/Assets.xcassets/AppIcon.appiconset/`.
+Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/email/blick/CheckIn/Assets.xcassets/AppIcon.appiconset/`.

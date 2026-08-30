@@ -31,7 +31,7 @@ scheme builds them per-consumer-platform in one pass. No pre-build
 step is needed.
 
 ```bash
-xcodebuild -project /Users/anderix/blick/CheckIn.xcodeproj \
+xcodebuild -project /Users/anderix/email/blick/CheckIn.xcodeproj \
   -scheme CheckIn -configuration Debug \
   -destination "platform=iOS,id=00008120-001019EA18834032" \
   -allowProvisioningUpdates build
@@ -40,8 +40,9 @@ xcodebuild -project /Users/anderix/blick/CheckIn.xcodeproj \
 `-allowProvisioningUpdates` lets Xcode refresh the provisioning profile
 if needed. Without it you'll hit signing errors after profile renewals.
 
-The DerivedData hash `CheckIn-ewmjhsyasdunbehkhbdmdpyizbed` is stable
-per-project on this Mac.
+The install steps below glob `DerivedData/CheckIn-*`, so the exact
+per-project DerivedData hash doesn't matter. It changes whenever the
+project path changes (it did after the move to `~/email/blick`).
 
 ## Install
 
@@ -148,7 +149,7 @@ unlock. devicectl needs the device unlocked to install apps.
 For the common "build, install, launch, get out" pattern:
 
 ```bash
-xcodebuild -project /Users/anderix/blick/CheckIn.xcodeproj \
+xcodebuild -project /Users/anderix/email/blick/CheckIn.xcodeproj \
   -scheme CheckIn -configuration Debug \
   -destination "platform=iOS,id=00008120-001019EA18834032" \
   -allowProvisioningUpdates build 2>&1 | tail -3 \
