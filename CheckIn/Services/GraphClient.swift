@@ -126,12 +126,14 @@ final class GraphClient {
     }
 
     /// Calendar events overlapping the given range, plain mapping (no
-    /// conflict computation). Used purely as a reference pool for
+    /// conflict computation). Two callers: the reference pool for
     /// conflict detection on invite-email RSVP — so a plain calendar
-    /// event that overlaps an invite can flag the invite as
-    /// conflicting. Not displayed anywhere in the UI. Caps at 100
-    /// events as a guard against multi-week ranges with very dense
-    /// calendars.
+    /// event that overlaps an invite can flag the invite as conflicting
+    /// — and the agenda screen's multi-day window. Neither needs
+    /// conflicts computed here, because `Inbox.recomputeConflicts()`
+    /// recomputes `hasConflict` across the whole meeting store once the
+    /// fetched events are loaded into it. Caps at 100 events as a guard
+    /// against multi-week ranges with very dense calendars.
     func eventsInRange(start: Date, end: Date) async throws -> [Meeting] {
         let formatter = ISO8601DateFormatter()
         let data: GraphList<CalendarEventResponse> = try await core.get("/me/calendarView", query: [

@@ -68,11 +68,15 @@ final class Inbox {
 
     // MARK: - Meeting store
     //
-    // Every Meeting CheckIn knows about lives in `meetingsById`. The three index
+    // Every Meeting CheckIn knows about lives in `meetingsById`. The four index
     // structures below tell the UI/conflict-detector which role each meeting plays
-    // (today's window, an invite-email referent, or the future-range reference pool).
-    // The `nextMeeting`, `laterToday`, `inviteMeetings`, and `conflictReferenceMeetings`
-    // accessors are pure computed views — there's no shadow state to keep in sync.
+    // (today's window, the multi-day agenda, an invite-email referent, or the
+    // future-range reference pool). A meeting can sit in more than one index at
+    // once — today's meetings are also agenda members — which is why dropping a
+    // stale member of one index consults `idsRetained(excluding:)` before evicting
+    // it from the store. The `nextMeeting`, `laterToday`, `agendaMeetings`,
+    // `inviteMeetings`, and `conflictReferenceMeetings` accessors are pure computed
+    // views — there's no shadow state to keep in sync.
 
     /// Single source of truth for every Meeting value in the session,
     /// keyed by `Meeting.id`. Reads go through here; writes (RSVP edit,
@@ -91,6 +95,12 @@ final class Inbox {
     /// Meeting ids in the conflict-detection reference pool — events
     /// from `calendarView` spanning the invite-emails date range.
     private(set) var referenceMeetingIds: Set<String> = []
+
+    /// The multi-day agenda's meeting ids, ordered by start time, spanning
+    /// `[start of today, start of today + agendaDayCount)`. Populated on
+    /// demand by `refreshAgenda(days:)` when the agenda screen opens, not
+    /// on the normal refresh — the summary only ever needs today.
+    private(set) var agendaMeetingIds: [String] = []
 
     // MARK: - Nested types
 
@@ -171,6 +181,15 @@ final class Inbox {
     /// the recent inbox (read + unread), a deeper browse than the pushed
     /// unread front. Still small enough for a single WatchConnectivity reply.
     private static let watchExtendedCap = 40
+
+    /// How many days the agenda screen spans, counting today. A rolling
+    /// week answers "what's coming up" without a per-day navigation tap,
+    /// and stays well inside the 100-event cap `eventsInRange` requests.
+    /// `nonisolated` because it is used as a default argument on
+    /// `refreshAgenda(days:)`, and default arguments are evaluated in a
+    /// nonisolated context — a MainActor-isolated static is an error there
+    /// under the Swift 6 language mode.
+    nonisolated static let agendaDayCount = 7
 
     /// How long an undoable bulk action stays offered before it expires
     /// silently. Long enough to catch a "wait, undo that" reflex,
@@ -483,6 +502,13 @@ final class Inbox {
         Array(todayMeetingIds.dropFirst()).compactMap { meetingsById[$0] }
     }
 
+    /// The agenda screen's list: every attendable meeting from the start of
+    /// today through the end of the agenda window, ordered by start time.
+    /// Empty until `refreshAgenda(days:)` has run.
+    var agendaMeetings: [Meeting] {
+        agendaMeetingIds.compactMap { meetingsById[$0] }
+    }
+
     /// Today's full meeting list reconstructed in order: `nextMeeting`
     /// followed by `laterToday`. Used by the time-driven view helpers
     /// below to advance the active meeting through the cached list.
@@ -558,6 +584,27 @@ final class Inbox {
     }
 
     // MARK: - Meetings: actions
+
+    /// Fetch the agenda window and load it into the store. Called by the
+    /// agenda screen on open, so the cost is only paid when the user asks
+    /// for it. Throws so the screen can show its own failure state rather
+    /// than the summary's refresh banner; the conflict recompute runs over
+    /// the whole store, so agenda meetings and today's meetings flag each
+    /// other rather than each seeing only its own window.
+    func refreshAgenda(days: Int = Inbox.agendaDayCount) async throws {
+        #if DEBUG
+        if DemoMode.isActive {
+            loadAgendaMeetings(DemoData.agendaMeetings)
+            recomputeConflicts()
+            return
+        }
+        #endif
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: Date())
+        guard let end = calendar.date(byAdding: .day, value: days, to: start) else { return }
+        loadAgendaMeetings(try await graphClient.eventsInRange(start: start, end: end))
+        recomputeConflicts()
+    }
 
     /// Optimistic. Mutates the matching meeting's `responseStatus`
     /// immediately so the UI updates, and reverts on failure. After a
@@ -755,17 +802,31 @@ final class Inbox {
     /// `meetingsById`. Called from `refresh()` after the calendar fetch
     /// returns. Old `summary.meeting` + `summary.laterToday` are still
     /// assigned alongside during the migration.
+    /// The four roles a meeting id can play in the store. Names an index
+    /// so `idsRetained(excluding:)` can ask "who else still wants this?"
+    private enum MeetingIndex { case today, agenda, invites, reference }
+
+    /// Every id still claimed by an index other than `index`. Reloading one
+    /// index drops its previous members from the master store, and a meeting
+    /// that another index still references has to survive that drop — a
+    /// today-window meeting is usually an agenda member too, and may also be
+    /// an invite-email referent.
+    private func idsRetained(excluding index: MeetingIndex) -> Set<String> {
+        var ids = Set<String>()
+        if index != .today { ids.formUnion(todayMeetingIds) }
+        if index != .agenda { ids.formUnion(agendaMeetingIds) }
+        if index != .invites { ids.formUnion(inviteEmailMeetingIds.values) }
+        if index != .reference { ids.formUnion(referenceMeetingIds) }
+        return ids
+    }
+
     private func loadTodayMeetings(next: Meeting?, laterToday: [Meeting]) {
         // Drop the previous today-window members from the master store
         // first, so a meeting that disappeared from the calendar
         // (declined/cancelled/deleted) doesn't linger.
-        for id in todayMeetingIds {
-            // Only drop ids that aren't ALSO referenced by another
-            // index — a today meeting that's also an invite-email
-            // referent should survive until its other index drops it.
-            if !inviteEmailMeetingIds.values.contains(id) && !referenceMeetingIds.contains(id) {
-                meetingsById.removeValue(forKey: id)
-            }
+        let retained = idsRetained(excluding: .today)
+        for id in todayMeetingIds where !retained.contains(id) {
+            meetingsById.removeValue(forKey: id)
         }
         var ids: [String] = []
         if let next {
@@ -777,6 +838,20 @@ final class Inbox {
             ids.append(m.id)
         }
         todayMeetingIds = ids
+    }
+
+    /// Replace the agenda index with a freshly fetched window, same
+    /// drop-then-load shape as `loadTodayMeetings`. Meetings the today
+    /// window (or any other index) still claims survive the drop.
+    private func loadAgendaMeetings(_ meetings: [Meeting]) {
+        let retained = idsRetained(excluding: .agenda)
+        for id in agendaMeetingIds where !retained.contains(id) {
+            meetingsById.removeValue(forKey: id)
+        }
+        for m in meetings {
+            meetingsById[m.id] = m
+        }
+        agendaMeetingIds = meetings.map(\.id)
     }
 
     private func setMeeting(_ meeting: Meeting) {

@@ -78,6 +78,72 @@ enum DemoData {
         ]
     }
 
+    /// The agenda screen's demo window: today's three meetings plus a few
+    /// spread across the following days, so the screenshot shows day
+    /// separators and a populated week rather than a single day's list.
+    /// `days` offsets from the start of tomorrow, so entries land on real
+    /// day boundaries regardless of when the screenshot is taken.
+    static var agendaMeetings: [Meeting] {
+        [nextMeeting] + laterMeetings + [
+            Meeting(
+                id: "demo-mtg-4",
+                subject: "Application Rationalization Workshop",
+                organizer: "Elena Fischer",
+                organizerEmail: "elena.fischer@northwind.example",
+                start: onDay(1, hour: 9),
+                end: onDay(1, hour: 11),
+                joinUrl: "https://teams.microsoft.com/l/meetup-join/demo4",
+                responseStatus: .accepted,
+                hasConflict: false,
+                iCalUId: nil
+            ),
+            Meeting(
+                id: "demo-mtg-5",
+                subject: "Quarterly Governance Board",
+                organizer: "Tomas Lindqvist",
+                organizerEmail: "tomas.lindqvist@northwind.example",
+                start: onDay(1, hour: 14),
+                end: onDay(1, hour: 15),
+                joinUrl: "https://teams.microsoft.com/l/meetup-join/demo5",
+                responseStatus: .notResponded,
+                hasConflict: false,
+                iCalUId: nil
+            ),
+            Meeting(
+                id: "demo-mtg-6",
+                subject: "Integration Design Review",
+                organizer: "Priya Nair",
+                organizerEmail: "priya.nair@northwind.example",
+                start: onDay(3, hour: 10),
+                end: onDay(3, hour: 11),
+                joinUrl: "https://teams.microsoft.com/l/meetup-join/demo6",
+                responseStatus: .accepted,
+                hasConflict: false,
+                iCalUId: nil
+            ),
+            Meeting(
+                id: "demo-mtg-7",
+                subject: "Roadmap Sync — Platform Team",
+                organizer: "Marcus Reid",
+                organizerEmail: "marcus.reid@northwind.example",
+                start: onDay(4, hour: 13),
+                end: onDay(4, hour: 14),
+                joinUrl: "https://teams.microsoft.com/l/meetup-join/demo7",
+                responseStatus: .accepted,
+                hasConflict: false,
+                iCalUId: nil
+            )
+        ]
+    }
+
+    /// A fixed hour on the day `offset` days after today, so demo agenda
+    /// entries sit on real day boundaries whatever time the app is opened.
+    private static func onDay(_ offset: Int, hour: Int) -> Date {
+        let calendar = Calendar.current
+        let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: Date())) ?? Date()
+        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day) ?? day
+    }
+
     private static func email(
         _ id: String,
         from: String,
