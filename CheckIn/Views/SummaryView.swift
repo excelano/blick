@@ -21,6 +21,8 @@ struct SummaryView: View {
     /// their section headers.
     @State private var showEmailList = false
     @State private var showChatList = false
+    /// The week agenda, opened by tapping the "Later today" header.
+    @State private var showAgenda = false
     /// The email a context-menu "Forward" targets. Drives a forward-mode
     /// `ComposeView` sheet straight from the list, without opening the preview.
     @State private var forwardEmail: Email?
@@ -81,6 +83,9 @@ struct SummaryView: View {
         }
         .sheet(isPresented: $showChatList) {
             ChatListView(inbox: inbox, onClose: { showChatList = false })
+        }
+        .sheet(isPresented: $showAgenda) {
+            AgendaView(inbox: inbox, onClose: { showAgenda = false })
         }
         .sheet(item: $forwardEmail) { email in
             ComposeView(
@@ -303,7 +308,7 @@ struct SummaryView: View {
             if let meeting = activeMeeting {
                 Section {
                     MeetingCard(meeting: meeting,
-                                onTap: { joinOrCalendar(meeting) },
+                                onTap: { openMeetingInTeams(joinUrl: meeting.joinUrl) },
                                 onRsvp: { response in
                                     Task { await inbox.respondToMeeting(response, meetingId: meeting.id) }
                                 },
@@ -316,22 +321,31 @@ struct SummaryView: View {
                         }
                 }
             }
-            if !laterMeetings.isEmpty {
-                Section {
-                    ForEach(laterMeetings) { meeting in
-                        LaterMeetingRow(meeting: meeting,
-                                        onTap: { joinOrCalendar(meeting) },
-                                        onConflictTap: { conflictTarget = meeting })
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                            .contextMenu {
-                                meetingContextMenu(for: meeting)
-                            }
+            // Rendered even when nothing is left today, because this header
+            // is the only route to the week agenda and "what does tomorrow
+            // look like" gets asked most at the end of a day — exactly when
+            // an only-when-populated section would have disappeared.
+            Section {
+                if laterMeetings.isEmpty {
+                    emptyStateButton(label: "Nothing else today — see the week",
+                                     icon: "calendar") {
+                        showAgenda = true
                     }
-                } header: {
-                    sectionHeader(title: "Later today", count: laterMeetings.count)
                 }
+                ForEach(laterMeetings) { meeting in
+                    LaterMeetingRow(meeting: meeting,
+                                    onTap: { openMeetingInTeams(joinUrl: meeting.joinUrl) },
+                                    onConflictTap: { conflictTarget = meeting })
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .contextMenu {
+                            meetingContextMenu(for: meeting)
+                        }
+                }
+            } header: {
+                sectionHeader(title: "Later today", count: laterMeetings.count,
+                              onOpen: { showAgenda = true }) { EmptyView() }
             }
             Section {
                 if summary.chats.isEmpty {
@@ -723,15 +737,6 @@ struct SummaryView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-    }
-
-    /// Open the Teams join URL when there is one. Calendar-only events
-    /// without a join URL no longer hand off elsewhere — tap is a no-op
-    /// and the meeting context menu carries the remaining actions.
-    private func joinOrCalendar(_ meeting: Meeting) {
-        guard let urlString = meeting.joinUrl,
-              let url = DeepLinkService.passthrough(urlString) else { return }
-        UIApplication.shared.open(url)
     }
 
     private func openChat(_ chat: ChatMessage) {

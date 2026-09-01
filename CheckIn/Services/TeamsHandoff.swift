@@ -28,3 +28,16 @@ func openChatInTeams(webUrl: String?) {
         UIApplication.shared.open(teams)
     }
 }
+
+/// Open a meeting's Teams join link. Shared by the summary's meeting card
+/// and "Later today" rows and by the agenda screen, so the deep-link
+/// rewrite lives in one place. A meeting with no `joinUrl` is not an
+/// online meeting at all, so there is nothing to open and this no-ops —
+/// callers are expected to suppress the tap affordance in that case
+/// rather than offer a tap that does nothing.
+@MainActor
+func openMeetingInTeams(joinUrl: String?) {
+    guard let urlString = joinUrl,
+          let url = DeepLinkService.passthrough(urlString) else { return }
+    UIApplication.shared.open(url)
+}
