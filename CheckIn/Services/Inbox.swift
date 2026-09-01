@@ -12,316 +12,161 @@ import os
 
 @MainActor @Observable
 final class Inbox {
+
+    // MARK: - Observable state
+    //
+    // Everything the views and intents read. `private(set)` throughout: Inbox is the
+    // only writer, and the sixteen files that read this state cannot mutate it.
+
     private(set) var summary: CheckInSummary?
+
     /// User preference: true to lift the 20-newest cap and fetch everything
     /// (capped at 999 to stay under Graph's `$top` ceiling of 1000).
     /// Persisted across launches.
     private(set) var showingAllEmails: Bool
+
     /// True if the most recent refresh (full or partial) hit at least one
     /// Graph error. Cleared by the next successful full refresh. Drives
     /// the orange warning banner in the summary view.
     private(set) var lastRefreshFailed: Bool = false
+
     /// Most-recent reversible bulk action. Set by each bulk method, drives
     /// the floating "Undo" banner in the summary view. Auto-clears after
     /// 8 seconds; only one is held at a time (replaced by the next bulk
     /// action). Nil when there's nothing to undo.
     private(set) var pendingUndo: UndoableBulkAction?
+
     /// Transient user-facing note, set when an optimistic action reverted
     /// because Graph rejected it (`.error`) or when a bulk action found
     /// nothing to do (`.info`). Drives a floating banner in the summary
     /// view. Auto-clears after 6 seconds; the most recent note replaces
     /// any earlier one. Nil when there's nothing to surface.
     private(set) var transientMessage: TransientMessage?
+
     /// The fetch-first bulk "mark unread" action currently running, or nil
     /// when idle. These actions fetch candidate IDs, mutate, then refetch,
     /// with no optimistic feedback, so the originating control watches this
     /// to show a spinner and disable itself while in flight. Only one runs
     /// at a time. See `runBulkUnread`.
     private(set) var activeBulkActivity: BulkActivity?
+
     /// True when the user's Graph auto-reply status is `alwaysEnabled` or
     /// `scheduled`. Drives the OOO indicator that replaces the presence
     /// glyph and reroutes the tap to Settings. Refreshed on every refresh.
     private(set) var isOutOfOffice: Bool = false
+
     /// Teams custom status message — the short text that shows under the
     /// user's name in Teams alongside the presence glyph. Empty when
     /// not set. Refreshed on every refresh.
     private(set) var customStatusMessage: String = ""
+
     /// Current Microsoft 365 presence. Refreshed alongside the rest of the
     /// summary; `setPresence(_:)` updates it optimistically and confirms
     /// with the server. `.unknown` before the first successful fetch,
     /// after sign-out, or when Teams is disabled.
     private(set) var currentPresence: Presence = .unknown
-    // MARK: - Unified meeting store
+
+    // MARK: - Meeting store
     //
-    // Every Meeting CheckIn knows about lives in `meetingsById`. The
-    // three index structures below tell the UI/conflict-detector which
-    // role each meeting plays (today's window, an invite-email
-    // referent, or the future-range reference pool). The `nextMeeting`,
-    // `laterToday`, `inviteMeetings`, and `conflictReferenceMeetings`
-    // accessors are pure computed views — there's no shadow state to
-    // keep in sync.
+    // Every Meeting CheckIn knows about lives in `meetingsById`. The three index
+    // structures below tell the UI/conflict-detector which role each meeting plays
+    // (today's window, an invite-email referent, or the future-range reference pool).
+    // The `nextMeeting`, `laterToday`, `inviteMeetings`, and `conflictReferenceMeetings`
+    // accessors are pure computed views — there's no shadow state to keep in sync.
+
     /// Single source of truth for every Meeting value in the session,
     /// keyed by `Meeting.id`. Reads go through here; writes (RSVP edit,
     /// delete, refresh) update here.
     private(set) var meetingsById: [String: Meeting] = [:]
+
     /// Today's-window meeting ids, ordered by start time. First entry
     /// is the "next meeting" highlighted on the summary card; the rest
     /// are the "Later today" section.
     private(set) var todayMeetingIds: [String] = []
+
     /// Map from an invite email's id to its underlying meeting id.
     /// Populated by `matchInvitesToCalendar(emails:calendar:)`.
     private(set) var inviteEmailMeetingIds: [String: String] = [:]
+
     /// Meeting ids in the conflict-detection reference pool — events
     /// from `calendarView` spanning the invite-emails date range.
     private(set) var referenceMeetingIds: Set<String> = []
 
-    /// The "next meeting" card on the summary view. Computed from the
-    /// first entry of `todayMeetingIds`.
-    var nextMeeting: Meeting? { todayMeetingIds.first.flatMap { meetingsById[$0] } }
-    /// The "Later today" list. Computed from `todayMeetingIds` after
-    /// the next-meeting one.
-    var laterToday: [Meeting] {
-        Array(todayMeetingIds.dropFirst()).compactMap { meetingsById[$0] }
+    // MARK: - Nested types
+
+    /// Captured by `setPendingUndo`; rendered by `SummaryView` as the
+    /// floating undo banner with the summary string and an Undo button
+    /// that calls `Inbox.performUndo`.
+    struct UndoableBulkAction {
+        let summary: String
+        let undo: @MainActor () async -> Void
     }
 
-    /// Today's full meeting list reconstructed in order: `nextMeeting`
-    /// followed by `laterToday`. Used by the time-driven view helpers
-    /// below to advance the active meeting through the cached list.
-    private var todayMeetings: [Meeting] {
-        var all: [Meeting] = []
-        if let next = nextMeeting { all.append(next) }
-        all.append(contentsOf: laterToday)
-        return all
+    /// The fetch-first "mark unread" bulk actions, each tied to the control
+    /// that launches it so that control can show its own spinner.
+    enum BulkActivity {
+        case todaysChats
+        case todaysEmails
+        case flaggedEmails
     }
 
-    /// The meeting that's currently active or coming up next at
-    /// `referenceDate`. Walks `todayMeetings` and returns the first
-    /// entry whose end is in the future. Lets the summary view advance
-    /// from a just-ended meeting to a back-to-back one at the exact
-    /// minute boundary without waiting for the next refresh.
-    func currentMeeting(at referenceDate: Date) -> Meeting? {
-        todayMeetings.first { $0.end > referenceDate }
+    /// A floating banner note. `.error` styles as a warning (reverted
+    /// action); `.info` is neutral (a bulk action found nothing to do).
+    struct TransientMessage: Equatable {
+        enum Kind { case error, info }
+        let text: String
+        let kind: Kind
     }
 
-    /// The meetings remaining after the currently-active or next one
-    /// at `referenceDate`. Mirrors `laterToday` but with the time-based
-    /// rotation applied, so the "Later today" section drops a meeting
-    /// from the top as the day progresses.
-    func remainingLaterToday(at referenceDate: Date) -> [Meeting] {
-        let upcoming = todayMeetings.filter { $0.end > referenceDate }
-        return Array(upcoming.dropFirst())
-    }
-
-    /// Every Meeting CheckIn knows about — today's window, invite
-    /// referents, and reference-pool calendar events. Read by
-    /// `ConflictResolutionSheet` to build its candidate list, and by
-    /// the internal conflict detector. The single source of truth.
-    var allKnownMeetings: [Meeting] { Array(meetingsById.values) }
-
-    /// Map from invite email id → its underlying Meeting. Pure
-    /// computed view over the email-id index and the master store.
-    var inviteMeetings: [String: Meeting] {
-        inviteEmailMeetingIds.compactMapValues { meetingsById[$0] }
-    }
-
-    /// Plain-calendar events used for conflict detection against
-    /// invites whose meetings sit outside today's window. Pure
-    /// computed view over the reference-pool index.
-    var conflictReferenceMeetings: [Meeting] {
-        referenceMeetingIds.compactMap { meetingsById[$0] }
-    }
-
-    /// Lookup a Meeting by id across every source. Used by surfaces
-    /// outside Inbox (e.g. `ConflictResolutionSheet`) that need to
-    /// render the primary meeting and each overlapping candidate
-    /// regardless of which bucket they came from.
-    func meeting(withId id: String) -> Meeting? { meetingsById[id] }
-
-    // MARK: - Intent read accessors
-    //
-    // The counts the App Intents speak back. Each reads CheckIn's
-    // in-memory summary after a refresh, so the spoken number matches the
-    // panel. `unreadEmailCount` is the server-side total, not the capped
-    // visible list.
-    var unreadEmailCount: Int { summary?.totalUnreadEmails ?? 0 }
-    var unreadChatCount: Int { summary?.chats.count ?? 0 }
-    var remainingMeetingCount: Int { todayMeetingIds.count }
-
-    /// The signed-in user's email domain, or nil before `/me` has loaded.
-    /// Drives the chat composer's in-organization recipient check — a Teams
-    /// chat can only reach a tenant user, so a recipient on another domain is
-    /// probably unreachable.
-    var currentUserDomain: String? {
-        EmailAddressValidation.domain(of: graphClient.currentUserMail)
-    }
-
-    /// Full-text search across the whole mailbox. Results are transient — they
-    /// aren't merged into the unread summary, so the caller owns the returned
-    /// list and its own loading/empty state. No new scope (Mail.ReadWrite).
-    func searchEmails(_ query: String) async throws -> [Email] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        #if DEBUG
-        if DemoMode.isActive {
-            let needle = trimmed.lowercased()
-            return DemoData.browseEmails.filter {
-                $0.subject.lowercased().contains(needle)
-                    || $0.from.lowercased().contains(needle)
-                    || $0.preview.lowercased().contains(needle)
-            }
-        }
-        #endif
-        return try await graphClient.searchEmails(query: trimmed)
-    }
-
-    /// The recent inbox (read and unread, newest first) for the browse view,
-    /// as opposed to the unread-only triage list on the summary. Transient —
-    /// the caller owns the result.
-    func recentInbox() async throws -> [Email] {
-        #if DEBUG
-        if DemoMode.isActive { return DemoData.browseEmails }
-        #endif
-        return try await graphClient.recentInbox()
-    }
-
-    /// Recent chats (read and unread, newest first) for the chat browse view,
-    /// as opposed to the unread-only list on the summary. Transient.
-    func recentChats() async throws -> [ChatMessage] {
-        try await graphClient.recentChats()
-    }
-
-    // MARK: - Browse read/flag (transient full-inbox and search lists)
-    //
-    // These serve the browse/search screens, which carry read-and-unread
-    // messages from every folder — unlike the summary mutators (markRead /
-    // markUnread / setFlagged), which own the unread glance's optimistic state.
-    // They ALWAYS hit Graph and keep the glance consistent WITHOUT injecting
-    // strangers: marking read drops a message from the glance when it's there;
-    // marking unread only reaches Graph (a browse row can be a read Sent/Archive
-    // item that doesn't belong in the inbox glance), so the glance reconciles on
-    // its next refresh. They throw so the browse view can revert its own row.
-
-    func setEmailReadFromBrowse(_ isRead: Bool, emailId: String, wasUnread: Bool) async throws {
-        if isRead {
-            try await graphClient.markEmailRead(id: emailId)
-            if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }) {
-                summary?.emails.remove(at: idx)
-            }
-            // Decrement when the row was genuinely unread — even off the visible
-            // page — so the badge (a server $count) doesn't drift high.
-            if wasUnread {
-                summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 0) - 1)
-            }
-            await updateAppBadge()
-        } else {
-            try await graphClient.markEmailUnread(id: emailId)
-        }
-    }
-
-    func setEmailFlaggedFromBrowse(_ flagged: Bool, emailId: String) async throws {
-        if flagged {
-            try await graphClient.flagEmail(id: emailId)
-        } else {
-            try await graphClient.unflagEmail(id: emailId)
-        }
-        // Keep the glance's flag icon in sync when the message is on it.
-        if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
-           let original = summary?.emails[idx] {
-            summary?.emails[idx] = original.with(isFlagged: flagged)
-        }
-    }
-
-    /// A chat has no Sent/Archive equivalent — every chat is "inbox" — so unlike
-    /// email, a browse chat marked unread does belong in the glance and is
-    /// inserted (unread-styled) when absent.
-    func setChatReadFromBrowse(_ isRead: Bool, chat: ChatMessage) async throws {
-        guard let chatId = chat.chatId else { throw GraphError.invalidResponse }
-        guard let (userId, tenantId) = chatIdentity(context: "setChatReadFromBrowse") else {
-            throw GraphError.invalidResponse
-        }
-        if isRead {
-            try await graphClient.markChatRead(chatId: chatId, userId: userId, tenantId: tenantId)
-            if let idx = summary?.chats.firstIndex(where: { $0.chatId == chatId }) {
-                summary?.chats.remove(at: idx)
-            }
-            await updateAppBadge()
-        } else {
-            try await graphClient.markChatUnread(chatId: chatId, userId: userId, tenantId: tenantId)
-            if summary?.chats.contains(where: { $0.chatId == chatId }) == false {
-                var unread = chat
-                unread.isRead = false
-                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
-                    ?? summary?.chats.count ?? 0
-                summary?.chats.insert(unread, at: insertAt)
-            }
-            await updateAppBadge()
-        }
-    }
-
-    /// Name/address pairs harvested from the people in the fetched mail — every
-    /// sender plus each To/Cc recipient — for composer type-ahead. De-duplicated
-    /// by address (case-insensitive), the signed-in user removed, addressless or
-    /// malformed entries dropped. No Contacts permission and nothing off-device:
-    /// this is only the people already in hand. The Contacts picker covers
-    /// anyone not in this recent set.
-    func recipientSuggestions() -> [AddressBookEntry] {
-        let me = graphClient.currentUserMail.lowercased()
-        var seen = Set<String>()
-        var entries: [AddressBookEntry] = []
-        func add(name: String, address: String) {
-            guard EmailAddressValidation.isValid(address) else { return }
-            let key = address.lowercased()
-            guard key != me, seen.insert(key).inserted else { return }
-            entries.append(AddressBookEntry(name: name.isEmpty ? address : name, address: address))
-        }
-        for email in summary?.emails ?? [] {
-            add(name: email.from, address: email.fromAddress)
-            for recipient in email.toRecipients + email.ccRecipients {
-                add(name: recipient.name, address: recipient.address)
-            }
-        }
-        return entries
-    }
-
-    /// Unread emails whose sender name or address contains `query`,
-    /// case-insensitively. Accurate only over the loaded set, so callers
-    /// refresh with `fetchAllEmails: true` before reading this.
-    func unreadCount(fromSenderMatching query: String) -> Int {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return 0 }
-        return (summary?.emails ?? []).filter {
-            $0.from.localizedCaseInsensitiveContains(q)
-                || $0.fromAddress.localizedCaseInsensitiveContains(q)
-        }.count
-    }
+    // MARK: - Dependencies, collaborators, and caps
 
     private let graphClient: GraphClient
+
     private let authService: AuthService
+
     private let teamsEnabled: Bool
+
     /// Watch-side relay. Set by `CheckInApp.init` after Inbox is built;
     /// nil in unit tests and any future host that doesn't pair with a
     /// watch. `publishStatusSnapshot()` pushes on every refresh; the
     /// intent-driven action paths push the patched snapshot after
     /// `CheckInSnapshot.patchAndReload(...)` updates the App Group.
     @ObservationIgnored var phoneConnectivity: PhoneConnectivity?
+
     private let meetingNotifications = MeetingNotifications()
+
+    /// Tracks the preferred presence we last pinned and when it lapses, shared
+    /// with the widget through the App Group. Gates the heartbeat (paused while
+    /// the user is pinned Offline) and outlives the process so a background
+    /// refresh after relaunch honors a still-current pin.
+    private let preferredStore = PreferredPresenceStore()
+
+    @ObservationIgnored private let logger = Logger(subsystem: "com.excelano.checkin", category: "inbox")
+
     private var didFetchUserID = false
+
     private var lastRefreshedAt: Date?
+
     private var didRequestBadgeAuthorization = false
+
     @ObservationIgnored private var undoExpiryTask: Task<Void, Never>?
+
     @ObservationIgnored private var transientMessageExpiryTask: Task<Void, Never>?
 
     /// Graph caps `$top` at 1000; 999 stays just under. Shared by the
     /// "show all" mode and by intent refreshes that need the full unread
     /// set to filter accurately.
     private static let fullEmailCap = 999
+
     private var emailTop: Int { showingAllEmails ? Self.fullEmailCap : 20 }
 
     /// How many unread emails / unread chats and how much preview text ride
     /// to the watch in the snapshot. Small so the WatchConnectivity payload
     /// stays well under its ceiling.
     private static let watchListCap = 15
+
     private static let watchPreviewCap = 140
+
     /// How many messages the on-demand "load more" relay returns to the watch —
     /// the recent inbox (read + unread), a deeper browse than the pushed
     /// unread front. Still small enough for a single WatchConnectivity reply.
@@ -332,11 +177,12 @@ final class Inbox {
     /// short enough that an old action doesn't surprise the user when
     /// they tap Undo well after the fact.
     private static let undoExpirySeconds: Double = 8
+
     /// How long a transient error message stays on screen before it
     /// self-clears. Matches the rhythm of the undo banner.
     private static let transientMessageExpirySeconds: Double = 6
 
-    @ObservationIgnored private let logger = Logger(subsystem: "com.excelano.checkin", category: "inbox")
+    // MARK: - Init and lifecycle
 
     init(graphClient: GraphClient, authService: AuthService, teamsEnabled: Bool) {
         self.graphClient = graphClient
@@ -369,73 +215,23 @@ final class Inbox {
         graphClient.clearUser()
     }
 
-    /// Set a fresh undoable action, replacing whatever was there before
-    /// and restarting the auto-expiry timer.
-    private func setPendingUndo(_ action: UndoableBulkAction) {
-        pendingUndo = action
-        undoExpiryTask?.cancel()
-        undoExpiryTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.undoExpirySeconds))
-            guard let self, !Task.isCancelled else { return }
-            self.pendingUndo = nil
-        }
+    #if DEBUG
+    /// Seed the summary, presence, status message, and today's meetings with the
+    /// sample data, then publish the matching App Group snapshot so the widget
+    /// and watch show the same demo day. No Graph, no auth — for App Store
+    /// screenshots only. Compiled out of release builds.
+    func loadDemo() {
+        summary = DemoData.summary
+        currentPresence = DemoData.presence
+        customStatusMessage = DemoData.customStatusMessage
+        isOutOfOffice = DemoData.isOutOfOffice
+        loadTodayMeetings(next: DemoData.nextMeeting, laterToday: DemoData.laterMeetings)
+        lastRefreshFailed = false
+        publishStatusSnapshot()
     }
+    #endif
 
-    /// User dismissed the undo banner without invoking it.
-    func dismissUndo() {
-        undoExpiryTask?.cancel()
-        undoExpiryTask = nil
-        pendingUndo = nil
-    }
-
-    /// Run the captured undo closure and clear the pending state.
-    func performUndo() async {
-        guard let action = pendingUndo else { return }
-        pendingUndo = nil
-        undoExpiryTask?.cancel()
-        undoExpiryTask = nil
-        await action.undo()
-    }
-
-    /// Surface a brief banner note. Replaces any earlier message and
-    /// restarts the auto-clear timer.
-    private func showTransient(_ text: String, kind: TransientMessage.Kind) {
-        transientMessage = TransientMessage(text: text, kind: kind)
-        transientMessageExpiryTask?.cancel()
-        transientMessageExpiryTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.transientMessageExpirySeconds))
-            guard let self, !Task.isCancelled else { return }
-            self.transientMessage = nil
-        }
-    }
-
-    /// User dismissed the transient banner without waiting for the
-    /// auto-clear.
-    func dismissTransientMessage() {
-        transientMessageExpiryTask?.cancel()
-        transientMessageExpiryTask = nil
-        transientMessage = nil
-    }
-
-    /// Toggle the email cap and refetch just the emails. No need to ripple
-    /// meeting/chat updates.
-    func setShowingAllEmails(_ show: Bool) async {
-        guard show != showingAllEmails else { return }
-        showingAllEmails = show
-        UserDefaults.standard.set(show, forKey: AppStorageKey.showingAllEmails)
-        let result = await fetchEmails()
-        await applyEmailsResult(result)
-        if result.failed { lastRefreshFailed = true }
-    }
-
-    /// Headless-intent preamble: acquire a token silently, then refresh.
-    /// The read App Intents start with empty in-memory state, so each must
-    /// authenticate and reload before reading the summary. `fetchAllEmails`
-    /// forces the full unread set (needed for the from-sender count).
-    func refreshForIntent(fetchAllEmails: Bool = false) async throws {
-        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
-        await refresh(fetchAllEmails: fetchAllEmails)
-    }
+    // MARK: - Refresh, snapshot publishing, and badge
 
     /// `fetchAllEmails` lifts the email fetch to the full unread set for
     /// this refresh only, without touching the persisted "show all"
@@ -490,21 +286,67 @@ final class Inbox {
         publishStatusSnapshot()
     }
 
-    #if DEBUG
-    /// Seed the summary, presence, status message, and today's meetings with the
-    /// sample data, then publish the matching App Group snapshot so the widget
-    /// and watch show the same demo day. No Graph, no auth — for App Store
-    /// screenshots only. Compiled out of release builds.
-    func loadDemo() {
-        summary = DemoData.summary
-        currentPresence = DemoData.presence
-        customStatusMessage = DemoData.customStatusMessage
-        isOutOfOffice = DemoData.isOutOfOffice
-        loadTodayMeetings(next: DemoData.nextMeeting, laterToday: DemoData.laterMeetings)
-        lastRefreshFailed = false
-        publishStatusSnapshot()
+    /// Headless-intent preamble: acquire a token silently, then refresh.
+    /// The read App Intents start with empty in-memory state, so each must
+    /// authenticate and reload before reading the summary. `fetchAllEmails`
+    /// forces the full unread set (needed for the from-sender count).
+    func refreshForIntent(fetchAllEmails: Bool = false) async throws {
+        _ = try await authService.acquireTokenSilentlyNoInteraction(enableTeams: Constants.teamsEnabled)
+        await refresh(fetchAllEmails: fetchAllEmails)
     }
-    #endif
+
+    /// Skip the refresh if the last one finished within `threshold` seconds.
+    /// Used by the scene-foreground hook so quick app-switches don't trigger
+    /// back-to-back Graph fetches.
+    func refreshIfStale(threshold: TimeInterval = 30) async {
+        if let last = lastRefreshedAt, Date().timeIntervalSince(last) < threshold {
+            return
+        }
+        await refresh()
+    }
+
+    /// Toggle the email cap and refetch just the emails. No need to ripple
+    /// meeting/chat updates.
+    func setShowingAllEmails(_ show: Bool) async {
+        guard show != showingAllEmails else { return }
+        showingAllEmails = show
+        UserDefaults.standard.set(show, forKey: AppStorageKey.showingAllEmails)
+        let result = await fetchEmails()
+        await applyEmailsResult(result)
+        if result.failed { lastRefreshFailed = true }
+    }
+
+    private func fetchEmails(top: Int? = nil) async -> (emails: [Email], totalCount: Int, failed: Bool) {
+        do {
+            let r = try await graphClient.unreadEmails(top: top ?? emailTop)
+            return (r.emails, r.totalCount, false)
+        } catch {
+            logger.error("unreadEmails failed: \(error.localizedDescription, privacy: .public)")
+            return ([], 0, true)
+        }
+    }
+
+    /// Apply a fresh `fetchEmails` result to `summary.emails` and rebuild
+    /// the derived invite caches (`conflictReferenceMeetings` first, then
+    /// `inviteMeetings` matched off it). Every code path that retouches
+    /// `summary.emails` calls this so the invite-row UI and conflict pool
+    /// stay coherent — otherwise mark-read/unread can leave stale invite
+    /// state pointing at events that are no longer in the unread window.
+    private func applyEmailsResult(_ result: (emails: [Email], totalCount: Int, failed: Bool)) async {
+        summary?.emails = result.emails
+        summary?.totalUnreadEmails = result.totalCount
+        await rebuildInviteCaches(from: result.emails)
+    }
+
+    /// Re-fetch the email list, apply it, and record a refresh failure.
+    /// The shared tail of the bulk mark-read / resurface / undo paths, which
+    /// all have to reload because their mutations move emails in or out of
+    /// the visible set.
+    private func reloadEmails() async {
+        let result = await fetchEmails()
+        await applyEmailsResult(result)
+        if result.failed { lastRefreshFailed = true }
+    }
 
     /// Serialize the current summary into the App Group container the
     /// widget and Control Center controls read from, then nudge them to
@@ -570,53 +412,407 @@ final class Inbox {
         phoneConnectivity?.push(snapshot)
     }
 
-    /// Tracks the preferred presence we last pinned and when it lapses, shared
-    /// with the widget through the App Group. Gates the heartbeat (paused while
-    /// the user is pinned Offline) and outlives the process so a background
-    /// refresh after relaunch honors a still-current pin.
-    private let preferredStore = PreferredPresenceStore()
-
-    /// sessionId for `/me/presence/setPresence`. Microsoft constrains
-    /// delegated-permission callers to set sessionId equal to the
-    /// calling app's Azure AD client ID — a random GUID is silently
-    /// rejected. We use the effective client ID (custom registration
-    /// override if set, otherwise the published one).
-    private var presenceSessionId: String {
-        Constants.effectiveClientID
+    /// Sets the iOS app-icon badge to `unread emails + unread chats`. The
+    /// first call requests notification permission (badge-only). Silent
+    /// no-op if denied. Meetings are intentionally excluded — they're
+    /// scheduled, not items to triage.
+    private func updateAppBadge() async {
+        guard let s = summary else { return }
+        let count = s.totalUnreadEmails + s.chats.count
+        let center = UNUserNotificationCenter.current()
+        if !didRequestBadgeAuthorization {
+            didRequestBadgeAuthorization = true
+            let settings = await center.notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                _ = try? await center.requestAuthorization(options: [.badge])
+            }
+        }
+        try? await center.setBadgeCount(count)
     }
 
-    /// Re-up CheckIn's presence session as a pure "I'm here" heartbeat
-    /// reporting Available. The preferred (Busy / DND / etc.) is what
-    /// gets shown to others — the session just keeps Graph honoring
-    /// preferred at all, and keeps the user visible as Available when
-    /// no preferred is set (Reset to auto). 1-hour expiration; we renew
-    /// on every refresh so it never has a chance to lapse while CheckIn
-    /// is in active use.
-    private func refreshPresenceSession() async {
-        guard teamsEnabled else { return }
-        // While the user is pinned Offline (and the pin hasn't lapsed), stay
-        // silent: re-upping any session would make them visible again. With no
-        // session of ours, Graph shows Offline — exactly the pinned state. The
-        // heartbeat resumes once the pin is changed or expires.
-        if preferredStore.current()?.presence == .offline { return }
+    // MARK: - Counts and identity accessors
+    //
+    // The counts the App Intents speak back. Each reads CheckIn's in-memory summary
+    // after a refresh, so the spoken number matches the panel. `unreadEmailCount` is
+    // the server-side total, not the capped visible list.
+
+    var unreadEmailCount: Int { summary?.totalUnreadEmails ?? 0 }
+
+    var unreadChatCount: Int { summary?.chats.count ?? 0 }
+
+    var remainingMeetingCount: Int { todayMeetingIds.count }
+
+    /// Unread emails whose sender name or address contains `query`,
+    /// case-insensitively. Accurate only over the loaded set, so callers
+    /// refresh with `fetchAllEmails: true` before reading this.
+    func unreadCount(fromSenderMatching query: String) -> Int {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return 0 }
+        return (summary?.emails ?? []).filter {
+            $0.from.localizedCaseInsensitiveContains(q)
+                || $0.fromAddress.localizedCaseInsensitiveContains(q)
+        }.count
+    }
+
+    /// Exposes the user's mail domain so the view layer can compute the
+    /// count for the bulk-actions menu without re-implementing the
+    /// fromAddress comparison.
+    var userMailDomain: String { graphClient.userMailDomain }
+
+    /// Exposes the user's full mail address so the preview sheet can
+    /// filter the signed-in user out of the "also to" recipient list.
+    var currentUserMail: String { graphClient.currentUserMail }
+
+    /// The signed-in user's email domain, or nil before `/me` has loaded.
+    /// Drives the chat composer's in-organization recipient check — a Teams
+    /// chat can only reach a tenant user, so a recipient on another domain is
+    /// probably unreachable.
+    var currentUserDomain: String? {
+        EmailAddressValidation.domain(of: graphClient.currentUserMail)
+    }
+
+    // MARK: - Meetings: accessors
+
+    /// The "next meeting" card on the summary view. Computed from the
+    /// first entry of `todayMeetingIds`.
+    var nextMeeting: Meeting? { todayMeetingIds.first.flatMap { meetingsById[$0] } }
+
+    /// The "Later today" list. Computed from `todayMeetingIds` after
+    /// the next-meeting one.
+    var laterToday: [Meeting] {
+        Array(todayMeetingIds.dropFirst()).compactMap { meetingsById[$0] }
+    }
+
+    /// Today's full meeting list reconstructed in order: `nextMeeting`
+    /// followed by `laterToday`. Used by the time-driven view helpers
+    /// below to advance the active meeting through the cached list.
+    private var todayMeetings: [Meeting] {
+        var all: [Meeting] = []
+        if let next = nextMeeting { all.append(next) }
+        all.append(contentsOf: laterToday)
+        return all
+    }
+
+    /// The meeting that's currently active or coming up next at
+    /// `referenceDate`. Walks `todayMeetings` and returns the first
+    /// entry whose end is in the future. Lets the summary view advance
+    /// from a just-ended meeting to a back-to-back one at the exact
+    /// minute boundary without waiting for the next refresh.
+    func currentMeeting(at referenceDate: Date) -> Meeting? {
+        todayMeetings.first { $0.end > referenceDate }
+    }
+
+    /// The meetings remaining after the currently-active or next one
+    /// at `referenceDate`. Mirrors `laterToday` but with the time-based
+    /// rotation applied, so the "Later today" section drops a meeting
+    /// from the top as the day progresses.
+    func remainingLaterToday(at referenceDate: Date) -> [Meeting] {
+        let upcoming = todayMeetings.filter { $0.end > referenceDate }
+        return Array(upcoming.dropFirst())
+    }
+
+    /// Every Meeting CheckIn knows about — today's window, invite
+    /// referents, and reference-pool calendar events. Read by
+    /// `ConflictResolutionSheet` to build its candidate list, and by
+    /// the internal conflict detector. The single source of truth.
+    var allKnownMeetings: [Meeting] { Array(meetingsById.values) }
+
+    /// Map from invite email id → its underlying Meeting. Pure
+    /// computed view over the email-id index and the master store.
+    var inviteMeetings: [String: Meeting] {
+        inviteEmailMeetingIds.compactMapValues { meetingsById[$0] }
+    }
+
+    /// Plain-calendar events used for conflict detection against
+    /// invites whose meetings sit outside today's window. Pure
+    /// computed view over the reference-pool index.
+    var conflictReferenceMeetings: [Meeting] {
+        referenceMeetingIds.compactMap { meetingsById[$0] }
+    }
+
+    /// Lookup a Meeting by id across every source. Used by surfaces
+    /// outside Inbox (e.g. `ConflictResolutionSheet`) that need to
+    /// render the primary meeting and each overlapping candidate
+    /// regardless of which bucket they came from.
+    func meeting(withId id: String) -> Meeting? { meetingsById[id] }
+
+    /// Inverse of `markMatchingInviteEmailsRead`: given an invite email,
+    /// find the meeting in our current summary that it refers to. Used
+    /// to drive the inline RSVP buttons on invite-email rows so a
+    /// chosen response from the email surface routes through the same
+    /// `respondToMeeting(_:meetingId:)` path as the calendar card — and
+    /// inherits all the downstream syncing (meeting card updates,
+    /// matching invite emails marked read, conflicts recomputed).
+    ///
+    /// Falls back to the `inviteEmailMeetingIds` cache when no
+    /// today-window meeting matches — that cache is populated by the
+    /// `$expand=event` ride-along on `unreadEmails` and covers invites
+    /// for meetings beyond today's calendar window.
+    func meetingMatching(_ email: Email) -> Meeting? {
+        var todays: [Meeting] = []
+        if let m = nextMeeting { todays.append(m) }
+        todays.append(contentsOf: laterToday)
+        if let match = todays.first(where: { $0.matches(email) }) { return match }
+        if let meetingId = inviteEmailMeetingIds[email.id] { return meetingsById[meetingId] }
+        return nil
+    }
+
+    // MARK: - Meetings: actions
+
+    /// Optimistic. Mutates the matching meeting's `responseStatus`
+    /// immediately so the UI updates, and reverts on failure. After a
+    /// successful RSVP, also marks any invite emails still sitting unread
+    /// in the inbox as read, and recomputes `hasConflict` on every meeting
+    /// so a Decline removes the warning from the meetings that were
+    /// previously conflicting with it. Operates on either `summary.meeting`
+    /// or the matching entry in `summary.laterToday`.
+    func respondToMeeting(_ response: MeetingResponse, meetingId: String? = nil) async {
+        let id = meetingId ?? nextMeeting?.id
+        guard let id, let meeting = meetingWithId(id) else { return }
+        let previous = meeting.responseStatus
+        setMeeting(meeting.with(responseStatus: response))
+        recomputeConflicts()
         do {
-            try await graphClient.setSessionPresence(sessionId: presenceSessionId, presence: .available)
+            try await graphClient.respondToMeeting(id: meeting.id, response: response)
+            await markMatchingInviteEmailsRead(for: meeting)
         } catch {
-            logger.error("refreshPresenceSession failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("respondToMeeting(\(response.rawValue)) failed: \(error.localizedDescription, privacy: .public)")
+            setMeeting(meeting.with(responseStatus: previous))
+            recomputeConflicts()
         }
     }
 
-    /// Whether Out-of-Office is on. The "any non-disabled state counts"
-    /// rule lives in `GraphCore`; CheckIn just shows on/off (the user
-    /// manages scheduled-with-dates in Outlook web).
-    private func fetchOutOfOffice() async -> Bool {
+    /// Optimistically remove the meeting from the summary, then DELETE
+    /// via Graph. If it was the "next" meeting, the first `laterToday`
+    /// meeting (if any) is promoted into its place. Recomputes
+    /// `hasConflict` on the remaining meetings — a deletion may resolve
+    /// conflicts elsewhere.
+    func deleteMeeting(meetingId: String) async {
+        guard let meeting = meetingWithId(meetingId) else { return }
+        let meetingsByIdSnapshot = meetingsById
+        let todayMeetingIdsSnapshot = todayMeetingIds
+        let inviteEmailMeetingIdsSnapshot = inviteEmailMeetingIds
+        let referenceMeetingIdsSnapshot = referenceMeetingIds
+
+        // Pull the meeting out of every index and the master dict. If
+        // it was today's next meeting, removing its id from the front
+        // of `todayMeetingIds` automatically promotes whatever was
+        // next in line — `nextMeeting` is computed from that list.
+        todayMeetingIds.removeAll { $0 == meetingId }
+        referenceMeetingIds.remove(meetingId)
+        for (emailId, mId) in inviteEmailMeetingIds where mId == meetingId {
+            inviteEmailMeetingIds.removeValue(forKey: emailId)
+        }
+        meetingsById.removeValue(forKey: meetingId)
+
+        recomputeConflicts()
+
         do {
-            return try await graphClient.fetchOutOfOfficeEnabled()
+            try await graphClient.deleteEvent(id: meeting.id)
         } catch {
-            logger.error("fetchOutOfOffice failed: \(error.localizedDescription, privacy: .public)")
-            return false
+            logger.error("deleteEvent failed: \(error.localizedDescription, privacy: .public)")
+            meetingsById = meetingsByIdSnapshot
+            todayMeetingIds = todayMeetingIdsSnapshot
+            inviteEmailMeetingIds = inviteEmailMeetingIdsSnapshot
+            referenceMeetingIds = referenceMeetingIdsSnapshot
+            recomputeConflicts()
         }
     }
+
+    /// Find invitation/update/cancellation emails for this meeting and
+    /// mark them read. Bounded to the local unread list, so it can't
+    /// reach beyond what we already have cached.
+    ///
+    /// Matching strategy is two-tiered:
+    /// 1. Standard subject match (using `normalizedSubjectKey` so
+    ///    Re:/Fwd: prefixes and whitespace don't get in the way) plus the
+    ///    "Updated:" and "Cancelled:" prefix variants Outlook uses.
+    /// 2. For confirmed meeting messages (Graph's `meetingMessageType`
+    ///    is set) coming from the meeting's organizer, a contains-match
+    ///    handles tenant-specific prefixes like "Meeting request:" or
+    ///    "Invitation:" — the two-factor (organizer + meeting-message)
+    ///    keeps false positives down.
+    private func markMatchingInviteEmailsRead(for meeting: Meeting) async {
+        let matchIds = (summary?.emails ?? [])
+            .filter { meeting.matches($0) }
+            .map(\.id)
+        for id in matchIds {
+            await markRead(emailId: id)
+        }
+    }
+
+    // MARK: - Meetings: fetch, store maintenance, and conflicts
+
+    private func fetchMeetings() async -> (next: Meeting?, laterToday: [Meeting], failed: Bool) {
+        do {
+            let r = try await graphClient.todaysMeetings()
+            return (r.next, r.laterToday, false)
+        } catch {
+            logger.error("todaysMeetings failed: \(error.localizedDescription, privacy: .public)")
+            return (nil, [], true)
+        }
+    }
+
+    /// Best-effort. Fetch calendar events overlapping the date range
+    /// spanned by the supplied invite emails (their `meetingStart` /
+    /// `meetingEnd` are read straight off Graph's eventMessage subtype).
+    /// Doubles as both the conflict-detection reference pool and the
+    /// source of truth for matching invite emails to their underlying
+    /// event — `$expand=event` returns empty stubs for future
+    /// invitations, so we sidestep it. Returns an empty pool on failure
+    /// (no banner; UX enhancement only). Skipped when there are no
+    /// invites with dates.
+    private func fetchConflictReferenceMeetings(for inviteEmails: [Email]) async -> [Meeting] {
+        let starts = inviteEmails.compactMap(\.meetingStart)
+        let ends = inviteEmails.compactMap(\.meetingEnd)
+        guard let earliest = starts.min(), let latest = ends.max() else { return [] }
+        do {
+            return try await graphClient.eventsInRange(start: earliest, end: latest)
+        } catch {
+            logger.error("fetchConflictReferenceMeetings failed: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+    }
+
+    /// Match `meetingRequest` invite emails to their underlying event in
+    /// `calendar` so the email row can surface meeting time / RSVP /
+    /// conflict. Match key is normalized subject + start time within a
+    /// minute — subject alone is ambiguous when multiple meetings share a
+    /// title, but `meetingStart` from the eventMessage and `start` from
+    /// the calendar event come from the same source-of-truth and should
+    /// be exact. Returns a map keyed by email id; emails with no
+    /// matching event simply don't appear (the row falls back to
+    /// regular-email rendering).
+    /// Resolve each `meetingRequest` invite email to a calendar event
+    /// so the row can surface meeting time / RSVP / conflict. Two-pass
+    /// match:
+    /// 1. Subject + start-time-within-a-minute against the calendar
+    ///    pool. Free, no Graph call, covers the common case.
+    /// 2. Fallback: pull `iCalUId` from the invitation's
+    ///    `PidLidGlobalObjectId` MAPI property and look up the calendar
+    ///    pool by that. Deterministic — disambiguates same-subject
+    ///    collisions and rescheduled meetings whose start time on the
+    ///    invitation no longer matches the calendar entry. The looked-up
+    ///    Meeting carries the real event id and responseStatus; no
+    ///    synthetic placeholders.
+    ///
+    /// Invites with no matching event in either pass are returned
+    /// absent from the map. The row's "Removed" pill takes that case
+    /// (event was declined, deleted, or cancelled — the absence is
+    /// the signal).
+    private func matchInvitesToCalendar(emails: [Email], calendar: [Meeting]) async -> [String: Meeting] {
+        var result: [String: Meeting] = [:]
+        for email in emails where email.isInvite {
+            if let match = calendar.first(where: { $0.matches(email) }) {
+                result[email.id] = match
+                continue
+            }
+            guard let iCalUId = await graphClient.fetchInviteICalUId(messageId: email.id) else { continue }
+            if let match = calendar.first(where: {
+                $0.iCalUId?.caseInsensitiveCompare(iCalUId) == .orderedSame
+            }) {
+                result[email.id] = match
+            }
+        }
+        return result
+    }
+
+    /// Rebuild `conflictReferenceMeetings` + `inviteMeetings` from the
+    /// given email list and recompute conflict flags. Caller is
+    /// responsible for assigning `summary.emails` first if needed.
+    /// Used by both `refresh()` (after constructing a fresh summary)
+    /// and `applyEmailsResult` (after a mid-session email refresh).
+    private func rebuildInviteCaches(from emails: [Email]) async {
+        let inviteEmails = emails.filter(\.isInvite)
+        let referenceMeetings = await fetchConflictReferenceMeetings(for: inviteEmails)
+        let matchedInvites = await matchInvitesToCalendar(emails: emails, calendar: referenceMeetings)
+
+        // Drop any previous invite/reference members from the master
+        // store that aren't in today's window and aren't in the new
+        // sets — otherwise stale meetings linger.
+        let keepTodayIds = Set(todayMeetingIds)
+        for id in inviteEmailMeetingIds.values where !keepTodayIds.contains(id) {
+            meetingsById.removeValue(forKey: id)
+        }
+        for id in referenceMeetingIds where !keepTodayIds.contains(id) {
+            meetingsById.removeValue(forKey: id)
+        }
+        inviteEmailMeetingIds.removeAll(keepingCapacity: true)
+        referenceMeetingIds.removeAll(keepingCapacity: true)
+        for (emailId, m) in matchedInvites {
+            meetingsById[m.id] = m
+            inviteEmailMeetingIds[emailId] = m.id
+        }
+        for m in referenceMeetings {
+            meetingsById[m.id] = m
+            referenceMeetingIds.insert(m.id)
+        }
+
+        recomputeConflicts()
+    }
+
+    /// Replace the today-window index and seed each Meeting into
+    /// `meetingsById`. Called from `refresh()` after the calendar fetch
+    /// returns. Old `summary.meeting` + `summary.laterToday` are still
+    /// assigned alongside during the migration.
+    private func loadTodayMeetings(next: Meeting?, laterToday: [Meeting]) {
+        // Drop the previous today-window members from the master store
+        // first, so a meeting that disappeared from the calendar
+        // (declined/cancelled/deleted) doesn't linger.
+        for id in todayMeetingIds {
+            // Only drop ids that aren't ALSO referenced by another
+            // index — a today meeting that's also an invite-email
+            // referent should survive until its other index drops it.
+            if !inviteEmailMeetingIds.values.contains(id) && !referenceMeetingIds.contains(id) {
+                meetingsById.removeValue(forKey: id)
+            }
+        }
+        var ids: [String] = []
+        if let next {
+            meetingsById[next.id] = next
+            ids.append(next.id)
+        }
+        for m in laterToday {
+            meetingsById[m.id] = m
+            ids.append(m.id)
+        }
+        todayMeetingIds = ids
+    }
+
+    private func setMeeting(_ meeting: Meeting) {
+        meetingsById[meeting.id] = meeting
+    }
+
+    private func meetingWithId(_ id: String) -> Meeting? {
+        meetingsById[id]
+    }
+
+    /// Recompute `hasConflict` on every meeting based on the current
+    /// local state. Declined meetings are excluded from both sides of
+    /// the overlap check — they don't trigger a warning on themselves
+    /// (the user isn't going) and they don't count as conflicts for
+    /// other meetings. Pool is the union of today's summary meetings,
+    /// the invite-email cache, and the reference pool of plain
+    /// calendar events covering the invite date range — so an invite
+    /// can flag a conflict against a meeting the user already has on
+    /// their schedule even when that meeting isn't an invitation.
+    private func recomputeConflicts() {
+        guard summary != nil else { return }
+        let pool = Array(meetingsById.values)
+        meetingsById = meetingsById.mapValues { $0.with(hasConflict: overlapsAny($0, in: pool)) }
+    }
+
+    private func overlapsAny(_ m: Meeting, in all: [Meeting]) -> Bool {
+        if m.responseStatus == .declined { return false }
+        return all.contains { other in
+            other.id != m.id
+                && other.responseStatus != .declined
+                && other.start < m.end
+                && m.start < other.end
+        }
+    }
+
+    // MARK: - Meeting notifications
 
     /// Re-schedule the 1-minute-out meeting alerts from the freshly-fetched
     /// summary. Toggled by the `meetingNotifications` AppStorage flag, so
@@ -651,41 +847,60 @@ final class Inbox {
         await meetingNotifications.clearAll()
     }
 
-    /// Set (or clear) the Teams custom status message. Optimistic update
-    /// with revert on failure, mirroring the presence pattern.
-    func setCustomStatusMessage(_ message: String) async {
-        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        let previous = customStatusMessage
-        customStatusMessage = trimmed
+    // MARK: - Presence, status message, and Out of Office
+
+    /// sessionId for `/me/presence/setPresence`. Microsoft constrains
+    /// delegated-permission callers to set sessionId equal to the
+    /// calling app's Azure AD client ID — a random GUID is silently
+    /// rejected. We use the effective client ID (custom registration
+    /// override if set, otherwise the published one).
+    private var presenceSessionId: String {
+        Constants.effectiveClientID
+    }
+
+    /// Re-up CheckIn's presence session as a pure "I'm here" heartbeat
+    /// reporting Available. The preferred (Busy / DND / etc.) is what
+    /// gets shown to others — the session just keeps Graph honoring
+    /// preferred at all, and keeps the user visible as Available when
+    /// no preferred is set (Reset to auto). 1-hour expiration; we renew
+    /// on every refresh so it never has a chance to lapse while CheckIn
+    /// is in active use.
+    private func refreshPresenceSession() async {
+        guard teamsEnabled else { return }
+        // While the user is pinned Offline (and the pin hasn't lapsed), stay
+        // silent: re-upping any session would make them visible again. With no
+        // session of ours, Graph shows Offline — exactly the pinned state. The
+        // heartbeat resumes once the pin is changed or expires.
+        if preferredStore.current()?.presence == .offline { return }
         do {
-            try await graphClient.setStatusMessage(trimmed)
+            try await graphClient.setSessionPresence(sessionId: presenceSessionId, presence: .available)
         } catch {
-            logger.error("setCustomStatusMessage failed: \(error.localizedDescription, privacy: .public)")
-            customStatusMessage = previous
-            showTransient("Couldn't update your status. Try again.", kind: .error)
+            logger.error("refreshPresenceSession failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    /// Enable auto-replies (`alwaysEnabled` with no end date). Optimistic
-    /// UI update with revert on failure, mirroring the presence pattern.
-    /// Returns `true` on success so intent-driven callers can detect a
-    /// silent Graph failure and propagate it instead of speaking a success
-    /// dialog after nothing changed.
-    @discardableResult
-    func setOutOfOffice(_ on: Bool) async -> Bool {
-        let previous = isOutOfOffice
-        isOutOfOffice = on
+    /// Best-effort presence read. Failures don't bump `lastRefreshFailed`
+    /// — presence is a secondary concern, not critical to the panel.
+    /// Returns the presence plus the custom status message so callers
+    /// can publish both in lockstep from a single Graph round-trip.
+    private func fetchPresence() async -> (Presence, String) {
+        guard teamsEnabled else { return (.unknown, "") }
         do {
-            if on {
-                try await graphClient.enableAutomaticReplies(defaultMessage: CheckInSnapshot.defaultOutOfOfficeMessage)
-            } else {
-                try await graphClient.disableAutomaticReplies()
-            }
-            return true
+            return try await graphClient.fetchPresence()
         } catch {
-            logger.error("setOutOfOffice(\(on)) failed: \(error.localizedDescription, privacy: .public)")
-            isOutOfOffice = previous
-            showTransient("Couldn't update Out of Office. Try again.", kind: .error)
+            logger.error("fetchPresence failed: \(error.localizedDescription, privacy: .public)")
+            return (.unknown, "")
+        }
+    }
+
+    /// Whether Out-of-Office is on. The "any non-disabled state counts"
+    /// rule lives in `GraphCore`; CheckIn just shows on/off (the user
+    /// manages scheduled-with-dates in Outlook web).
+    private func fetchOutOfOffice() async -> Bool {
+        do {
+            return try await graphClient.fetchOutOfOfficeEnabled()
+        } catch {
+            logger.error("fetchOutOfOffice failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
@@ -735,305 +950,47 @@ final class Inbox {
         }
     }
 
-    /// Sets the iOS app-icon badge to `unread emails + unread chats`. The
-    /// first call requests notification permission (badge-only). Silent
-    /// no-op if denied. Meetings are intentionally excluded — they're
-    /// scheduled, not items to triage.
-    private func updateAppBadge() async {
-        guard let s = summary else { return }
-        let count = s.totalUnreadEmails + s.chats.count
-        let center = UNUserNotificationCenter.current()
-        if !didRequestBadgeAuthorization {
-            didRequestBadgeAuthorization = true
-            let settings = await center.notificationSettings()
-            if settings.authorizationStatus == .notDetermined {
-                _ = try? await center.requestAuthorization(options: [.badge])
-            }
-        }
-        try? await center.setBadgeCount(count)
-    }
-
-    /// Skip the refresh if the last one finished within `threshold` seconds.
-    /// Used by the scene-foreground hook so quick app-switches don't trigger
-    /// back-to-back Graph fetches.
-    func refreshIfStale(threshold: TimeInterval = 30) async {
-        if let last = lastRefreshedAt, Date().timeIntervalSince(last) < threshold {
-            return
-        }
-        await refresh()
-    }
-
-    /// Mark every visible email read in a single Graph `$batch`. Tops up
-    /// from the server afterward if the cap was hiding additional unread.
-    func markAllVisibleRead() async {
-        let preserved = summary?.emails ?? []
-        await runBulkMarkRead(emails: preserved)
-    }
-
-    /// Mark the visible emails classified as "Other" by Microsoft's Focused
-    /// Inbox ML. Leaves "Focused" emails alone.
-    func markOtherInboxRead() async {
-        let candidates = (summary?.emails ?? []).filter { $0.inferenceClassification == "other" }
-        await runBulkMarkRead(emails: candidates)
-    }
-
-    /// Mark meeting cancellations and RSVP responses (the noise that piles
-    /// up after the actionable invite). The original `meetingRequest`
-    /// invite is left alone — the user might still need to RSVP to it.
-    func markMeetingNoticesRead() async {
-        let candidates = (summary?.emails ?? []).filter(\.isMeetingNotice)
-        await runBulkMarkRead(emails: candidates)
-    }
-
-    /// Mark visible emails that look like mailing-list traffic
-    /// (RFC 2369 `List-Unsubscribe` header present).
-    func markMailingListsRead() async {
-        let candidates = (summary?.emails ?? []).filter { $0.isMailingList }
-        await runBulkMarkRead(emails: candidates)
-    }
-
-    /// Mark visible emails sent from a domain other than the signed-in
-    /// user's own. Useful when work-internal mail is the priority and
-    /// outside-the-company senders can be dismissed.
-    func markExternalSendersRead() async {
-        let userDomain = graphClient.userMailDomain
-        guard !userDomain.isEmpty else { return }
-        let candidates = (summary?.emails ?? []).filter { e in
-            guard !e.fromAddress.isEmpty,
-                  let atIdx = e.fromAddress.firstIndex(of: "@") else { return false }
-            let senderDomain = e.fromAddress[e.fromAddress.index(after: atIdx)...].lowercased()
-            return senderDomain != userDomain
-        }
-        await runBulkMarkRead(emails: candidates)
-    }
-
-    /// Exposes the user's mail domain so the view layer can compute the
-    /// count for the bulk-actions menu without re-implementing the
-    /// fromAddress comparison.
-    var userMailDomain: String { graphClient.userMailDomain }
-
-    /// Exposes the user's full mail address so the preview sheet can
-    /// filter the signed-in user out of the "also to" recipient list.
-    var currentUserMail: String { graphClient.currentUserMail }
-
-    /// Mark every visible email from the given SMTP address as read.
-    /// Used by the row-level context menu.
-    func markAllFromSenderRead(_ address: String) async {
-        guard !address.isEmpty else { return }
-        let candidates = (summary?.emails ?? []).filter { $0.fromAddress == address }
-        await runBulkMarkRead(emails: candidates)
-    }
-
-    /// Flip every read email received today back to unread, so a day's
-    /// mail that got cleared elsewhere (Outlook web, another phone)
-    /// shows up in CheckIn again. Re-fetches the summary because the
-    /// newly-unread emails are not in our visible list.
-    func markTodayUnread() async {
-        await runBulkUnread(.todaysEmails,
-                            nothing: "No read email from today to mark unread.",
-                            failure: "Couldn't mark today's email unread. Try again.") {
-            let ids = try await self.graphClient.idsOfReadEmailsReceivedToday()
-            try await self.resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) today unread")
-            return ids.count
-        }
-    }
-
-    /// Flip every read, flagged Inbox email back to unread, so follow-up
-    /// items that were already read resurface in CheckIn. Same shape as
-    /// `markTodayUnread`: the newly-unread emails aren't in the visible
-    /// list, so we re-fetch the summary.
-    func markFlaggedUnread() async {
-        await runBulkUnread(.flaggedEmails,
-                            nothing: "No read flagged email to mark unread.",
-                            failure: "Couldn't mark flagged email unread. Try again.") {
-            let ids = try await self.graphClient.idsOfReadFlaggedEmails()
-            try await self.resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) flagged unread")
-            return ids.count
-        }
-    }
-
-    /// Runs a fetch-first "mark unread" bulk action behind a visible busy
-    /// indicator. Sets `activeBulkActivity` so the launching control can
-    /// spin and disable itself, enforces a 400 ms minimum on-screen time
-    /// so a fast Graph round-trip doesn't strobe the spinner, then clears.
-    /// `work` returns the number of items it flipped: 0 surfaces the
-    /// `nothing` note, a thrown error surfaces the `failure` note. The
-    /// re-entrancy guard drops a second tap while one is already running.
-    private func runBulkUnread(_ activity: BulkActivity,
-                               nothing: String,
-                               failure: String,
-                               work: () async throws -> Int) async {
-        guard activeBulkActivity == nil else { return }
-        activeBulkActivity = activity
-        let clock = ContinuousClock()
-        let start = clock.now
+    /// Enable auto-replies (`alwaysEnabled` with no end date). Optimistic
+    /// UI update with revert on failure, mirroring the presence pattern.
+    /// Returns `true` on success so intent-driven callers can detect a
+    /// silent Graph failure and propagate it instead of speaking a success
+    /// dialog after nothing changed.
+    @discardableResult
+    func setOutOfOffice(_ on: Bool) async -> Bool {
+        let previous = isOutOfOffice
+        isOutOfOffice = on
         do {
-            let count = try await work()
-            await enforceSpinnerFloor(since: start, on: clock)
-            activeBulkActivity = nil
-            if count == 0 { showTransient(nothing, kind: .info) }
+            if on {
+                try await graphClient.enableAutomaticReplies(defaultMessage: CheckInSnapshot.defaultOutOfOfficeMessage)
+            } else {
+                try await graphClient.disableAutomaticReplies()
+            }
+            return true
         } catch {
-            logger.error("\(failure, privacy: .public) (\(error.localizedDescription, privacy: .public))")
-            await enforceSpinnerFloor(since: start, on: clock)
-            activeBulkActivity = nil
-            showTransient(failure, kind: .error)
+            logger.error("setOutOfOffice(\(on)) failed: \(error.localizedDescription, privacy: .public)")
+            isOutOfOffice = previous
+            showTransient("Couldn't update Out of Office. Try again.", kind: .error)
+            return false
         }
     }
 
-    /// Keep a just-shown spinner up for at least 400 ms total so it reads as
-    /// deliberate rather than a flash when Graph answers quickly.
-    private func enforceSpinnerFloor(since start: ContinuousClock.Instant,
-                                     on clock: ContinuousClock) async {
-        let elapsed = clock.now - start
-        let floor = Duration.milliseconds(400)
-        if elapsed < floor {
-            try? await Task.sleep(for: floor - elapsed)
-        }
-    }
-
-    /// Re-fetch the email list, apply it, and record a refresh failure.
-    /// The shared tail of the bulk mark-read / resurface / undo paths, which
-    /// all have to reload because their mutations move emails in or out of
-    /// the visible set.
-    private func reloadEmails() async {
-        let result = await fetchEmails()
-        await applyEmailsResult(result)
-        if result.failed { lastRefreshFailed = true }
-    }
-
-    /// Shared tail for the "resurface as unread" bulk actions: batch-marks
-    /// the given IDs unread, re-fetches the summary (the newly-unread
-    /// emails aren't in the visible list), and registers an undo that
-    /// re-marks the same IDs read. No-ops on an empty set, so no undo
-    /// banner appears when there was nothing to flip.
-    private func resurfaceAsUnread(ids: [String], summary label: String) async throws {
-        guard !ids.isEmpty else { return }
-        _ = try await graphClient.batchMarkUnread(ids: ids)
-        await reloadEmails()
-        await updateAppBadge()
-        setPendingUndo(UndoableBulkAction(
-            summary: label,
-            undo: { [weak self] in
-                _ = try? await self?.graphClient.batchMarkRead(ids: ids)
-                await self?.reloadEmails()
-                await self?.updateAppBadge()
-            }
-        ))
-    }
-
-    /// Mark every visible email whose normalized subject matches. Strips
-    /// Re:/Fwd: prefixes and ignores case, so a thread of replies all
-    /// group together. Useful for dismissing a noisy thread or
-    /// notification series in one move.
-    func markAllWithSubjectRead(_ subject: String) async {
-        let key = subject.normalizedSubjectKey
-        guard !key.isEmpty else { return }
-        let candidates = (summary?.emails ?? []).filter { $0.subject.normalizedSubjectKey == key }
-        await runBulkMarkRead(emails: candidates)
-    }
-
-    /// Shared entry point for the bulk mark-read variants. Runs the
-    /// optimistic mark-read pipeline and, on a non-empty input,
-    /// registers an undo that batch-marks the same IDs unread and
-    /// refetches the email list.
-    private func runBulkMarkRead(emails: [Email]) async {
-        guard !emails.isEmpty else { return }
-        let ids = emails.map(\.id)
-        await performMarkRead(emails: emails)
-        setPendingUndo(UndoableBulkAction(
-            summary: "Marked \(ids.count) read",
-            undo: { [weak self] in
-                await self?.undoMarkRead(ids: ids)
-            }
-        ))
-    }
-
-    private func undoMarkRead(ids: [String]) async {
-        _ = try? await graphClient.batchMarkUnread(ids: ids)
-        await reloadEmails()
-        await updateAppBadge()
-    }
-
-    /// Optimistically removes the given emails from the visible list, sends
-    /// a single Graph `$batch` PATCH, and re-inserts only the emails that
-    /// came back non-2xx. Uses `$batch` rather than fanning concurrent
-    /// PATCHes because Graph rate-limits bursts and silently drops some.
-    private func performMarkRead(emails: [Email]) async {
-        let preserved = emails
-        let ids = preserved.map(\.id)
-        let idSet = Set(ids)
-        guard !idSet.isEmpty else { return }
-
-        summary?.emails.removeAll { idSet.contains($0.id) }
-        summary?.totalUnreadEmails -= ids.count
-        defer { Task { await updateAppBadge() } }
-
+    /// Set (or clear) the Teams custom status message. Optimistic update
+    /// with revert on failure, mirroring the presence pattern.
+    func setCustomStatusMessage(_ message: String) async {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let previous = customStatusMessage
+        customStatusMessage = trimmed
         do {
-            let failed = try await graphClient.batchMarkRead(ids: ids)
-            let toRestore = preserved.filter { failed.contains($0.id) }
-            if !toRestore.isEmpty {
-                summary?.emails.append(contentsOf: toRestore)
-                summary?.emails.sort { $0.received > $1.received }
-                summary?.totalUnreadEmails += toRestore.count
-                logger.error("performMarkRead: \(toRestore.count) of \(ids.count) failed")
-            }
-            // Top up from the server when there are still-unread emails
-            // beyond what we had cached. Otherwise the user is left
-            // looking at a shrunken section that pull-to-refresh would fix.
-            if let s = summary, s.totalUnreadEmails > s.emails.count {
-                await reloadEmails()
-            }
+            try await graphClient.setStatusMessage(trimmed)
         } catch {
-            logger.error("performMarkRead failed: \(error.localizedDescription, privacy: .public)")
-            summary?.emails.append(contentsOf: preserved)
-            summary?.emails.sort { $0.received > $1.received }
-            summary?.totalUnreadEmails += ids.count
+            logger.error("setCustomStatusMessage failed: \(error.localizedDescription, privacy: .public)")
+            customStatusMessage = previous
+            showTransient("Couldn't update your status. Try again.", kind: .error)
         }
     }
 
-    /// Optimistically flips the flag on every visible email not already in
-    /// the target state, sends a single Graph `$batch` PATCH, and reverts
-    /// only the emails that came back non-2xx. Registers an undo so the
-    /// reverse flip can be triggered from the floating banner.
-    func setFlaggedAllVisible(_ flagged: Bool) async {
-        let targets = (summary?.emails ?? []).filter { $0.isFlagged != flagged }
-        let ids = targets.map(\.id)
-        guard !ids.isEmpty else { return }
+    // MARK: - Email: single-message actions
 
-        await batchFlipFlagged(ids: ids, to: flagged)
-
-        setPendingUndo(UndoableBulkAction(
-            summary: "\(flagged ? "Flagged" : "Unflagged") \(ids.count)",
-            undo: { [weak self] in
-                await self?.batchFlipFlagged(ids: ids, to: !flagged)
-            }
-        ))
-    }
-
-    private func batchFlipFlagged(ids: [String], to flagged: Bool) async {
-        let idsSet = Set(ids)
-        flipFlagged(matching: idsSet, to: flagged)
-        do {
-            let failed = try await graphClient.batchSetFlagged(ids: ids, flagged: flagged)
-            if !failed.isEmpty {
-                flipFlagged(matching: failed, to: !flagged)
-                logger.error("batchFlipFlagged(\(flagged)): \(failed.count) of \(ids.count) failed")
-            }
-        } catch {
-            logger.error("batchFlipFlagged(\(flagged)) failed: \(error.localizedDescription, privacy: .public)")
-            flipFlagged(matching: idsSet, to: !flagged)
-        }
-    }
-
-    private func flipFlagged(matching ids: Set<String>, to flagged: Bool) {
-        guard var current = summary?.emails else { return }
-        for i in current.indices where ids.contains(current[i].id) {
-            current[i] = current[i].with(isFlagged: flagged)
-        }
-        summary?.emails = current
-    }
-
-/// Optimistic: drops the row immediately, restores it (in received-time
     /// order) if the Graph PATCH fails.
     func markRead(emailId: String) async {
         #if DEBUG
@@ -1086,6 +1043,27 @@ final class Inbox {
         }
     }
 
+    /// Optimistic. Caller passes the desired state rather than asking us to
+    /// flip what we read, so rapid double-swipes can't oscillate against
+    /// stale state.
+    func setFlagged(_ flagged: Bool, emailId: String) async {
+        guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
+              let original = summary?.emails[idx] else { return }
+        summary?.emails[idx] = original.with(isFlagged: flagged)
+        do {
+            if flagged {
+                try await graphClient.flagEmail(id: emailId)
+            } else {
+                try await graphClient.unflagEmail(id: emailId)
+            }
+        } catch {
+            logger.error("setFlagged(\(flagged)) failed: \(error.localizedDescription, privacy: .public)")
+            summary?.emails[idx] = original
+        }
+    }
+
+    // MARK: - Email: message content and attachments
+
     /// Used by the preview sheet to render the full email body. Returns a
     /// KlartextUI `EmailContent` (HTML body + attachment metadata, with inline
     /// image bytes hydrated) that drives both the native fold and the rich
@@ -1107,13 +1085,6 @@ final class Inbox {
         return try await graphClient.downloadAttachment(messageId: emailId, attachmentId: attachmentId)
     }
 
-    /// Used by the preview sheet to render a chat's recent transcript back
-    /// to the user's last reply. Mirrors `fetchEmailContent`: a thin
-    /// pass-through fetched lazily when the sheet opens.
-    func fetchChatThread(chatId: String) async throws -> ChatThread {
-        try await graphClient.fetchChatThread(chatId: chatId)
-    }
-
     /// Plain-text body of an email, for the watch reader (which can't render
     /// HTML and receives text over WatchConnectivity). Returns the new message
     /// content, falling back to the quoted history, then a placeholder.
@@ -1124,6 +1095,439 @@ final class Inbox {
         if !visible.isEmpty { return visible }
         let quoted = parsed.quoted?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return quoted.isEmpty ? "(no message body)" : quoted
+    }
+
+    // MARK: - Email: bulk actions
+
+    /// Mark every visible email read in a single Graph `$batch`. Tops up
+    /// from the server afterward if the cap was hiding additional unread.
+    func markAllVisibleRead() async {
+        let preserved = summary?.emails ?? []
+        await runBulkMarkRead(emails: preserved)
+    }
+
+    /// Mark the visible emails classified as "Other" by Microsoft's Focused
+    /// Inbox ML. Leaves "Focused" emails alone.
+    func markOtherInboxRead() async {
+        let candidates = (summary?.emails ?? []).filter { $0.inferenceClassification == "other" }
+        await runBulkMarkRead(emails: candidates)
+    }
+
+    /// Mark meeting cancellations and RSVP responses (the noise that piles
+    /// up after the actionable invite). The original `meetingRequest`
+    /// invite is left alone — the user might still need to RSVP to it.
+    func markMeetingNoticesRead() async {
+        let candidates = (summary?.emails ?? []).filter(\.isMeetingNotice)
+        await runBulkMarkRead(emails: candidates)
+    }
+
+    /// Mark visible emails that look like mailing-list traffic
+    /// (RFC 2369 `List-Unsubscribe` header present).
+    func markMailingListsRead() async {
+        let candidates = (summary?.emails ?? []).filter { $0.isMailingList }
+        await runBulkMarkRead(emails: candidates)
+    }
+
+    /// Mark visible emails sent from a domain other than the signed-in
+    /// user's own. Useful when work-internal mail is the priority and
+    /// outside-the-company senders can be dismissed.
+    func markExternalSendersRead() async {
+        let userDomain = graphClient.userMailDomain
+        guard !userDomain.isEmpty else { return }
+        let candidates = (summary?.emails ?? []).filter { e in
+            guard !e.fromAddress.isEmpty,
+                  let atIdx = e.fromAddress.firstIndex(of: "@") else { return false }
+            let senderDomain = e.fromAddress[e.fromAddress.index(after: atIdx)...].lowercased()
+            return senderDomain != userDomain
+        }
+        await runBulkMarkRead(emails: candidates)
+    }
+
+    /// Mark every visible email from the given SMTP address as read.
+    /// Used by the row-level context menu.
+    func markAllFromSenderRead(_ address: String) async {
+        guard !address.isEmpty else { return }
+        let candidates = (summary?.emails ?? []).filter { $0.fromAddress == address }
+        await runBulkMarkRead(emails: candidates)
+    }
+
+    /// Mark every visible email whose normalized subject matches. Strips
+    /// Re:/Fwd: prefixes and ignores case, so a thread of replies all
+    /// group together. Useful for dismissing a noisy thread or
+    /// notification series in one move.
+    func markAllWithSubjectRead(_ subject: String) async {
+        let key = subject.normalizedSubjectKey
+        guard !key.isEmpty else { return }
+        let candidates = (summary?.emails ?? []).filter { $0.subject.normalizedSubjectKey == key }
+        await runBulkMarkRead(emails: candidates)
+    }
+
+    /// Optimistically flips the flag on every visible email not already in
+    /// the target state, sends a single Graph `$batch` PATCH, and reverts
+    /// only the emails that came back non-2xx. Registers an undo so the
+    /// reverse flip can be triggered from the floating banner.
+    func setFlaggedAllVisible(_ flagged: Bool) async {
+        let targets = (summary?.emails ?? []).filter { $0.isFlagged != flagged }
+        let ids = targets.map(\.id)
+        guard !ids.isEmpty else { return }
+
+        await batchFlipFlagged(ids: ids, to: flagged)
+
+        setPendingUndo(UndoableBulkAction(
+            summary: "\(flagged ? "Flagged" : "Unflagged") \(ids.count)",
+            undo: { [weak self] in
+                await self?.batchFlipFlagged(ids: ids, to: !flagged)
+            }
+        ))
+    }
+
+    /// Flip every read email received today back to unread, so a day's
+    /// mail that got cleared elsewhere (Outlook web, another phone)
+    /// shows up in CheckIn again. Re-fetches the summary because the
+    /// newly-unread emails are not in our visible list.
+    func markTodayUnread() async {
+        await runBulkUnread(.todaysEmails,
+                            nothing: "No read email from today to mark unread.",
+                            failure: "Couldn't mark today's email unread. Try again.") {
+            let ids = try await self.graphClient.idsOfReadEmailsReceivedToday()
+            try await self.resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) today unread")
+            return ids.count
+        }
+    }
+
+    /// Flip every read, flagged Inbox email back to unread, so follow-up
+    /// items that were already read resurface in CheckIn. Same shape as
+    /// `markTodayUnread`: the newly-unread emails aren't in the visible
+    /// list, so we re-fetch the summary.
+    func markFlaggedUnread() async {
+        await runBulkUnread(.flaggedEmails,
+                            nothing: "No read flagged email to mark unread.",
+                            failure: "Couldn't mark flagged email unread. Try again.") {
+            let ids = try await self.graphClient.idsOfReadFlaggedEmails()
+            try await self.resurfaceAsUnread(ids: ids, summary: "Marked \(ids.count) flagged unread")
+            return ids.count
+        }
+    }
+
+    /// Shared entry point for the bulk mark-read variants. Runs the
+    /// optimistic mark-read pipeline and, on a non-empty input,
+    /// registers an undo that batch-marks the same IDs unread and
+    /// refetches the email list.
+    private func runBulkMarkRead(emails: [Email]) async {
+        guard !emails.isEmpty else { return }
+        let ids = emails.map(\.id)
+        await performMarkRead(emails: emails)
+        setPendingUndo(UndoableBulkAction(
+            summary: "Marked \(ids.count) read",
+            undo: { [weak self] in
+                await self?.undoMarkRead(ids: ids)
+            }
+        ))
+    }
+
+    /// Optimistically removes the given emails from the visible list, sends
+    /// a single Graph `$batch` PATCH, and re-inserts only the emails that
+    /// came back non-2xx. Uses `$batch` rather than fanning concurrent
+    /// PATCHes because Graph rate-limits bursts and silently drops some.
+    private func performMarkRead(emails: [Email]) async {
+        let preserved = emails
+        let ids = preserved.map(\.id)
+        let idSet = Set(ids)
+        guard !idSet.isEmpty else { return }
+
+        summary?.emails.removeAll { idSet.contains($0.id) }
+        summary?.totalUnreadEmails -= ids.count
+        defer { Task { await updateAppBadge() } }
+
+        do {
+            let failed = try await graphClient.batchMarkRead(ids: ids)
+            let toRestore = preserved.filter { failed.contains($0.id) }
+            if !toRestore.isEmpty {
+                summary?.emails.append(contentsOf: toRestore)
+                summary?.emails.sort { $0.received > $1.received }
+                summary?.totalUnreadEmails += toRestore.count
+                logger.error("performMarkRead: \(toRestore.count) of \(ids.count) failed")
+            }
+            // Top up from the server when there are still-unread emails
+            // beyond what we had cached. Otherwise the user is left
+            // looking at a shrunken section that pull-to-refresh would fix.
+            if let s = summary, s.totalUnreadEmails > s.emails.count {
+                await reloadEmails()
+            }
+        } catch {
+            logger.error("performMarkRead failed: \(error.localizedDescription, privacy: .public)")
+            summary?.emails.append(contentsOf: preserved)
+            summary?.emails.sort { $0.received > $1.received }
+            summary?.totalUnreadEmails += ids.count
+        }
+    }
+
+    private func undoMarkRead(ids: [String]) async {
+        _ = try? await graphClient.batchMarkUnread(ids: ids)
+        await reloadEmails()
+        await updateAppBadge()
+    }
+
+    /// Runs a fetch-first "mark unread" bulk action behind a visible busy
+    /// indicator. Sets `activeBulkActivity` so the launching control can
+    /// spin and disable itself, enforces a 400 ms minimum on-screen time
+    /// so a fast Graph round-trip doesn't strobe the spinner, then clears.
+    /// `work` returns the number of items it flipped: 0 surfaces the
+    /// `nothing` note, a thrown error surfaces the `failure` note. The
+    /// re-entrancy guard drops a second tap while one is already running.
+    private func runBulkUnread(_ activity: BulkActivity,
+                               nothing: String,
+                               failure: String,
+                               work: () async throws -> Int) async {
+        guard activeBulkActivity == nil else { return }
+        activeBulkActivity = activity
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            let count = try await work()
+            await enforceSpinnerFloor(since: start, on: clock)
+            activeBulkActivity = nil
+            if count == 0 { showTransient(nothing, kind: .info) }
+        } catch {
+            logger.error("\(failure, privacy: .public) (\(error.localizedDescription, privacy: .public))")
+            await enforceSpinnerFloor(since: start, on: clock)
+            activeBulkActivity = nil
+            showTransient(failure, kind: .error)
+        }
+    }
+
+    /// Shared tail for the "resurface as unread" bulk actions: batch-marks
+    /// the given IDs unread, re-fetches the summary (the newly-unread
+    /// emails aren't in the visible list), and registers an undo that
+    /// re-marks the same IDs read. No-ops on an empty set, so no undo
+    /// banner appears when there was nothing to flip.
+    private func resurfaceAsUnread(ids: [String], summary label: String) async throws {
+        guard !ids.isEmpty else { return }
+        _ = try await graphClient.batchMarkUnread(ids: ids)
+        await reloadEmails()
+        await updateAppBadge()
+        setPendingUndo(UndoableBulkAction(
+            summary: label,
+            undo: { [weak self] in
+                _ = try? await self?.graphClient.batchMarkRead(ids: ids)
+                await self?.reloadEmails()
+                await self?.updateAppBadge()
+            }
+        ))
+    }
+
+    /// Keep a just-shown spinner up for at least 400 ms total so it reads as
+    /// deliberate rather than a flash when Graph answers quickly.
+    private func enforceSpinnerFloor(since start: ContinuousClock.Instant,
+                                     on clock: ContinuousClock) async {
+        let elapsed = clock.now - start
+        let floor = Duration.milliseconds(400)
+        if elapsed < floor {
+            try? await Task.sleep(for: floor - elapsed)
+        }
+    }
+
+    private func batchFlipFlagged(ids: [String], to flagged: Bool) async {
+        let idsSet = Set(ids)
+        flipFlagged(matching: idsSet, to: flagged)
+        do {
+            let failed = try await graphClient.batchSetFlagged(ids: ids, flagged: flagged)
+            if !failed.isEmpty {
+                flipFlagged(matching: failed, to: !flagged)
+                logger.error("batchFlipFlagged(\(flagged)): \(failed.count) of \(ids.count) failed")
+            }
+        } catch {
+            logger.error("batchFlipFlagged(\(flagged)) failed: \(error.localizedDescription, privacy: .public)")
+            flipFlagged(matching: idsSet, to: !flagged)
+        }
+    }
+
+    private func flipFlagged(matching ids: Set<String>, to flagged: Bool) {
+        guard var current = summary?.emails else { return }
+        for i in current.indices where ids.contains(current[i].id) {
+            current[i] = current[i].with(isFlagged: flagged)
+        }
+        summary?.emails = current
+    }
+
+/// Optimistic: drops the row immediately, restores it (in received-time
+
+    // MARK: - Undo and transient messages
+
+    /// Set a fresh undoable action, replacing whatever was there before
+    /// and restarting the auto-expiry timer.
+    private func setPendingUndo(_ action: UndoableBulkAction) {
+        pendingUndo = action
+        undoExpiryTask?.cancel()
+        undoExpiryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.undoExpirySeconds))
+            guard let self, !Task.isCancelled else { return }
+            self.pendingUndo = nil
+        }
+    }
+
+    /// User dismissed the undo banner without invoking it.
+    func dismissUndo() {
+        undoExpiryTask?.cancel()
+        undoExpiryTask = nil
+        pendingUndo = nil
+    }
+
+    /// Run the captured undo closure and clear the pending state.
+    func performUndo() async {
+        guard let action = pendingUndo else { return }
+        pendingUndo = nil
+        undoExpiryTask?.cancel()
+        undoExpiryTask = nil
+        await action.undo()
+    }
+
+    /// Surface a brief banner note. Replaces any earlier message and
+    /// restarts the auto-clear timer.
+    private func showTransient(_ text: String, kind: TransientMessage.Kind) {
+        transientMessage = TransientMessage(text: text, kind: kind)
+        transientMessageExpiryTask?.cancel()
+        transientMessageExpiryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.transientMessageExpirySeconds))
+            guard let self, !Task.isCancelled else { return }
+            self.transientMessage = nil
+        }
+    }
+
+    /// User dismissed the transient banner without waiting for the
+    /// auto-clear.
+    func dismissTransientMessage() {
+        transientMessageExpiryTask?.cancel()
+        transientMessageExpiryTask = nil
+        transientMessage = nil
+    }
+
+    // MARK: - Chats
+
+    /// The (userId, tenantId) pair the Teams chat read/unread endpoints
+    /// require — userId from `/me`, tenantId from MSAL's home account.
+    /// Returns nil (logging under `context`) when either is missing, so the
+    /// chat mutators guard once instead of repeating the check.
+    private func chatIdentity(context: String) -> (userId: String, tenantId: String)? {
+        let userId = graphClient.currentUserID
+        guard let tenantId = authService.homeTenantId, !tenantId.isEmpty, !userId.isEmpty else {
+            logger.error("\(context, privacy: .public): missing userId or tenantId")
+            return nil
+        }
+        return (userId, tenantId)
+    }
+
+    /// Mark a Teams chat as read for the signed-in user. Optimistically
+    /// drops the chat from the summary. Requires the chat to have a
+    /// `chatId` (set by `unreadChats`); otherwise no-op. Mirrors the
+    /// email `markRead` shape — no undo banner (the Mark Unread button
+    /// on the preview sheet covers the recovery path).
+    func markChatRead(_ chat: ChatMessage) async {
+        guard let chatId = chat.chatId else { return }
+        guard let (userId, tenantId) = chatIdentity(context: "markChatRead") else { return }
+        let removedIdx = summary?.chats.firstIndex(where: { $0.chatId == chatId })
+        if let idx = removedIdx {
+            summary?.chats.remove(at: idx)
+            await updateAppBadge()
+        }
+        do {
+            try await graphClient.markChatRead(chatId: chatId, userId: userId, tenantId: tenantId)
+        } catch {
+            logger.error("markChatRead failed: \(error.localizedDescription, privacy: .public)")
+            // Restore the row on failure.
+            if removedIdx != nil, summary?.chats.contains(where: { $0.chatId == chatId }) == false {
+                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
+                    ?? summary?.chats.count ?? 0
+                summary?.chats.insert(chat, at: insertAt)
+                await updateAppBadge()
+            }
+        }
+    }
+
+    /// Mark a Teams chat as unread for the signed-in user. Re-inserts
+    /// the chat into the visible list in sent-time order so the user
+    /// sees the action immediately. Same shape as the email
+    /// `markUnread` recovery path.
+    func markChatUnread(_ chat: ChatMessage) async {
+        guard let chatId = chat.chatId else { return }
+        guard let (userId, tenantId) = chatIdentity(context: "markChatUnread") else { return }
+        do {
+            try await graphClient.markChatUnread(chatId: chatId, userId: userId, tenantId: tenantId)
+            if summary?.chats.contains(where: { $0.chatId == chatId }) == false {
+                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
+                    ?? summary?.chats.count ?? 0
+                summary?.chats.insert(chat, at: insertAt)
+                await updateAppBadge()
+            }
+        } catch {
+            logger.error("markChatUnread failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Flip every read chat with a message from today back to unread,
+    /// so a day's chat activity that got cleared elsewhere (Teams
+    /// desktop, another mobile client) shows up in CheckIn again.
+    /// Refreshes the summary and registers an undo. No Graph batch
+    /// endpoint for chats, so this is a client-side loop.
+    func markTodayChatsUnread() async {
+        guard let (userId, tenantId) = chatIdentity(context: "markTodayChatsUnread") else { return }
+        await runBulkUnread(.todaysChats,
+                            nothing: "No chats read today to mark unread.",
+                            failure: "Couldn't mark today's chats unread. Try again.") {
+            let ids = try await self.graphClient.idsOfReadChatsToday()
+            guard !ids.isEmpty else { return 0 }
+            for id in ids {
+                try? await self.graphClient.markChatUnread(chatId: id, userId: userId, tenantId: tenantId)
+            }
+            await self.refreshChats()
+            await self.updateAppBadge()
+            self.setPendingUndo(UndoableBulkAction(
+                summary: "Marked \(ids.count) chat\(ids.count == 1 ? "" : "s") unread",
+                undo: { [weak self] in
+                    guard let self else { return }
+                    for id in ids {
+                        try? await self.graphClient.markChatRead(chatId: id, userId: userId, tenantId: tenantId)
+                    }
+                    await self.refreshChats()
+                    await self.updateAppBadge()
+                }
+            ))
+            return ids.count
+        }
+    }
+
+    /// Re-fetch the unread-chats list and slot it back into the
+    /// summary. Used after bulk read-state mutations so the visible
+    /// list reflects the new server-side viewpoint.
+    private func refreshChats() async {
+        guard teamsEnabled else { return }
+        do {
+            let chats = try await graphClient.unreadChats()
+            summary?.chats = chats
+        } catch {
+            logger.error("refreshChats failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Returns an empty array when Teams is disabled or `fetchUserID` failed
+    /// — the unread-chat heuristic compares against the signed-in user's
+    /// ID, so without that the call can't be made meaningfully. The early
+    /// returns aren't treated as failures.
+    private func fetchChats(userIDReady: Bool) async -> (chats: [ChatMessage], failed: Bool) {
+        guard teamsEnabled, userIDReady else { return ([], false) }
+        do {
+            return (try await graphClient.unreadChats(), false)
+        } catch {
+            logger.error("unreadChats failed: \(error.localizedDescription, privacy: .public)")
+            return ([], true)
+        }
+    }
+
+    /// Used by the preview sheet to render a chat's recent transcript back
+    /// to the user's last reply. Mirrors `fetchEmailContent`: a thin
+    /// pass-through fetched lazily when the sheet opens.
+    func fetchChatThread(chatId: String) async throws -> ChatThread {
+        try await graphClient.fetchChatThread(chatId: chatId)
     }
 
     /// A chat's recent transcript rendered as plain text for the watch reader,
@@ -1137,6 +1541,214 @@ final class Inbox {
         }
         return lines.isEmpty ? "(no messages)" : lines.joined(separator: "\n\n")
     }
+
+    // MARK: - Browse and search
+    //
+    // These serve the browse/search screens, which carry read-and-unread messages from
+    // every folder — unlike the summary mutators (markRead / markUnread / setFlagged),
+    // which own the unread glance's optimistic state. They ALWAYS hit Graph and keep the
+    // glance consistent WITHOUT injecting strangers: marking read drops a message from
+    // the glance when it's there; marking unread only reaches Graph (a browse row can be
+    // a read Sent/Archive item that doesn't belong in the inbox glance), so the glance
+    // reconciles on its next refresh. They throw so the browse view can revert its own row.
+
+    /// Full-text search across the whole mailbox. Results are transient — they
+    /// aren't merged into the unread summary, so the caller owns the returned
+    /// list and its own loading/empty state. No new scope (Mail.ReadWrite).
+    func searchEmails(_ query: String) async throws -> [Email] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        #if DEBUG
+        if DemoMode.isActive {
+            let needle = trimmed.lowercased()
+            return DemoData.browseEmails.filter {
+                $0.subject.lowercased().contains(needle)
+                    || $0.from.lowercased().contains(needle)
+                    || $0.preview.lowercased().contains(needle)
+            }
+        }
+        #endif
+        return try await graphClient.searchEmails(query: trimmed)
+    }
+
+    /// The recent inbox (read and unread, newest first) for the browse view,
+    /// as opposed to the unread-only triage list on the summary. Transient —
+    /// the caller owns the result.
+    func recentInbox() async throws -> [Email] {
+        #if DEBUG
+        if DemoMode.isActive { return DemoData.browseEmails }
+        #endif
+        return try await graphClient.recentInbox()
+    }
+
+    /// Recent chats (read and unread, newest first) for the chat browse view,
+    /// as opposed to the unread-only list on the summary. Transient.
+    func recentChats() async throws -> [ChatMessage] {
+        try await graphClient.recentChats()
+    }
+
+    func setEmailReadFromBrowse(_ isRead: Bool, emailId: String, wasUnread: Bool) async throws {
+        if isRead {
+            try await graphClient.markEmailRead(id: emailId)
+            if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }) {
+                summary?.emails.remove(at: idx)
+            }
+            // Decrement when the row was genuinely unread — even off the visible
+            // page — so the badge (a server $count) doesn't drift high.
+            if wasUnread {
+                summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 0) - 1)
+            }
+            await updateAppBadge()
+        } else {
+            try await graphClient.markEmailUnread(id: emailId)
+        }
+    }
+
+    func setEmailFlaggedFromBrowse(_ flagged: Bool, emailId: String) async throws {
+        if flagged {
+            try await graphClient.flagEmail(id: emailId)
+        } else {
+            try await graphClient.unflagEmail(id: emailId)
+        }
+        // Keep the glance's flag icon in sync when the message is on it.
+        if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
+           let original = summary?.emails[idx] {
+            summary?.emails[idx] = original.with(isFlagged: flagged)
+        }
+    }
+
+    /// A chat has no Sent/Archive equivalent — every chat is "inbox" — so unlike
+    /// email, a browse chat marked unread does belong in the glance and is
+    /// inserted (unread-styled) when absent.
+    func setChatReadFromBrowse(_ isRead: Bool, chat: ChatMessage) async throws {
+        guard let chatId = chat.chatId else { throw GraphError.invalidResponse }
+        guard let (userId, tenantId) = chatIdentity(context: "setChatReadFromBrowse") else {
+            throw GraphError.invalidResponse
+        }
+        if isRead {
+            try await graphClient.markChatRead(chatId: chatId, userId: userId, tenantId: tenantId)
+            if let idx = summary?.chats.firstIndex(where: { $0.chatId == chatId }) {
+                summary?.chats.remove(at: idx)
+            }
+            await updateAppBadge()
+        } else {
+            try await graphClient.markChatUnread(chatId: chatId, userId: userId, tenantId: tenantId)
+            if summary?.chats.contains(where: { $0.chatId == chatId }) == false {
+                var unread = chat
+                unread.isRead = false
+                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
+                    ?? summary?.chats.count ?? 0
+                summary?.chats.insert(unread, at: insertAt)
+            }
+            await updateAppBadge()
+        }
+    }
+
+    // MARK: - Compose and send
+
+    /// Name/address pairs harvested from the people in the fetched mail — every
+    /// sender plus each To/Cc recipient — for composer type-ahead. De-duplicated
+    /// by address (case-insensitive), the signed-in user removed, addressless or
+    /// malformed entries dropped. No Contacts permission and nothing off-device:
+    /// this is only the people already in hand. The Contacts picker covers
+    /// anyone not in this recent set.
+    func recipientSuggestions() -> [AddressBookEntry] {
+        let me = graphClient.currentUserMail.lowercased()
+        var seen = Set<String>()
+        var entries: [AddressBookEntry] = []
+        func add(name: String, address: String) {
+            guard EmailAddressValidation.isValid(address) else { return }
+            let key = address.lowercased()
+            guard key != me, seen.insert(key).inserted else { return }
+            entries.append(AddressBookEntry(name: name.isEmpty ? address : name, address: address))
+        }
+        for email in summary?.emails ?? [] {
+            add(name: email.from, address: email.fromAddress)
+            for recipient in email.toRecipients + email.ccRecipients {
+                add(name: recipient.name, address: recipient.address)
+            }
+        }
+        return entries
+    }
+
+    /// Send a reply-all to an email. After success the email is
+    /// optimistically dropped from the visible summary (replying
+    /// implies you've handled it) — same shape as markRead's path.
+    func replyAllToEmail(emailId: String, comment: String) async throws {
+        #if DEBUG
+        logger.info("replyAllToEmail begin id=\(emailId, privacy: .public)")
+        #endif
+        try await graphClient.replyAllToEmail(id: emailId, comment: comment)
+        #if DEBUG
+        logger.info("replyAllToEmail graph ok id=\(emailId, privacy: .public)")
+        #endif
+        if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }) {
+            #if DEBUG
+            logger.info("replyAllToEmail removing row at idx=\(idx, privacy: .public)")
+            #endif
+            summary?.emails.remove(at: idx)
+            summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 1) - 1)
+            await updateAppBadge()
+        } else {
+            #if DEBUG
+            logger.info("replyAllToEmail row already absent (auto-mark-read on preview)")
+            #endif
+        }
+        // Mark the original as read on the server too — replying counts
+        // as having handled the message. Fire-and-forget; if it fails
+        // the next refresh will reconcile.
+        Task { try? await graphClient.markEmailRead(id: emailId) }
+        #if DEBUG
+        logger.info("replyAllToEmail done id=\(emailId, privacy: .public)")
+        #endif
+    }
+
+    /// Compose and send a new email. Unlike reply/forward there is no
+    /// originating row, so nothing in the summary changes — a straight
+    /// pass-through to Graph. Addresses arrive already validated.
+    func sendNewEmail(subject: String, body: String,
+                      to: [String], cc: [String], bcc: [String]) async throws {
+        try await graphClient.sendMail(subject: subject, body: body, to: to, cc: cc, bcc: bcc)
+    }
+
+    /// Forward an email to new recipients with an optional note. The
+    /// original message is untouched — forwarding isn't "handling" it, so
+    /// (unlike reply) the row stays in the summary and the message stays
+    /// unread. Pass-through; a failure surfaces to the caller.
+    func forwardEmail(emailId: String, comment: String, to: [String]) async throws {
+        try await graphClient.forwardEmail(id: emailId, comment: comment, to: to)
+    }
+
+    /// Send a reply into an existing Teams chat thread. After success
+    /// the chat is dropped from the summary's unread list — same shape
+    /// as the email path.
+    func sendChatMessage(chatId: String, content: String) async throws {
+        try await graphClient.sendChatMessage(chatId: chatId, content: content)
+        if let idx = summary?.chats.firstIndex(where: { $0.chatId == chatId }) {
+            summary?.chats.remove(at: idx)
+            await updateAppBadge()
+        }
+    }
+
+    /// Start a brand-new Teams chat with the given recipient email
+    /// addresses and post the first message. The signed-in user is added as
+    /// a member alongside the recipients (Graph needs the creator in the
+    /// list). Recipients bind by email-as-UPN — the cheap path David chose:
+    /// it works when a colleague's email equals their Azure AD
+    /// userPrincipalName, and an alias or external address fails at chat
+    /// creation with a Graph error surfaced to the composer. No list
+    /// mutation: a started chat isn't part of the unread surface.
+    func startChat(withEmails emails: [String], message: String) async throws {
+        let selfId = graphClient.currentUserID
+        guard !selfId.isEmpty else {
+            logger.error("startChat: missing signed-in user id")
+            throw GraphError.invalidResponse
+        }
+        let chatId = try await graphClient.createChat(memberIdentities: [selfId] + emails)
+        try await graphClient.sendChatMessage(chatId: chatId, content: message)
+    }
+
+    // MARK: - Watch relay
 
     /// Mark an email read on behalf of the watch (opening it there implies
     /// reading it, same as the phone), then re-push the snapshot so the watch's
@@ -1272,552 +1884,6 @@ final class Inbox {
         }
     }
 
-    /// Send a reply-all to an email. After success the email is
-    /// optimistically dropped from the visible summary (replying
-    /// implies you've handled it) — same shape as markRead's path.
-    func replyAllToEmail(emailId: String, comment: String) async throws {
-        #if DEBUG
-        logger.info("replyAllToEmail begin id=\(emailId, privacy: .public)")
-        #endif
-        try await graphClient.replyAllToEmail(id: emailId, comment: comment)
-        #if DEBUG
-        logger.info("replyAllToEmail graph ok id=\(emailId, privacy: .public)")
-        #endif
-        if let idx = summary?.emails.firstIndex(where: { $0.id == emailId }) {
-            #if DEBUG
-            logger.info("replyAllToEmail removing row at idx=\(idx, privacy: .public)")
-            #endif
-            summary?.emails.remove(at: idx)
-            summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 1) - 1)
-            await updateAppBadge()
-        } else {
-            #if DEBUG
-            logger.info("replyAllToEmail row already absent (auto-mark-read on preview)")
-            #endif
-        }
-        // Mark the original as read on the server too — replying counts
-        // as having handled the message. Fire-and-forget; if it fails
-        // the next refresh will reconcile.
-        Task { try? await graphClient.markEmailRead(id: emailId) }
-        #if DEBUG
-        logger.info("replyAllToEmail done id=\(emailId, privacy: .public)")
-        #endif
-    }
-
-    /// Compose and send a new email. Unlike reply/forward there is no
-    /// originating row, so nothing in the summary changes — a straight
-    /// pass-through to Graph. Addresses arrive already validated.
-    func sendNewEmail(subject: String, body: String,
-                      to: [String], cc: [String], bcc: [String]) async throws {
-        try await graphClient.sendMail(subject: subject, body: body, to: to, cc: cc, bcc: bcc)
-    }
-
-    /// Forward an email to new recipients with an optional note. The
-    /// original message is untouched — forwarding isn't "handling" it, so
-    /// (unlike reply) the row stays in the summary and the message stays
-    /// unread. Pass-through; a failure surfaces to the caller.
-    func forwardEmail(emailId: String, comment: String, to: [String]) async throws {
-        try await graphClient.forwardEmail(id: emailId, comment: comment, to: to)
-    }
-
-    /// Send a reply into an existing Teams chat thread. After success
-    /// the chat is dropped from the summary's unread list — same shape
-    /// as the email path.
-    func sendChatMessage(chatId: String, content: String) async throws {
-        try await graphClient.sendChatMessage(chatId: chatId, content: content)
-        if let idx = summary?.chats.firstIndex(where: { $0.chatId == chatId }) {
-            summary?.chats.remove(at: idx)
-            await updateAppBadge()
-        }
-    }
-
-    /// Start a brand-new Teams chat with the given recipient email
-    /// addresses and post the first message. The signed-in user is added as
-    /// a member alongside the recipients (Graph needs the creator in the
-    /// list). Recipients bind by email-as-UPN — the cheap path David chose:
-    /// it works when a colleague's email equals their Azure AD
-    /// userPrincipalName, and an alias or external address fails at chat
-    /// creation with a Graph error surfaced to the composer. No list
-    /// mutation: a started chat isn't part of the unread surface.
-    func startChat(withEmails emails: [String], message: String) async throws {
-        let selfId = graphClient.currentUserID
-        guard !selfId.isEmpty else {
-            logger.error("startChat: missing signed-in user id")
-            throw GraphError.invalidResponse
-        }
-        let chatId = try await graphClient.createChat(memberIdentities: [selfId] + emails)
-        try await graphClient.sendChatMessage(chatId: chatId, content: message)
-    }
-
-    /// Mark a Teams chat as read for the signed-in user. Optimistically
-    /// drops the chat from the summary. Requires the chat to have a
-    /// `chatId` (set by `unreadChats`); otherwise no-op. Mirrors the
-    /// email `markRead` shape — no undo banner (the Mark Unread button
-    /// on the preview sheet covers the recovery path).
-    /// The (userId, tenantId) pair the Teams chat read/unread endpoints
-    /// require — userId from `/me`, tenantId from MSAL's home account.
-    /// Returns nil (logging under `context`) when either is missing, so the
-    /// chat mutators guard once instead of repeating the check.
-    private func chatIdentity(context: String) -> (userId: String, tenantId: String)? {
-        let userId = graphClient.currentUserID
-        guard let tenantId = authService.homeTenantId, !tenantId.isEmpty, !userId.isEmpty else {
-            logger.error("\(context, privacy: .public): missing userId or tenantId")
-            return nil
-        }
-        return (userId, tenantId)
-    }
-
-    func markChatRead(_ chat: ChatMessage) async {
-        guard let chatId = chat.chatId else { return }
-        guard let (userId, tenantId) = chatIdentity(context: "markChatRead") else { return }
-        let removedIdx = summary?.chats.firstIndex(where: { $0.chatId == chatId })
-        if let idx = removedIdx {
-            summary?.chats.remove(at: idx)
-            await updateAppBadge()
-        }
-        do {
-            try await graphClient.markChatRead(chatId: chatId, userId: userId, tenantId: tenantId)
-        } catch {
-            logger.error("markChatRead failed: \(error.localizedDescription, privacy: .public)")
-            // Restore the row on failure.
-            if removedIdx != nil, summary?.chats.contains(where: { $0.chatId == chatId }) == false {
-                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
-                    ?? summary?.chats.count ?? 0
-                summary?.chats.insert(chat, at: insertAt)
-                await updateAppBadge()
-            }
-        }
-    }
-
-    /// Flip every read chat with a message from today back to unread,
-    /// so a day's chat activity that got cleared elsewhere (Teams
-    /// desktop, another mobile client) shows up in CheckIn again.
-    /// Refreshes the summary and registers an undo. No Graph batch
-    /// endpoint for chats, so this is a client-side loop.
-    func markTodayChatsUnread() async {
-        guard let (userId, tenantId) = chatIdentity(context: "markTodayChatsUnread") else { return }
-        await runBulkUnread(.todaysChats,
-                            nothing: "No chats read today to mark unread.",
-                            failure: "Couldn't mark today's chats unread. Try again.") {
-            let ids = try await self.graphClient.idsOfReadChatsToday()
-            guard !ids.isEmpty else { return 0 }
-            for id in ids {
-                try? await self.graphClient.markChatUnread(chatId: id, userId: userId, tenantId: tenantId)
-            }
-            await self.refreshChats()
-            await self.updateAppBadge()
-            self.setPendingUndo(UndoableBulkAction(
-                summary: "Marked \(ids.count) chat\(ids.count == 1 ? "" : "s") unread",
-                undo: { [weak self] in
-                    guard let self else { return }
-                    for id in ids {
-                        try? await self.graphClient.markChatRead(chatId: id, userId: userId, tenantId: tenantId)
-                    }
-                    await self.refreshChats()
-                    await self.updateAppBadge()
-                }
-            ))
-            return ids.count
-        }
-    }
-
-    /// Re-fetch the unread-chats list and slot it back into the
-    /// summary. Used after bulk read-state mutations so the visible
-    /// list reflects the new server-side viewpoint.
-    private func refreshChats() async {
-        guard teamsEnabled else { return }
-        do {
-            let chats = try await graphClient.unreadChats()
-            summary?.chats = chats
-        } catch {
-            logger.error("refreshChats failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Mark a Teams chat as unread for the signed-in user. Re-inserts
-    /// the chat into the visible list in sent-time order so the user
-    /// sees the action immediately. Same shape as the email
-    /// `markUnread` recovery path.
-    func markChatUnread(_ chat: ChatMessage) async {
-        guard let chatId = chat.chatId else { return }
-        guard let (userId, tenantId) = chatIdentity(context: "markChatUnread") else { return }
-        do {
-            try await graphClient.markChatUnread(chatId: chatId, userId: userId, tenantId: tenantId)
-            if summary?.chats.contains(where: { $0.chatId == chatId }) == false {
-                let insertAt = summary?.chats.firstIndex(where: { $0.sent < chat.sent })
-                    ?? summary?.chats.count ?? 0
-                summary?.chats.insert(chat, at: insertAt)
-                await updateAppBadge()
-            }
-        } catch {
-            logger.error("markChatUnread failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Optimistic. Mutates the matching meeting's `responseStatus`
-    /// immediately so the UI updates, and reverts on failure. After a
-    /// successful RSVP, also marks any invite emails still sitting unread
-    /// in the inbox as read, and recomputes `hasConflict` on every meeting
-    /// so a Decline removes the warning from the meetings that were
-    /// previously conflicting with it. Operates on either `summary.meeting`
-    /// or the matching entry in `summary.laterToday`.
-    func respondToMeeting(_ response: MeetingResponse, meetingId: String? = nil) async {
-        let id = meetingId ?? nextMeeting?.id
-        guard let id, let meeting = meetingWithId(id) else { return }
-        let previous = meeting.responseStatus
-        setMeeting(meeting.with(responseStatus: response))
-        recomputeConflicts()
-        do {
-            try await graphClient.respondToMeeting(id: meeting.id, response: response)
-            await markMatchingInviteEmailsRead(for: meeting)
-        } catch {
-            logger.error("respondToMeeting(\(response.rawValue)) failed: \(error.localizedDescription, privacy: .public)")
-            setMeeting(meeting.with(responseStatus: previous))
-            recomputeConflicts()
-        }
-    }
-
-    /// Optimistically remove the meeting from the summary, then DELETE
-    /// via Graph. If it was the "next" meeting, the first `laterToday`
-    /// meeting (if any) is promoted into its place. Recomputes
-    /// `hasConflict` on the remaining meetings — a deletion may resolve
-    /// conflicts elsewhere.
-    func deleteMeeting(meetingId: String) async {
-        guard let meeting = meetingWithId(meetingId) else { return }
-        let meetingsByIdSnapshot = meetingsById
-        let todayMeetingIdsSnapshot = todayMeetingIds
-        let inviteEmailMeetingIdsSnapshot = inviteEmailMeetingIds
-        let referenceMeetingIdsSnapshot = referenceMeetingIds
-
-        // Pull the meeting out of every index and the master dict. If
-        // it was today's next meeting, removing its id from the front
-        // of `todayMeetingIds` automatically promotes whatever was
-        // next in line — `nextMeeting` is computed from that list.
-        todayMeetingIds.removeAll { $0 == meetingId }
-        referenceMeetingIds.remove(meetingId)
-        for (emailId, mId) in inviteEmailMeetingIds where mId == meetingId {
-            inviteEmailMeetingIds.removeValue(forKey: emailId)
-        }
-        meetingsById.removeValue(forKey: meetingId)
-
-        recomputeConflicts()
-
-        do {
-            try await graphClient.deleteEvent(id: meeting.id)
-        } catch {
-            logger.error("deleteEvent failed: \(error.localizedDescription, privacy: .public)")
-            meetingsById = meetingsByIdSnapshot
-            todayMeetingIds = todayMeetingIdsSnapshot
-            inviteEmailMeetingIds = inviteEmailMeetingIdsSnapshot
-            referenceMeetingIds = referenceMeetingIdsSnapshot
-            recomputeConflicts()
-        }
-    }
-
-    /// Recompute `hasConflict` on every meeting based on the current
-    /// local state. Declined meetings are excluded from both sides of
-    /// the overlap check — they don't trigger a warning on themselves
-    /// (the user isn't going) and they don't count as conflicts for
-    /// other meetings. Pool is the union of today's summary meetings,
-    /// the invite-email cache, and the reference pool of plain
-    /// calendar events covering the invite date range — so an invite
-    /// can flag a conflict against a meeting the user already has on
-    /// their schedule even when that meeting isn't an invitation.
-    private func recomputeConflicts() {
-        guard summary != nil else { return }
-        let pool = Array(meetingsById.values)
-        meetingsById = meetingsById.mapValues { $0.with(hasConflict: overlapsAny($0, in: pool)) }
-    }
-
-    private func overlapsAny(_ m: Meeting, in all: [Meeting]) -> Bool {
-        if m.responseStatus == .declined { return false }
-        return all.contains { other in
-            other.id != m.id
-                && other.responseStatus != .declined
-                && other.start < m.end
-                && m.start < other.end
-        }
-    }
-
-    private func meetingWithId(_ id: String) -> Meeting? {
-        meetingsById[id]
-    }
-
-    private func setMeeting(_ meeting: Meeting) {
-        meetingsById[meeting.id] = meeting
-    }
-
-    /// Replace the today-window index and seed each Meeting into
-    /// `meetingsById`. Called from `refresh()` after the calendar fetch
-    /// returns. Old `summary.meeting` + `summary.laterToday` are still
-    /// assigned alongside during the migration.
-    private func loadTodayMeetings(next: Meeting?, laterToday: [Meeting]) {
-        // Drop the previous today-window members from the master store
-        // first, so a meeting that disappeared from the calendar
-        // (declined/cancelled/deleted) doesn't linger.
-        for id in todayMeetingIds {
-            // Only drop ids that aren't ALSO referenced by another
-            // index — a today meeting that's also an invite-email
-            // referent should survive until its other index drops it.
-            if !inviteEmailMeetingIds.values.contains(id) && !referenceMeetingIds.contains(id) {
-                meetingsById.removeValue(forKey: id)
-            }
-        }
-        var ids: [String] = []
-        if let next {
-            meetingsById[next.id] = next
-            ids.append(next.id)
-        }
-        for m in laterToday {
-            meetingsById[m.id] = m
-            ids.append(m.id)
-        }
-        todayMeetingIds = ids
-    }
-
-    /// Inverse of `markMatchingInviteEmailsRead`: given an invite email,
-    /// find the meeting in our current summary that it refers to. Used
-    /// to drive the inline RSVP buttons on invite-email rows so a
-    /// chosen response from the email surface routes through the same
-    /// `respondToMeeting(_:meetingId:)` path as the calendar card — and
-    /// inherits all the downstream syncing (meeting card updates,
-    /// matching invite emails marked read, conflicts recomputed).
-    ///
-    /// Falls back to the `inviteEmailMeetingIds` cache when no
-    /// today-window meeting matches — that cache is populated by the
-    /// `$expand=event` ride-along on `unreadEmails` and covers invites
-    /// for meetings beyond today's calendar window.
-    func meetingMatching(_ email: Email) -> Meeting? {
-        var todays: [Meeting] = []
-        if let m = nextMeeting { todays.append(m) }
-        todays.append(contentsOf: laterToday)
-        if let match = todays.first(where: { $0.matches(email) }) { return match }
-        if let meetingId = inviteEmailMeetingIds[email.id] { return meetingsById[meetingId] }
-        return nil
-    }
-
-    /// Find invitation/update/cancellation emails for this meeting and
-    /// mark them read. Bounded to the local unread list, so it can't
-    /// reach beyond what we already have cached.
-    ///
-    /// Matching strategy is two-tiered:
-    /// 1. Standard subject match (using `normalizedSubjectKey` so
-    ///    Re:/Fwd: prefixes and whitespace don't get in the way) plus the
-    ///    "Updated:" and "Cancelled:" prefix variants Outlook uses.
-    /// 2. For confirmed meeting messages (Graph's `meetingMessageType`
-    ///    is set) coming from the meeting's organizer, a contains-match
-    ///    handles tenant-specific prefixes like "Meeting request:" or
-    ///    "Invitation:" — the two-factor (organizer + meeting-message)
-    ///    keeps false positives down.
-    private func markMatchingInviteEmailsRead(for meeting: Meeting) async {
-        let matchIds = (summary?.emails ?? [])
-            .filter { meeting.matches($0) }
-            .map(\.id)
-        for id in matchIds {
-            await markRead(emailId: id)
-        }
-    }
-
-    /// Optimistic. Caller passes the desired state rather than asking us to
-    /// flip what we read, so rapid double-swipes can't oscillate against
-    /// stale state.
-    func setFlagged(_ flagged: Bool, emailId: String) async {
-        guard let idx = summary?.emails.firstIndex(where: { $0.id == emailId }),
-              let original = summary?.emails[idx] else { return }
-        summary?.emails[idx] = original.with(isFlagged: flagged)
-        do {
-            if flagged {
-                try await graphClient.flagEmail(id: emailId)
-            } else {
-                try await graphClient.unflagEmail(id: emailId)
-            }
-        } catch {
-            logger.error("setFlagged(\(flagged)) failed: \(error.localizedDescription, privacy: .public)")
-            summary?.emails[idx] = original
-        }
-    }
-
-    private func fetchMeetings() async -> (next: Meeting?, laterToday: [Meeting], failed: Bool) {
-        do {
-            let r = try await graphClient.todaysMeetings()
-            return (r.next, r.laterToday, false)
-        } catch {
-            logger.error("todaysMeetings failed: \(error.localizedDescription, privacy: .public)")
-            return (nil, [], true)
-        }
-    }
-
-    /// Best-effort. Fetch calendar events overlapping the date range
-    /// spanned by the supplied invite emails (their `meetingStart` /
-    /// `meetingEnd` are read straight off Graph's eventMessage subtype).
-    /// Doubles as both the conflict-detection reference pool and the
-    /// source of truth for matching invite emails to their underlying
-    /// event — `$expand=event` returns empty stubs for future
-    /// invitations, so we sidestep it. Returns an empty pool on failure
-    /// (no banner; UX enhancement only). Skipped when there are no
-    /// invites with dates.
-    private func fetchConflictReferenceMeetings(for inviteEmails: [Email]) async -> [Meeting] {
-        let starts = inviteEmails.compactMap(\.meetingStart)
-        let ends = inviteEmails.compactMap(\.meetingEnd)
-        guard let earliest = starts.min(), let latest = ends.max() else { return [] }
-        do {
-            return try await graphClient.eventsInRange(start: earliest, end: latest)
-        } catch {
-            logger.error("fetchConflictReferenceMeetings failed: \(error.localizedDescription, privacy: .public)")
-            return []
-        }
-    }
-
-    /// Match `meetingRequest` invite emails to their underlying event in
-    /// `calendar` so the email row can surface meeting time / RSVP /
-    /// conflict. Match key is normalized subject + start time within a
-    /// minute — subject alone is ambiguous when multiple meetings share a
-    /// title, but `meetingStart` from the eventMessage and `start` from
-    /// the calendar event come from the same source-of-truth and should
-    /// be exact. Returns a map keyed by email id; emails with no
-    /// matching event simply don't appear (the row falls back to
-    /// regular-email rendering).
-    /// Resolve each `meetingRequest` invite email to a calendar event
-    /// so the row can surface meeting time / RSVP / conflict. Two-pass
-    /// match:
-    /// 1. Subject + start-time-within-a-minute against the calendar
-    ///    pool. Free, no Graph call, covers the common case.
-    /// 2. Fallback: pull `iCalUId` from the invitation's
-    ///    `PidLidGlobalObjectId` MAPI property and look up the calendar
-    ///    pool by that. Deterministic — disambiguates same-subject
-    ///    collisions and rescheduled meetings whose start time on the
-    ///    invitation no longer matches the calendar entry. The looked-up
-    ///    Meeting carries the real event id and responseStatus; no
-    ///    synthetic placeholders.
-    ///
-    /// Invites with no matching event in either pass are returned
-    /// absent from the map. The row's "Removed" pill takes that case
-    /// (event was declined, deleted, or cancelled — the absence is
-    /// the signal).
-    private func matchInvitesToCalendar(emails: [Email], calendar: [Meeting]) async -> [String: Meeting] {
-        var result: [String: Meeting] = [:]
-        for email in emails where email.isInvite {
-            if let match = calendar.first(where: { $0.matches(email) }) {
-                result[email.id] = match
-                continue
-            }
-            guard let iCalUId = await graphClient.fetchInviteICalUId(messageId: email.id) else { continue }
-            if let match = calendar.first(where: {
-                $0.iCalUId?.caseInsensitiveCompare(iCalUId) == .orderedSame
-            }) {
-                result[email.id] = match
-            }
-        }
-        return result
-    }
-
-    private func fetchEmails(top: Int? = nil) async -> (emails: [Email], totalCount: Int, failed: Bool) {
-        do {
-            let r = try await graphClient.unreadEmails(top: top ?? emailTop)
-            return (r.emails, r.totalCount, false)
-        } catch {
-            logger.error("unreadEmails failed: \(error.localizedDescription, privacy: .public)")
-            return ([], 0, true)
-        }
-    }
-
-    /// Apply a fresh `fetchEmails` result to `summary.emails` and rebuild
-    /// the derived invite caches (`conflictReferenceMeetings` first, then
-    /// `inviteMeetings` matched off it). Every code path that retouches
-    /// `summary.emails` calls this so the invite-row UI and conflict pool
-    /// stay coherent — otherwise mark-read/unread can leave stale invite
-    /// state pointing at events that are no longer in the unread window.
-    private func applyEmailsResult(_ result: (emails: [Email], totalCount: Int, failed: Bool)) async {
-        summary?.emails = result.emails
-        summary?.totalUnreadEmails = result.totalCount
-        await rebuildInviteCaches(from: result.emails)
-    }
-
-    /// Rebuild `conflictReferenceMeetings` + `inviteMeetings` from the
-    /// given email list and recompute conflict flags. Caller is
-    /// responsible for assigning `summary.emails` first if needed.
-    /// Used by both `refresh()` (after constructing a fresh summary)
-    /// and `applyEmailsResult` (after a mid-session email refresh).
-    private func rebuildInviteCaches(from emails: [Email]) async {
-        let inviteEmails = emails.filter(\.isInvite)
-        let referenceMeetings = await fetchConflictReferenceMeetings(for: inviteEmails)
-        let matchedInvites = await matchInvitesToCalendar(emails: emails, calendar: referenceMeetings)
-
-        // Drop any previous invite/reference members from the master
-        // store that aren't in today's window and aren't in the new
-        // sets — otherwise stale meetings linger.
-        let keepTodayIds = Set(todayMeetingIds)
-        for id in inviteEmailMeetingIds.values where !keepTodayIds.contains(id) {
-            meetingsById.removeValue(forKey: id)
-        }
-        for id in referenceMeetingIds where !keepTodayIds.contains(id) {
-            meetingsById.removeValue(forKey: id)
-        }
-        inviteEmailMeetingIds.removeAll(keepingCapacity: true)
-        referenceMeetingIds.removeAll(keepingCapacity: true)
-        for (emailId, m) in matchedInvites {
-            meetingsById[m.id] = m
-            inviteEmailMeetingIds[emailId] = m.id
-        }
-        for m in referenceMeetings {
-            meetingsById[m.id] = m
-            referenceMeetingIds.insert(m.id)
-        }
-
-        recomputeConflicts()
-    }
-
-    /// Captured by `setPendingUndo`; rendered by `SummaryView` as the
-    /// floating undo banner with the summary string and an Undo button
-    /// that calls `Inbox.performUndo`.
-    struct UndoableBulkAction {
-        let summary: String
-        let undo: @MainActor () async -> Void
-    }
-
-    /// The fetch-first "mark unread" bulk actions, each tied to the control
-    /// that launches it so that control can show its own spinner.
-    enum BulkActivity {
-        case todaysChats
-        case todaysEmails
-        case flaggedEmails
-    }
-
-    /// A floating banner note. `.error` styles as a warning (reverted
-    /// action); `.info` is neutral (a bulk action found nothing to do).
-    struct TransientMessage: Equatable {
-        enum Kind { case error, info }
-        let text: String
-        let kind: Kind
-    }
-
-    /// Best-effort presence read. Failures don't bump `lastRefreshFailed`
-    /// — presence is a secondary concern, not critical to the panel.
-    /// Returns the presence plus the custom status message so callers
-    /// can publish both in lockstep from a single Graph round-trip.
-    private func fetchPresence() async -> (Presence, String) {
-        guard teamsEnabled else { return (.unknown, "") }
-        do {
-            return try await graphClient.fetchPresence()
-        } catch {
-            logger.error("fetchPresence failed: \(error.localizedDescription, privacy: .public)")
-            return (.unknown, "")
-        }
-    }
-
-    /// Returns an empty array when Teams is disabled or `fetchUserID` failed
-    /// — the unread-chat heuristic compares against the signed-in user's
-    /// ID, so without that the call can't be made meaningfully. The early
-    /// returns aren't treated as failures.
-    private func fetchChats(userIDReady: Bool) async -> (chats: [ChatMessage], failed: Bool) {
-        guard teamsEnabled, userIDReady else { return ([], false) }
-        do {
-            return (try await graphClient.unreadChats(), false)
-        } catch {
-            logger.error("unreadChats failed: \(error.localizedDescription, privacy: .public)")
-            return ([], true)
-        }
-    }
 }
 
 // MARK: - Intent-driven status actions

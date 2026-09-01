@@ -35,7 +35,7 @@ nothing new leaves it.
 
 | Workstream | Shape |
 |---|---|
-| Inbox refactor | Split `Inbox.swift` along existing seams. No behavior change. |
+| Inbox section pass | Twenty `// MARK` sections in place. No behavior change, no access-level change. |
 | Calendar beyond today | Seven-day rolling agenda, reached from the "Later today" header. |
 | Mail disposition | Archive, delete, and move, each with undo. |
 | New-message nudge | Local notification on new mail and chats, filtered by starred senders. |
@@ -62,21 +62,36 @@ not need a new one invented for it.
 already owns the local-notification plumbing for meeting reminders. The nudge
 hooks in directly after that refresh and reuses that plumbing.
 
-## Inbox refactor
+## Inbox section pass
 
 `CheckIn/Services/Inbox.swift` is a single `@Observable final class` carrying
 roughly a hundred members behind four `// MARK` comments. Disposition adds to it
 heavily and the nudge adds to it lightly, so left alone it finishes 1.7 past two
 thousand lines with the feature diffs buried inside it.
 
-Swift extensions cannot add stored properties, so the stored state stays in the
-main file. Everything else moves into `extension Inbox` files along seams that are
-already visible in the declaration order: the meeting store and meeting
-operations, presence and status, bulk email actions, single email actions, the
-watch relay, compose and send, chat operations, and browse and search. This lands
-as its own commit with no behavior change, so it reviews as a move rather than as
-a rewrite. `CheckIn/Views/MessagePreviewSheet.swift` at a thousand lines gets the
-same treatment if disposition pushes it further.
+The obvious fix, splitting the type across `extension Inbox` files, does not work
+here, and the reason is worth recording so it does not get proposed again. `Inbox`
+holds its state in thirteen `private(set)` properties, and `private(set)` in Swift
+is file-scoped: an extension in another file gets the getter but not the setter.
+The file has seventy-eight mutation sites on `summary` alone, and nearly every
+method worth moving is one of them. Splitting therefore costs either the
+encapsulation or a redesign. Dropping `private(set)` to internal would let all
+sixteen files that currently only read this state write it as well, in a
+single-target app where internal means everything. Preserving the invariant
+instead means funneling every mutation through a named API on the core type, which
+is a real redesign of all seventy-eight sites and several days of work with no
+user-visible result at the end.
+
+So 1.7 sections the file in place instead: real `// MARK` sections with related
+methods gathered under each, and no change to any access level or any line of
+logic. That keeps every invariant and gets most of the navigability the split was
+wanted for. The file stays one file and grows to roughly two thousand lines with
+disposition, which is worse and is not qualitatively different.
+
+The mutation-funnel refactor is still worth doing on its own merits, because
+seventy-eight ad-hoc mutations of one shared observable is the actual design
+problem and the line count is only its symptom. It belongs in its own cut, done
+deliberately, rather than as the opening commit of a three-feature release.
 
 ## Calendar beyond today
 
@@ -166,28 +181,27 @@ consumed out of `POTENTIAL-FEATURES.md`, stage the ASC paste sheet, and follow
 
 ## Slice plan
 
-Sixteen commits across six slices. Each slice builds green and is independently
+Fourteen commits across six slices. Each slice builds green and is independently
 verifiable on device. Slice 0 has to precede disposition and the nudge, since both
 land in `Inbox`. Starred senders has to precede the nudge's settings commit,
 because the default depends on the starred set existing. The agenda is independent
 of all of it and goes early for a visible win.
 
-### Slice 0: Inbox split, three commits, no behavior change
+### Slice 0: Inbox section pass, one commit, no behavior change
 
-Ten files out of one. Stored state, the refresh core, snapshot publishing, and the
-undo and transient-message machinery stay in `Inbox.swift`; the rest becomes
-`extension Inbox` files of roughly two hundred lines each.
+Twenty `// MARK` sections replace the four the file had, with members reordered so
+each section is contiguous: observable state, the meeting store, nested types,
+dependencies and caps, init and lifecycle, refresh, counts and identity, three
+meeting sections, meeting notifications, presence, two email sections, bulk
+actions, undo, chats, browse and search, compose, and the watch relay.
 
-| Commit | Files |
-|---|---|
-| 0a | `Inbox+Watch.swift`, `Inbox+Compose.swift`, `Inbox+Browse.swift` |
-| 0b | `Inbox+Meetings.swift`, `Inbox+Chats.swift`, `Inbox+Presence.swift` |
-| 0c | `Inbox+EmailActions.swift`, `Inbox+BulkActions.swift`, `Inbox+Intents.swift` |
-
-Leaf groups move first, so the extensions with the fewest inbound calls come out
-while the file is still whole. Every commit is a pure move and should review as
-one. If a commit needs a real edit to compile, that is a signal the seam was drawn
-wrong, and it is worth stopping on rather than papering over.
+The reorder is mechanical but large, so it was done by script with a verification
+pass asserting the multiset of code and doc-comment lines is identical before and
+after. Two latent defects surfaced and were fixed in the same pass: the `#if DEBUG`
+guard around `loadDemo` had drifted apart from its `#endif` across a member
+boundary, and `markChatRead`'s doc comment had been orphaned above `chatIdentity`
+by an earlier insertion, leaving one function undocumented and the other carrying
+two stacked doc comments.
 
 ### Slice A: seven-day agenda, three commits
 
