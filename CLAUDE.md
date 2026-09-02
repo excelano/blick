@@ -7,7 +7,20 @@ email-family `~/email/CLAUDE.md`. Both load alongside this file.
 
 ---
 
-Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/email/blick/` (the GitHub repo is `excelano/blick`; the Xcode project is still named `CheckIn.xcodeproj` and code identifiers stay `checkin`).
+Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/email/blick/`, GitHub repo `excelano/blick`. Every path, target, package, scheme, and Swift symbol carries the Blick name; the identifiers that deliberately still say `checkin` are listed below.
+
+## Identifiers that stay `checkin` (do not rename)
+
+The rename on 2026-09-02 took the whole codebase from CheckIn to Blick and deliberately left every *persisted* identifier alone. These are stored outside the app — by the App Store, by Entra, by WidgetKit, by Control Center — so renaming one silently breaks something a user has already set up. The rule is: rename symbols and paths freely, never a string literal.
+
+- `com.excelano.checkin` and every bundle ID derived from it (`.CheckInWidget`, `.watchkitapp`, `.watchkitapp.widgets`). Changing it creates a new App Store record and orphans every install.
+- `group.com.excelano.checkin` and `group.com.excelano.checkin.watch`, plus the keychain access group. These carry the widget/watch snapshot and the MSAL token cache; changing one forces every device to sign in again.
+- `msauth.com.excelano.checkin://auth` and the widget's `msauth.com.excelano.checkin.CheckInWidget://auth`, both registered in the Azure `blick` app registration.
+- `com.excelano.checkin.refresh`, the `BGTaskScheduler` identifier, which must match `BGTaskSchedulerPermittedIdentifiers` in Info.plist.
+- The WidgetKit `kind` strings: `"CheckInWidget"` in `BlickWidget/BlickWidget.swift` and `"CheckInWatchCorner"`, `"CheckInWatchRectangular"`, `"CheckInWatchCircular"`, `"CheckInWatchInline"` in `BlickWatchWidget/BlickWatchWidget.swift`. Rename one and the widget or complication vanishes from every home screen and watch face that already has it.
+- The eight `ControlKind` values (`com.excelano.checkin.control.*`), for the same reason — a renamed control disappears from Control Center.
+
+The trap worth remembering: `CheckInWidget` was both a Swift type name and the widget's `kind` string, spelled identically. A blanket find-and-replace renames both.
 
 ## Status
 
@@ -30,4 +43,4 @@ Azure app registration is named `blick`.
 
 ## Brand
 
-Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/email/blick/CheckIn/Assets.xcassets/AppIcon.appiconset/`.
+Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/email/blick/Blick/Assets.xcassets/AppIcon.appiconset/`.

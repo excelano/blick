@@ -52,19 +52,19 @@ displayed nowhere in the UI. The agenda is largely a view on top of a fetch that
 already ships; what it lacks is conflict computation, which `recomputeConflicts`
 and `overlapsAny` already implement for today's window.
 
-`CheckInSnapshot` already carries `topEmails: [SnapshotEmail]` and
+`BlickSnapshot` already carries `topEmails: [SnapshotEmail]` and
 `topChats: [SnapshotChat]`, both keyed by stable ids, and already persists to the
 app group through `saveToAppGroup`. The new-message diff has a substrate; it does
 not need a new one invented for it.
 
-`.backgroundTask(.appRefresh(...))` in `CheckInApp.swift` already runs
+`.backgroundTask(.appRefresh(...))` in `BlickApp.swift` already runs
 `inbox.refresh()` on whatever cadence iOS grants, and `MeetingNotifications`
 already owns the local-notification plumbing for meeting reminders. The nudge
 hooks in directly after that refresh and reuses that plumbing.
 
 ## Inbox section pass
 
-`CheckIn/Services/Inbox.swift` is a single `@Observable final class` carrying
+`Blick/Services/Inbox.swift` is a single `@Observable final class` carrying
 roughly a hundred members behind four `// MARK` comments. Disposition adds to it
 heavily and the nudge adds to it lightly, so left alone it finishes 1.7 past two
 thousand lines with the feature diffs buried inside it.

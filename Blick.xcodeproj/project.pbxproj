@@ -1,0 +1,1015 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		194F4CCD2FAD3EA70019A39C /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 194F4CCC2FAD3EA70019A39C /* MSAL */; };
+		6B78BD922FC15197008CF821 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD912FC15197008CF821 /* WidgetKit.framework */; };
+		6B78BD942FC15197008CF821 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD932FC15197008CF821 /* SwiftUI.framework */; };
+		6B78BDA32FC15199008CF821 /* BlickWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6B78BD8F2FC15197008CF821 /* BlickWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6B88F4162FCA6BE100D002A5 /* BlickWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 6B88F3F62FCA6BDF00D002A5 /* BlickWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6B88F4262FCA6C7100D002A5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD912FC15197008CF821 /* WidgetKit.framework */; };
+		6B88F4272FCA6C7100D002A5 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B78BD932FC15197008CF821 /* SwiftUI.framework */; };
+		6B88F4342FCA6C7300D002A5 /* BlickWatchWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6B88F4252FCA6C7100D002A5 /* BlickWatchWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6BD126232FC9413A00B6B85F /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 6BD126222FC9413A00B6B85F /* MSAL */; };
+		7A0000000000000000000020 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000010 /* BlickKit */; };
+		7A0000000000000000000026 /* Klartext in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000016 /* Klartext */; };
+		7A0000000000000000000027 /* KlartextUI in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000017 /* KlartextUI */; };
+		7A0000000000000000000021 /* BlickGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000011 /* BlickGraph */; };
+		7A0000000000000000000022 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000012 /* BlickKit */; };
+		7A0000000000000000000023 /* BlickGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000013 /* BlickGraph */; };
+		7A0000000000000000000024 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000014 /* BlickKit */; };
+		7A0000000000000000000025 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000015 /* BlickKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		6B78BDA12FC15199008CF821 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6B78BD8E2FC15197008CF821;
+			remoteInfo = BlickWidgetExtension;
+		};
+		6B88F4142FCA6BE100D002A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6B88F3F52FCA6BDF00D002A5;
+			remoteInfo = "BlickWatch Watch App";
+		};
+		6B88F4322FCA6C7300D002A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6B88F4242FCA6C7100D002A5;
+			remoteInfo = BlickWatchWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		6B78BDA42FC15199008CF821 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				6B78BDA32FC15199008CF821 /* BlickWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4172FCA6BE100D002A5 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				6B88F4162FCA6BE100D002A5 /* BlickWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4392FCA6C7300D002A5 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				6B88F4342FCA6C7300D002A5 /* BlickWatchWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		6BAA110100000000000000C1 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Version.xcconfig; sourceTree = "<group>"; };
+		19C6DDC12FAD391B008DDDF0 /* Blick.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Blick.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B78BD8F2FC15197008CF821 /* BlickWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BlickWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B78BD912FC15197008CF821 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		6B78BD932FC15197008CF821 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		6B78BDA92FC1540B008CF821 /* BlickWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BlickWidgetExtension.entitlements; sourceTree = "<group>"; };
+		6B88F3F62FCA6BDF00D002A5 /* BlickWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "BlickWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B88F4252FCA6C7100D002A5 /* BlickWatchWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BlickWatchWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B88F43B2FCA6D2A00D002A5 /* BlickWatchWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BlickWatchWidgetExtension.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		194F4CCE2FAD45F40019A39C /* Exceptions for "Blick" folder in "Blick" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 19C6DDC02FAD391B008DDDF0 /* Blick */;
+		};
+		6B78BDA82FC15199008CF821 /* Exceptions for "BlickWidget" folder in "BlickWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6B78BD8E2FC15197008CF821 /* BlickWidgetExtension */;
+		};
+		6B88F4382FCA6C7300D002A5 /* Exceptions for "BlickWatchWidget" folder in "BlickWatchWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6B88F4242FCA6C7100D002A5 /* BlickWatchWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		19C6DDC32FAD391B008DDDF0 /* Blick */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				194F4CCE2FAD45F40019A39C /* Exceptions for "Blick" folder in "Blick" target */,
+			);
+			path = Blick;
+			sourceTree = "<group>";
+		};
+		6B78BD952FC15197008CF821 /* BlickWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6B78BDA82FC15199008CF821 /* Exceptions for "BlickWidget" folder in "BlickWidgetExtension" target */,
+			);
+			path = BlickWidget;
+			sourceTree = "<group>";
+		};
+		6B88F3F72FCA6BDF00D002A5 /* BlickWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "BlickWatch Watch App";
+			sourceTree = "<group>";
+		};
+		6B88F4052FCA6BE100D002A5 /* BlickWatch Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "BlickWatch Watch AppTests";
+			sourceTree = "<group>";
+		};
+		6B88F40F2FCA6BE100D002A5 /* BlickWatch Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "BlickWatch Watch AppUITests";
+			sourceTree = "<group>";
+		};
+		6B88F4282FCA6C7100D002A5 /* BlickWatchWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6B88F4382FCA6C7300D002A5 /* Exceptions for "BlickWatchWidget" folder in "BlickWatchWidgetExtension" target */,
+			);
+			path = BlickWatchWidget;
+			sourceTree = "<group>";
+		};
+		6BFACE0000000000000000A1 /* SharedIntents */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SharedIntents;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		19C6DDBE2FAD391B008DDDF0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				194F4CCD2FAD3EA70019A39C /* MSAL in Frameworks */,
+				7A0000000000000000000020 /* BlickKit in Frameworks */,
+				7A0000000000000000000021 /* BlickGraph in Frameworks */,
+				7A0000000000000000000026 /* Klartext in Frameworks */,
+				7A0000000000000000000027 /* KlartextUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B78BD8C2FC15197008CF821 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B78BD942FC15197008CF821 /* SwiftUI.framework in Frameworks */,
+				6BD126232FC9413A00B6B85F /* MSAL in Frameworks */,
+				6B78BD922FC15197008CF821 /* WidgetKit.framework in Frameworks */,
+				7A0000000000000000000022 /* BlickKit in Frameworks */,
+				7A0000000000000000000023 /* BlickGraph in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F3F32FCA6BDF00D002A5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A0000000000000000000024 /* BlickKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4222FCA6C7100D002A5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6B88F4272FCA6C7100D002A5 /* SwiftUI.framework in Frameworks */,
+				6B88F4262FCA6C7100D002A5 /* WidgetKit.framework in Frameworks */,
+				7A0000000000000000000025 /* BlickKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		19C6DDB82FAD391B008DDDF0 = {
+			isa = PBXGroup;
+			children = (
+				6BAA110100000000000000C1 /* Version.xcconfig */,
+				6B88F43B2FCA6D2A00D002A5 /* BlickWatchWidgetExtension.entitlements */,
+				6B78BDA92FC1540B008CF821 /* BlickWidgetExtension.entitlements */,
+				19C6DDC32FAD391B008DDDF0 /* Blick */,
+				6B78BD952FC15197008CF821 /* BlickWidget */,
+				6BFACE0000000000000000A1 /* SharedIntents */,
+				6B88F3F72FCA6BDF00D002A5 /* BlickWatch Watch App */,
+				6B88F4052FCA6BE100D002A5 /* BlickWatch Watch AppTests */,
+				6B88F40F2FCA6BE100D002A5 /* BlickWatch Watch AppUITests */,
+				6B88F4282FCA6C7100D002A5 /* BlickWatchWidget */,
+				6B78BD902FC15197008CF821 /* Frameworks */,
+				19C6DDC22FAD391B008DDDF0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		19C6DDC22FAD391B008DDDF0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				19C6DDC12FAD391B008DDDF0 /* Blick.app */,
+				6B78BD8F2FC15197008CF821 /* BlickWidgetExtension.appex */,
+				6B88F3F62FCA6BDF00D002A5 /* BlickWatch Watch App.app */,
+				6B88F4252FCA6C7100D002A5 /* BlickWatchWidgetExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		6B78BD902FC15197008CF821 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				6B78BD912FC15197008CF821 /* WidgetKit.framework */,
+				6B78BD932FC15197008CF821 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		19C6DDC02FAD391B008DDDF0 /* Blick */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 19C6DDCC2FAD391B008DDDF0 /* Build configuration list for PBXNativeTarget "Blick" */;
+			buildPhases = (
+				19C6DDBD2FAD391B008DDDF0 /* Sources */,
+				19C6DDBE2FAD391B008DDDF0 /* Frameworks */,
+				19C6DDBF2FAD391B008DDDF0 /* Resources */,
+				6B78BDA42FC15199008CF821 /* Embed Foundation Extensions */,
+				6B88F4172FCA6BE100D002A5 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6B78BDA22FC15199008CF821 /* PBXTargetDependency */,
+				6B88F4152FCA6BE100D002A5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				19C6DDC32FAD391B008DDDF0 /* Blick */,
+				6BFACE0000000000000000A1 /* SharedIntents */,
+			);
+			name = Blick;
+			packageProductDependencies = (
+				7A0000000000000000000010 /* BlickKit */,
+				7A0000000000000000000011 /* BlickGraph */,
+				194F4CCC2FAD3EA70019A39C /* MSAL */,
+				7A0000000000000000000016 /* Klartext */,
+				7A0000000000000000000017 /* KlartextUI */,
+			);
+			productName = Blick;
+			productReference = 19C6DDC12FAD391B008DDDF0 /* Blick.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6B78BD8E2FC15197008CF821 /* BlickWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6B78BDA72FC15199008CF821 /* Build configuration list for PBXNativeTarget "BlickWidgetExtension" */;
+			buildPhases = (
+				6B78BD8B2FC15197008CF821 /* Sources */,
+				6B78BD8C2FC15197008CF821 /* Frameworks */,
+				6B78BD8D2FC15197008CF821 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				6B78BD952FC15197008CF821 /* BlickWidget */,
+				6BFACE0000000000000000A1 /* SharedIntents */,
+			);
+			name = BlickWidgetExtension;
+			packageProductDependencies = (
+				7A0000000000000000000012 /* BlickKit */,
+				7A0000000000000000000013 /* BlickGraph */,
+				6BD126222FC9413A00B6B85F /* MSAL */,
+			);
+			productName = BlickWidgetExtension;
+			productReference = 6B78BD8F2FC15197008CF821 /* BlickWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		6B88F3F52FCA6BDF00D002A5 /* BlickWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6B88F41E2FCA6BE100D002A5 /* Build configuration list for PBXNativeTarget "BlickWatch Watch App" */;
+			buildPhases = (
+				6B88F3F22FCA6BDF00D002A5 /* Sources */,
+				6B88F3F32FCA6BDF00D002A5 /* Frameworks */,
+				6B88F3F42FCA6BDF00D002A5 /* Resources */,
+				6B88F4392FCA6C7300D002A5 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6B88F4332FCA6C7300D002A5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				6B88F3F72FCA6BDF00D002A5 /* BlickWatch Watch App */,
+			);
+			name = "BlickWatch Watch App";
+			packageProductDependencies = (
+				7A0000000000000000000014 /* BlickKit */,
+			);
+			productName = "BlickWatch Watch App";
+			productReference = 6B88F3F62FCA6BDF00D002A5 /* BlickWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6B88F4242FCA6C7100D002A5 /* BlickWatchWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6B88F4352FCA6C7300D002A5 /* Build configuration list for PBXNativeTarget "BlickWatchWidgetExtension" */;
+			buildPhases = (
+				6B88F4212FCA6C7100D002A5 /* Sources */,
+				6B88F4222FCA6C7100D002A5 /* Frameworks */,
+				6B88F4232FCA6C7100D002A5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				6B88F4282FCA6C7100D002A5 /* BlickWatchWidget */,
+			);
+			name = BlickWatchWidgetExtension;
+			packageProductDependencies = (
+				7A0000000000000000000015 /* BlickKit */,
+			);
+			productName = BlickWatchWidgetExtension;
+			productReference = 6B88F4252FCA6C7100D002A5 /* BlickWatchWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		19C6DDB92FAD391B008DDDF0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					19C6DDC02FAD391B008DDDF0 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
+					6B78BD8E2FC15197008CF821 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					6B88F3F52FCA6BDF00D002A5 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					6B88F4242FCA6C7100D002A5 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = 19C6DDBC2FAD391B008DDDF0 /* Build configuration list for PBXProject "Blick" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 19C6DDB82FAD391B008DDDF0;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7A0000000000000000000001 /* XCLocalSwiftPackageReference "BlickKit" */,
+				7A0000000000000000000002 /* XCLocalSwiftPackageReference "BlickGraph" */,
+				194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
+				7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 19C6DDC22FAD391B008DDDF0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				19C6DDC02FAD391B008DDDF0 /* Blick */,
+				6B78BD8E2FC15197008CF821 /* BlickWidgetExtension */,
+				6B88F3F52FCA6BDF00D002A5 /* BlickWatch Watch App */,
+				6B88F4242FCA6C7100D002A5 /* BlickWatchWidgetExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		19C6DDBF2FAD391B008DDDF0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B78BD8D2FC15197008CF821 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F3F42FCA6BDF00D002A5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4232FCA6C7100D002A5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		19C6DDBD2FAD391B008DDDF0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B78BD8B2FC15197008CF821 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F3F22FCA6BDF00D002A5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B88F4212FCA6C7100D002A5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6B78BDA22FC15199008CF821 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6B78BD8E2FC15197008CF821 /* BlickWidgetExtension */;
+			targetProxy = 6B78BDA12FC15199008CF821 /* PBXContainerItemProxy */;
+		};
+		6B88F4152FCA6BE100D002A5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6B88F3F52FCA6BDF00D002A5 /* BlickWatch Watch App */;
+			targetProxy = 6B88F4142FCA6BE100D002A5 /* PBXContainerItemProxy */;
+		};
+		6B88F4332FCA6C7300D002A5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6B88F4242FCA6C7100D002A5 /* BlickWatchWidgetExtension */;
+			targetProxy = 6B88F4322FCA6C7300D002A5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		19C6DDCA2FAD391B008DDDF0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6BAA110100000000000000C1 /* Version.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		19C6DDCB2FAD391B008DDDF0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6BAA110100000000000000C1 /* Version.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		19C6DDCD2FAD391B008DDDF0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Blick/Blick.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Blick/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		19C6DDCE2FAD391B008DDDF0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Blick/Blick.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Blick/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		6B78BDA52FC15199008CF821 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BlickWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlickWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.CheckInWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6B78BDA62FC15199008CF821 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BlickWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlickWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.CheckInWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		6B88F4182FCA6BE100D002A5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "BlickWatch Watch App/BlickWatch Watch App.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.excelano.checkin;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Debug;
+		};
+		6B88F4192FCA6BE100D002A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "BlickWatch Watch App/BlickWatch Watch App.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.excelano.checkin;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Release;
+		};
+		6B88F4362FCA6C7300D002A5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BlickWatchWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlickWatchWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Debug;
+		};
+		6B88F4372FCA6C7300D002A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BlickWatchWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9K6W5PMFYP;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BlickWatchWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Blick;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.excelano.checkin.watchkitapp.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.6;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		19C6DDBC2FAD391B008DDDF0 /* Build configuration list for PBXProject "Blick" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19C6DDCA2FAD391B008DDDF0 /* Debug */,
+				19C6DDCB2FAD391B008DDDF0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		19C6DDCC2FAD391B008DDDF0 /* Build configuration list for PBXNativeTarget "Blick" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19C6DDCD2FAD391B008DDDF0 /* Debug */,
+				19C6DDCE2FAD391B008DDDF0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6B78BDA72FC15199008CF821 /* Build configuration list for PBXNativeTarget "BlickWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B78BDA52FC15199008CF821 /* Debug */,
+				6B78BDA62FC15199008CF821 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6B88F41E2FCA6BE100D002A5 /* Build configuration list for PBXNativeTarget "BlickWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B88F4182FCA6BE100D002A5 /* Debug */,
+				6B88F4192FCA6BE100D002A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6B88F4352FCA6C7300D002A5 /* Build configuration list for PBXNativeTarget "BlickWatchWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B88F4362FCA6C7300D002A5 /* Debug */,
+				6B88F4372FCA6C7300D002A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7A0000000000000000000001 /* XCLocalSwiftPackageReference "BlickKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = BlickKit;
+		};
+		7A0000000000000000000002 /* XCLocalSwiftPackageReference "BlickGraph" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = BlickGraph;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AzureAD/microsoft-authentication-library-for-objc";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.11.0;
+			};
+		};
+		7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/excelano/klartext";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		194F4CCC2FAD3EA70019A39C /* MSAL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
+			productName = MSAL;
+		};
+		6BD126222FC9413A00B6B85F /* MSAL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
+			productName = MSAL;
+		};
+		7A0000000000000000000010 /* BlickKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "BlickKit" */;
+			productName = BlickKit;
+		};
+		7A0000000000000000000011 /* BlickGraph */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000002 /* XCLocalSwiftPackageReference "BlickGraph" */;
+			productName = BlickGraph;
+		};
+		7A0000000000000000000012 /* BlickKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "BlickKit" */;
+			productName = BlickKit;
+		};
+		7A0000000000000000000013 /* BlickGraph */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000002 /* XCLocalSwiftPackageReference "BlickGraph" */;
+			productName = BlickGraph;
+		};
+		7A0000000000000000000014 /* BlickKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "BlickKit" */;
+			productName = BlickKit;
+		};
+		7A0000000000000000000015 /* BlickKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "BlickKit" */;
+			productName = BlickKit;
+		};
+		7A0000000000000000000016 /* Klartext */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */;
+			productName = Klartext;
+		};
+		7A0000000000000000000017 /* KlartextUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */;
+			productName = KlartextUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 19C6DDB92FAD391B008DDDF0 /* Project object */;
+}

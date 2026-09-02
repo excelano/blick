@@ -2,7 +2,7 @@
 
 The verified end-to-end flow for cutting a Blick release: bump the version,
 archive, upload, fill in App Store Connect, and submit. This is the store
-counterpart to the `run-checkin` skill, which covers dev installs on a device.
+counterpart to the `run-blick` skill, which covers dev installs on a device.
 The gotchas below were each paid for once during the 1.0 and 1.1 cycles; the
 point of this doc is to not pay for them again.
 
@@ -20,7 +20,7 @@ the marketing version. 1.0.x ran through build 3, 1.1 was build 4, 1.1.1 was
 build 5, so the next upload is build 6 regardless of whether it's a patch or a
 feature release. App Store Connect rejects a build number it has already seen.
 
-A historical trap, now fixed and worth remembering: `CheckIn/Info.plist` once
+A historical trap, now fixed and worth remembering: `Blick/Info.plist` once
 hardcoded the version as literals, which override the build settings, so the first
 1.1 archive stamped the already-shipped 1.0.2 number. The plist now references
 `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)` like the widget and watch

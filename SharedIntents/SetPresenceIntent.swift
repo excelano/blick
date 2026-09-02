@@ -4,7 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import AppIntents
-import CheckInKit
+import BlickKit
 
 /// Set the user's preferred Microsoft 365 presence (or reset to automatic) from
 /// Siri, Shortcuts, an interactive widget button, or a Control Center
@@ -18,7 +18,7 @@ import CheckInKit
 /// `Inbox`, extension-side wired to a lean presence client — and the
 /// `@Dependency` resolves to whichever process the intent fires in.
 ///
-/// CheckIn keeps its own presence session alive, so a pinned presence takes
+/// Blick keeps its own presence session alive, so a pinned presence takes
 /// effect without a Teams desktop session running. `applyPresence` reads the
 /// presence back after writing and throws when Microsoft didn't honor the
 /// request (tenant policy, Conditional Access, or another client overriding),

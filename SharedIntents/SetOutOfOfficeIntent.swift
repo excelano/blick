@@ -4,7 +4,7 @@
 // Built with AI assistance (Claude, Anthropic)
 
 import AppIntents
-import CheckInKit
+import BlickKit
 
 /// Turn Outlook automatic replies (Out of Office) on or off from Siri,
 /// Shortcuts, an interactive widget button, or a Control Center control.

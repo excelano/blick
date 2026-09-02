@@ -1,0 +1,981 @@
+// GraphClient.swift
+// Blick
+// Author: David M. Anderson
+// Built with AI assistance (Claude, Anthropic)
+
+import BlickGraph
+import BlickKit
+import Foundation
+import Klartext
+import KlartextUI
+import os
+
+/// Bridges the app's `AuthService` to `GraphCore`'s token-provider seam.
+/// Keeps Graph's HTTP layer free of any MSAL dependency: `GraphCore` asks for
+/// a token, this hands back whatever the app's auth flow produces.
+private struct AppTokenProvider: GraphTokenProvider {
+    let authService: AuthService
+    let enableTeams: Bool
+
+    func graphAccessToken() async throws -> String {
+        try await authService.acquireTokenSilently(enableTeams: enableTeams)
+    }
+}
+
+final class GraphClient {
+    /// Shared Graph access layer (HTTP plumbing, auth-header injection,
+    /// transient-retry, presence/OOO writes). The app's rich reads ride its
+    /// HTTP primitives; the presence/OOO methods below forward to it.
+    private let core: GraphCore
+    private var userID = ""
+    private var userMail = ""
+
+    init(authService: AuthService, enableTeams: Bool) {
+        self.core = GraphCore(
+            tokenProvider: AppTokenProvider(authService: authService, enableTeams: enableTeams)
+        )
+    }
+
+    /// Fetch the signed-in user's ID and mail address. ID powers the Teams
+    /// unread-chat self-filter; mail powers external-sender detection.
+    /// Some accounts (personal/MSA, occasionally) don't populate `mail`,
+    /// so we fall back to `userPrincipalName`.
+    func fetchUserID() async throws {
+        let data: UserResponse = try await core.get("/me", query: ["$select": "id,mail,userPrincipalName"])
+        userID = data.id
+        userMail = data.mail ?? data.userPrincipalName ?? ""
+    }
+
+    /// Drop the cached user identity. Called when the signed-in account
+    /// changes so the next refresh re-fetches the new user's id/mail
+    /// instead of reusing the previous user's.
+    func clearUser() {
+        userID = ""
+        userMail = ""
+    }
+
+    /// Domain portion of the signed-in user's mail address (lowercased).
+    /// Empty until `fetchUserID` runs successfully.
+    var userMailDomain: String {
+        guard let atIdx = userMail.firstIndex(of: "@") else { return "" }
+        return String(userMail[userMail.index(after: atIdx)...]).lowercased()
+    }
+
+    /// Graph user id of the signed-in account. Empty until `fetchUserID`
+    /// runs. Exposed for callers (Inbox) that need to assemble a
+    /// `teamworkUserIdentity` body — see `markChatRead` / `markChatUnread`.
+    var currentUserID: String { userID }
+
+    /// Mail address of the signed-in account. Empty until `fetchUserID`
+    /// runs. Used to filter the user out of recipient lists in the UI
+    /// so they don't see themselves in the "also to" line.
+    var currentUserMail: String { userMail }
+
+    /// Fetch today's remaining meetings using calendarView (not /events,
+    /// so recurring meetings are properly expanded). Returns the next
+    /// meeting plus the rest of today's attendable meetings, ordered by
+    /// start time. Window is `[now, start of tomorrow local]`, so we
+    /// don't bleed into tomorrow's calendar.
+    func todaysMeetings() async throws -> (next: Meeting?, laterToday: [Meeting]) {
+        let window = todayMeetingWindow()
+        let formatter = ISO8601DateFormatter()
+
+        let data: GraphList<CalendarEventResponse> = try await core.get("/me/calendarView", query: [
+            "startDateTime": formatter.string(from: window.start),
+            "endDateTime": formatter.string(from: window.end),
+            "$top": "10",
+            "$orderby": "start/dateTime",
+            "$select": "id,subject,organizer,start,end,onlineMeeting,responseStatus,isCancelled,iCalUId"
+        ])
+
+        // `isAttendableMeeting` (BlickGraph) skips cancelled and declined
+        // events; shared with the widget/watch snapshot so both agree.
+        let attendable = data.value
+            .filter { isAttendableMeeting(isCancelled: $0.isCancelled, response: $0.responseStatus?.response) }
+            .map { e -> (event: CalendarEventResponse, start: Date, end: Date) in
+                (e,
+                 parseGraphDate(e.start.dateTime, timeZone: e.start.timeZone),
+                 parseGraphDate(e.end.dateTime, timeZone: e.end.timeZone))
+            }
+        guard !attendable.isEmpty else { return (nil, []) }
+
+        // Conflict = any other attendable event whose time range overlaps
+        // this one. Half-open intervals so back-to-back meetings (one
+        // ending exactly when the next starts) don't count. Computed for
+        // every meeting (n²/2 with n ≤ 10).
+        let meetings: [Meeting] = attendable.enumerated().map { (i, t) in
+            let response = MeetingResponse(rawValue: t.event.responseStatus?.response ?? "") ?? .none
+            let hasConflict = attendable.enumerated().contains { (j, other) in
+                i != j && other.start < t.end && t.start < other.end
+            }
+            return Meeting(
+                id: t.event.id,
+                subject: t.event.subject,
+                organizer: t.event.organizer.emailAddress.name,
+                organizerEmail: t.event.organizer.emailAddress.address,
+                start: t.start,
+                end: t.end,
+                joinUrl: t.event.onlineMeeting?.joinUrl,
+                responseStatus: response,
+                hasConflict: hasConflict,
+                iCalUId: t.event.iCalUId
+            )
+        }
+
+        return (meetings.first, Array(meetings.dropFirst()))
+    }
+
+    /// Calendar events overlapping the given range, plain mapping (no
+    /// conflict computation). Two callers: the reference pool for
+    /// conflict detection on invite-email RSVP — so a plain calendar
+    /// event that overlaps an invite can flag the invite as conflicting
+    /// — and the agenda screen's multi-day window. Neither needs
+    /// conflicts computed here, because `Inbox.recomputeConflicts()`
+    /// recomputes `hasConflict` across the whole meeting store once the
+    /// fetched events are loaded into it. Caps at 100 events as a guard
+    /// against multi-week ranges with very dense calendars.
+    func eventsInRange(start: Date, end: Date) async throws -> [Meeting] {
+        let formatter = ISO8601DateFormatter()
+        let data: GraphList<CalendarEventResponse> = try await core.get("/me/calendarView", query: [
+            "startDateTime": formatter.string(from: start),
+            "endDateTime": formatter.string(from: end),
+            "$top": "100",
+            "$orderby": "start/dateTime",
+            "$select": "id,subject,organizer,start,end,onlineMeeting,responseStatus,isCancelled,iCalUId"
+        ])
+
+        return data.value
+            .filter { isAttendableMeeting(isCancelled: $0.isCancelled, response: $0.responseStatus?.response) }
+            .map { e in
+                Meeting(
+                    id: e.id,
+                    subject: e.subject,
+                    organizer: e.organizer.emailAddress.name,
+                    organizerEmail: e.organizer.emailAddress.address,
+                    start: parseGraphDate(e.start.dateTime, timeZone: e.start.timeZone),
+                    end: parseGraphDate(e.end.dateTime, timeZone: e.end.timeZone),
+                    joinUrl: e.onlineMeeting?.joinUrl,
+                    responseStatus: MeetingResponse(rawValue: e.responseStatus?.response ?? "") ?? .none,
+                    hasConflict: false,
+                    iCalUId: e.iCalUId
+                )
+            }
+    }
+
+    /// DELETE an event. For invitation/personal events this removes it
+    /// from the user's calendar. For events the user organizes Graph
+    /// also sends cancellations to attendees — the caller is expected to
+    /// gate that case.
+    func deleteEvent(id: String) async throws {
+        try await core.delete("/me/events/\(id)")
+    }
+
+    /// Current Microsoft 365 presence plus the custom status message.
+    /// Forwards to `GraphCore`.
+    func fetchPresence() async throws -> (presence: Presence, statusMessage: String) {
+        try await core.fetchPresence()
+    }
+
+    /// Pin the user's preferred presence (pass `.unknown` plus
+    /// `clearUserPreferredPresence` to drop it). Forwards to `GraphCore`.
+    func setUserPreferredPresence(_ presence: Presence) async throws {
+        try await core.setUserPreferredPresence(presence)
+    }
+
+    /// Drop the user-preferred presence so Teams resumes auto-detection.
+    func clearUserPreferredPresence() async throws {
+        try await core.clearUserPreferredPresence()
+    }
+
+    /// Apply a preferred presence (or reset-to-auto / Offline) and read back
+    /// what Graph actually reports. Forwards to `GraphCore`, which owns the
+    /// session management, Offline teardown, pin tracking, and honored check.
+    func applyPreferredPresence(
+        _ presence: Presence,
+        sessionId: String,
+        store: PreferredPresenceStore,
+        now: Date = Date()
+    ) async throws -> PresenceApplyResult {
+        try await core.applyPreferredPresence(presence, sessionId: sessionId, store: store, now: now)
+    }
+
+    /// Set (or clear, with an empty string) the user's Teams status message.
+    func setStatusMessage(_ content: String) async throws {
+        try await core.setStatusMessage(content)
+    }
+
+    /// Re-up Blick's presence session so Graph keeps honoring the
+    /// preferred-presence override. Offline is skipped inside `GraphCore`.
+    func setSessionPresence(sessionId: String, presence: Presence) async throws {
+        try await core.setSessionPresence(sessionId: sessionId, presence: presence)
+    }
+
+    /// Whether Out-of-Office (Outlook automatic replies) is currently on.
+    func fetchOutOfOfficeEnabled() async throws -> Bool {
+        try await core.fetchAutomaticRepliesEnabled()
+    }
+
+    /// Turn auto-replies on, preserving any existing reply text.
+    func enableAutomaticReplies(defaultMessage: String) async throws {
+        try await core.enableAutomaticReplies(defaultMessage: defaultMessage)
+    }
+
+    /// Turn auto-replies off.
+    func disableAutomaticReplies() async throws {
+        try await core.disableAutomaticReplies()
+    }
+
+    /// Accept/tentative/decline an event. Graph returns 202 with no body.
+    /// `sendResponse: true` matches Outlook's default behavior — the
+    /// organizer's tracking is updated.
+    func respondToMeeting(id: String, response: MeetingResponse) async throws {
+        let action: String
+        switch response {
+        case .accepted: action = "accept"
+        case .tentativelyAccepted: action = "tentativelyAccept"
+        case .declined: action = "decline"
+        case .none, .notResponded, .organizer:
+            return
+        }
+        try await core.post("/me/events/\(id)/\(action)", body: RsvpBody(sendResponse: true))
+    }
+
+    /// Pull the iCalUId of the meeting referenced by an invite email.
+    /// Reads `PidLidGlobalObjectId` (MAPI named property
+    /// {6ED8DA90-…}/0x3) via `singleValueExtendedProperties` and
+    /// converts its base64 binary to the uppercase hex form Graph uses
+    /// for `event.iCalUId`. Used as the deterministic join key from an
+    /// invitation eventMessage to its calendar event — replaces the
+    /// fragile subject+time match for cases the matcher can't resolve.
+    /// Returns nil on any failure or when Graph omits the property.
+    func fetchInviteICalUId(messageId: String) async -> String? {
+        do {
+            let response: MessageSingleValueExtPropResponse = try await core.get(
+                "/me/messages/\(messageId)",
+                query: [
+                    "$expand": "singleValueExtendedProperties($filter=id eq 'Binary {6ED8DA90-450B-101B-98DA-00AA003F1305} Id 0x3')"
+                ]
+            )
+            guard let base64 = response.singleValueExtendedProperties?.first?.value,
+                  let data = Data(base64Encoded: base64) else { return nil }
+            return data.map { String(format: "%02X", $0) }.joined()
+        } catch {
+            Logger(subsystem: "com.excelano.checkin", category: "graph")
+                .error("fetchInviteICalUId failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// Returns the newest unread emails (up to `top`, default 20) along
+    /// with the total unread count. `$count=true` requires the
+    /// `ConsistencyLevel: eventual` header. The
+    /// `microsoft.graph.eventMessage/*` casts pull subtype fields for
+    /// invite/response messages — `meetingMessageType` distinguishes them
+    /// and `startDateTime`/`endDateTime` provide the meeting time without
+    /// needing a second fetch. `$expand=event` is intentionally avoided:
+    /// Graph rejects it in combination with the advanced-query trio
+    /// (`$filter` + `$count` + `ConsistencyLevel: eventual`), and even
+    /// in a single-resource GET it returns empty-stub events for
+    /// future-dated invitations (observed via diagnostic). Matching the
+    /// resulting `meetingStart` against `calendarView` recovers the real
+    /// event id.
+    ///
+    /// The `$select` field list every email fetch shares. A message field the
+    /// `makeEmail` mapper reads must be requested here, so keeping one copy stops
+    /// the unread / search / browse fetches from drifting (a missed field would
+    /// decode as nil on just one screen).
+    private static let emailSelect = "id,subject,from,toRecipients,ccRecipients,bodyPreview,receivedDateTime,isRead,flag,inferenceClassification,internetMessageHeaders,microsoft.graph.eventMessage/meetingMessageType,microsoft.graph.eventMessage/startDateTime,microsoft.graph.eventMessage/endDateTime"
+
+    func unreadEmails(top: Int = 20) async throws -> (emails: [Email], totalCount: Int) {
+        let data: GraphList<EmailResponse> = try await core.get(
+            "/me/mailFolders/inbox/messages",
+            query: [
+                "$filter": "isRead eq false",
+                "$orderby": "receivedDateTime desc",
+                "$top": "\(top)",
+                "$count": "true",
+                "$select": Self.emailSelect
+            ],
+            headers: ["ConsistencyLevel": "eventual"]
+        )
+
+        let emails = data.value.map(makeEmail)
+        return (emails, data.count ?? emails.count)
+    }
+
+    /// Full-text search across the whole mailbox (all folders, read and
+    /// unread), newest-relevance first. `$search` can't be combined with
+    /// `$orderby`, so Graph ranks by relevance rather than date — which is what
+    /// a search wants. Rides `Mail.ReadWrite`, no new scope. Hits the search
+    /// index, so a just-arrived message can lag a few seconds before it's
+    /// findable (same eventual-consistency wrinkle as the unread count).
+    func searchEmails(query: String, top: Int = 25) async throws -> [Email] {
+        // The query is wrapped in double quotes to form a KQL phrase; a literal
+        // quote inside would break that, and KQL has no clean escape for it, so
+        // drop embedded quotes rather than emit malformed search syntax.
+        let sanitized = query.replacingOccurrences(of: "\"", with: " ")
+        let data: GraphList<EmailResponse> = try await core.get(
+            "/me/messages",
+            query: [
+                "$search": "\"\(sanitized)\"",
+                "$top": "\(top)",
+                "$select": Self.emailSelect
+            ]
+        )
+        return data.value.map(makeEmail)
+    }
+
+    /// The most recent inbox messages, read and unread, newest first — the
+    /// "browse the inbox" list behind the email screen (as opposed to
+    /// `unreadEmails`, which is the triage front). No `$filter` on `isRead`,
+    /// so it's the whole recent inbox. Rides `Mail.ReadWrite`, no new scope.
+    func recentInbox(top: Int = 50) async throws -> [Email] {
+        let data: GraphList<EmailResponse> = try await core.get(
+            "/me/mailFolders/inbox/messages",
+            query: [
+                "$orderby": "receivedDateTime desc",
+                "$top": "\(top)",
+                "$select": Self.emailSelect
+            ]
+        )
+        return data.value.map(makeEmail)
+    }
+
+    /// Map a Graph message envelope into our `Email` model. Shared by the
+    /// unread fetch and search so the two never drift on how a message's
+    /// fields (mailing-list detection, meeting-cast times, recipients) resolve.
+    private func makeEmail(_ e: EmailResponse) -> Email {
+        let isMailingList = (e.internetMessageHeaders ?? []).contains { h in
+            h.name.caseInsensitiveCompare("List-Unsubscribe") == .orderedSame
+        }
+        let meetingStart = e.startDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
+        let meetingEnd = e.endDateTime.map { parseGraphDate($0.dateTime, timeZone: $0.timeZone) }
+        let toRecipients = (e.toRecipients ?? []).compactMap(Self.makeRecipient)
+        let ccRecipients = (e.ccRecipients ?? []).compactMap(Self.makeRecipient)
+        return Email(
+            id: e.id,
+            subject: e.subject,
+            from: e.from?.emailAddress.name ?? "",
+            fromAddress: e.from?.emailAddress.address ?? "",
+            preview: Klartext.parse(plainText: e.bodyPreview).preview(),
+            received: parseISO8601(e.receivedDateTime) ?? Date(),
+            isRead: e.isRead ?? false,
+            isFlagged: e.flag?.flagStatus == "flagged",
+            inferenceClassification: e.inferenceClassification,
+            meetingMessageType: e.meetingMessageType,
+            meetingStart: meetingStart,
+            meetingEnd: meetingEnd,
+            isMailingList: isMailingList,
+            toRecipients: toRecipients,
+            ccRecipients: ccRecipients
+        )
+    }
+
+    /// Map a Graph recipient envelope into our `Recipient` model. Skips
+    /// envelopes that carry no address — those are unusable for both
+    /// reply targeting and display.
+    private nonisolated static func makeRecipient(_ envelope: EmailAddressEnvelope) -> Recipient? {
+        guard let address = envelope.emailAddress.address, !address.isEmpty else { return nil }
+        return Recipient(name: envelope.emailAddress.name, address: address)
+    }
+
+    /// Mail.ReadWrite required. Idempotent.
+    func markEmailRead(id: String) async throws {
+        try await core.patch("/me/messages/\(id)", body: MarkReadBody(isRead: true))
+    }
+
+    /// IDs of Inbox messages already marked read whose `receivedDateTime`
+    /// falls within today (local midnight → tomorrow's local midnight).
+    /// Used by the "Mark today's emails unread" bulk action so the user
+    /// can re-surface a day's worth of mail that got cleared elsewhere
+    /// (Outlook on the web, another mobile client). Scoped to the Inbox
+    /// folder so Sent Items, Drafts, and Archive are excluded. Caps at
+    /// 200 — that covers any normal day with margin and keeps the
+    /// response small.
+    func idsOfReadEmailsReceivedToday() async throws -> [String] {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: Date())
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? Date()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let start = formatter.string(from: todayStart)
+        let end = formatter.string(from: tomorrowStart)
+
+        let data: GraphList<EmailIdResponse> = try await core.get(
+            "/me/mailFolders/inbox/messages",
+            query: [
+                "$filter": "isRead eq true and receivedDateTime ge \(start) and receivedDateTime lt \(end)",
+                "$top": "200",
+                "$select": "id"
+            ]
+        )
+        return data.value.map(\.id)
+    }
+
+    /// IDs of read, flagged messages in the Inbox. Backs the "Mark unread:
+    /// flagged emails" bulk action, which resurfaces follow-up items that
+    /// were read elsewhere (Outlook web, another client) so they reappear
+    /// in Blick's unread list. Same Inbox scoping and 200-item cap as
+    /// `idsOfReadEmailsReceivedToday`.
+    func idsOfReadFlaggedEmails() async throws -> [String] {
+        let data: GraphList<EmailIdResponse> = try await core.get(
+            "/me/mailFolders/inbox/messages",
+            query: [
+                "$filter": "isRead eq true and flag/flagStatus eq 'flagged'",
+                "$top": "200",
+                "$select": "id"
+            ]
+        )
+        return data.value.map(\.id)
+    }
+
+    /// Mail.ReadWrite required. Used to undo an accidental Mark Read or
+    /// to drive the explicit Mark Unread button on the preview sheet.
+    func markEmailUnread(id: String) async throws {
+        try await core.patch("/me/messages/\(id)", body: MarkReadBody(isRead: false))
+    }
+
+    /// Fetch a message's renderable content for the preview sheet: the body
+    /// as HTML plus attachment metadata, packaged as a KlartextUI
+    /// `EmailContent` the sheet's views consume directly. HTML (not text) so
+    /// the rich web view can render the sender's own design; the native fold
+    /// path reduces it back to text through `EmailContent.parsed()`.
+    ///
+    /// `$expand=attachments` selects metadata only — no `contentBytes` — so a
+    /// large real attachment never inflates the body fetch. Inline image bytes
+    /// (small, on-device, needed to paint `cid:` resources) are the one thing
+    /// we hydrate here, one short fetch per inline part. Real attachments
+    /// carry metadata only: the sheet shows their name, never downloads them.
+    /// Mail.Read or Mail.ReadWrite covers all of this.
+    func fetchEmailContent(id: String) async throws -> EmailContent {
+        // The body is essential — fetch it on its own and let a failure
+        // propagate so the sheet shows its error state. (Proven path: the same
+        // `$select=body` call as before, only the Prefer header asks for HTML
+        // instead of text.)
+        let bodyResp: EmailBodyResponse = try await core.get(
+            "/me/messages/\(id)",
+            query: ["$select": "body"],
+            headers: ["Prefer": "outlook.body-content-type=\"html\""]
+        )
+        let isHTML = bodyResp.body.contentType.caseInsensitiveCompare("html") == .orderedSame
+
+        // Attachments are best-effort and live in a separate call: a failure
+        // resolving them (an unusual attachment kind, a transient error) must
+        // never blank the body, so it degrades to no attachment list.
+        var parts: [EmailPart] = []
+        do {
+            parts = try await fetchAttachmentParts(messageId: id)
+        } catch {
+            #if DEBUG
+            print("CHECKIN-DEBUG fetchAttachmentParts failed: \(error)")
+            #endif
+        }
+
+        return EmailContent(
+            html: isHTML ? bodyResp.body.content : nil,
+            plainText: isHTML ? nil : bodyResp.body.content,
+            parts: parts
+        )
+    }
+
+    /// Fetch a message's attachment parts: metadata for all of them, plus the
+    /// raw bytes of inline images only. The metadata `$select` omits
+    /// `contentBytes`, so a large real attachment never rides along; we then
+    /// pull bytes one inline part at a time (logos and embedded images are
+    /// small), which is what the HTML web view needs to paint `cid:` resources.
+    private func fetchAttachmentParts(messageId: String) async throws -> [EmailPart] {
+        // `contentId` is a property of the fileAttachment subtype, not the base
+        // attachment, so it must be selected through the OData type cast — a
+        // bare `$select=contentId` 400s. The response still names the field
+        // `contentId`, so decoding is unaffected.
+        let list: GraphList<AttachmentMetaResponse> = try await core.get(
+            "/me/messages/\(messageId)/attachments",
+            query: ["$select": "id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId"]
+        )
+
+        // Hydrate bytes only for inline parts that name a Content-ID — the only
+        // ones the web view can paint via cid:. A message can carry several
+        // inline logos, so fetch their bytes concurrently rather than awaiting
+        // each in turn. Best-effort: a failed byte pull degrades to the
+        // broken-image glyph, not a failed sheet; non-inline parts never fetch.
+        let metas = list.value
+        var inlineBytes: [Int: Data] = [:]
+        await withTaskGroup(of: (Int, Data?).self) { group in
+            for (index, meta) in metas.enumerated()
+            where (meta.isInline ?? false) && meta.contentId != nil {
+                let attachmentId = meta.id
+                group.addTask {
+                    let bytes = try? await self.fetchAttachmentBytes(messageId: messageId, attachmentId: attachmentId)
+                    return (index, bytes)
+                }
+            }
+            for await (index, bytes) in group {
+                if let bytes { inlineBytes[index] = bytes }
+            }
+        }
+
+        return metas.enumerated().map { index, meta in
+            let isInline = meta.isInline ?? false
+            return EmailPart(
+                filename: meta.name,
+                mimeType: meta.contentType ?? "application/octet-stream",
+                contentID: meta.contentId,
+                disposition: isInline ? .inline : .attachment,
+                data: inlineBytes[index],
+                // Carry the Graph attachment id through Klartext untouched so a
+                // tapped attachment can be downloaded on demand without a fragile
+                // filename join (KlartextUI `sourceId` passthrough, package v1.5).
+                sourceId: meta.id
+            )
+        }
+    }
+
+    /// Pull one attachment's raw bytes by decoding Graph's base64
+    /// `contentBytes`. Used for inline images only (see `fetchAttachmentParts`).
+    /// No `$select`: `contentBytes` lives on the fileAttachment subtype, so a
+    /// bare `$select=contentBytes` 400s the same way `contentId` does. Fetching
+    /// the attachment whole returns its bytes, and inline images are small.
+    private func fetchAttachmentBytes(messageId: String, attachmentId: String) async throws -> Data? {
+        let resp: AttachmentBytesResponse = try await core.get(
+            "/me/messages/\(messageId)/attachments/\(attachmentId)"
+        )
+        guard let b64 = resp.contentBytes else { return nil }
+        return Data(base64Encoded: b64)
+    }
+
+    /// Download one real (non-inline) attachment's bytes on demand, for the
+    /// save/open flow — the user-initiated counterpart to the inline-image
+    /// hydration above. Same `contentBytes` decode path; throws
+    /// `GraphError.invalidResponse` when the attachment carries no bytes
+    /// (a `referenceAttachment` or `itemAttachment` the caller should have
+    /// filtered out — only `fileAttachment` has `contentBytes`).
+    func downloadAttachment(messageId: String, attachmentId: String) async throws -> Data {
+        guard let data = try await fetchAttachmentBytes(
+            messageId: messageId, attachmentId: attachmentId
+        ) else {
+            throw GraphError.invalidResponse
+        }
+        return data
+    }
+
+    /// Send a reply-all to a message, preserving the plain-text newlines the
+    /// composer captured. Graph's `replyAll` `comment` shortcut drops the
+    /// comment into the (HTML) reply body as-is, so line breaks collapse — the
+    /// bug this replaces. Instead we let Graph build the draft (quoted history,
+    /// `In-Reply-To` / `References` threading, reply-to-sender fallback for a
+    /// single recipient), then prepend our comment to the draft body ourselves,
+    /// converting newlines to `<br>` for an HTML draft (the usual case) or
+    /// keeping them literal for a plain-text one, and send. Mail.ReadWrite +
+    /// Mail.Send required.
+    func replyAllToEmail(id: String, comment: String) async throws {
+        let draft: DraftMessageResponse = try await core.postDecoded(
+            "/me/messages/\(id)/createReplyAll", body: EmptyBody()
+        )
+        let isHTML = draft.body.contentType.caseInsensitiveCompare("html") == .orderedSame
+        let prefix = isHTML ? Self.htmlComment(comment) : comment + "\n\n"
+        try await core.patch(
+            "/me/messages/\(draft.id)",
+            body: DraftBodyPatch(body: OutgoingBodyContent(
+                contentType: draft.body.contentType,
+                content: prefix + draft.body.content))
+        )
+        try await core.post("/me/messages/\(draft.id)/send", body: EmptyBody())
+    }
+
+    /// Escape a plain-text comment for insertion into an HTML reply body and
+    /// turn its newlines into `<br>` so they render. `&` is escaped first so
+    /// the `<`/`>` escapes aren't double-encoded; CRLF/CR normalize to LF.
+    private static func htmlComment(_ comment: String) -> String {
+        let escaped = comment
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\n", with: "<br>")
+        return escaped + "<br><br>"
+    }
+
+    /// Compose and send a brand-new email. Graph's `/me/sendMail` delivers
+    /// immediately and (with `saveToSentItems`) files a copy in Sent. Body
+    /// is plain text. `to`/`cc`/`bcc` are already-validated SMTP addresses.
+    /// Mail.Send required.
+    func sendMail(subject: String, body: String,
+                  to: [String], cc: [String], bcc: [String]) async throws {
+        let message = OutgoingMessageBody(
+            subject: subject,
+            body: OutgoingBodyContent(contentType: "Text", content: body),
+            toRecipients: recipientBodies(to),
+            ccRecipients: recipientBodies(cc),
+            bccRecipients: recipientBodies(bcc)
+        )
+        try await core.post("/me/sendMail", body: SendMailBody(message: message, saveToSentItems: true))
+    }
+
+    /// Forward an existing message, preserving the note's plain-text newlines.
+    /// Like reply, the `/forward` shortcut would collapse them in the HTML
+    /// body, so we go through the draft: `createForward` sets the recipients
+    /// and quotes the original server-side, we prepend the note to the draft
+    /// body (newlines → `<br>` for HTML), then send. The original stays
+    /// unread — createForward touches only the new draft. Mail.ReadWrite +
+    /// Mail.Send required.
+    func forwardEmail(id: String, comment: String, to: [String]) async throws {
+        let draft: DraftMessageResponse = try await core.postDecoded(
+            "/me/messages/\(id)/createForward",
+            body: CreateForwardBody(toRecipients: recipientBodies(to))
+        )
+        // A forward can carry an empty note; only prepend when there's text.
+        if !comment.isEmpty {
+            let isHTML = draft.body.contentType.caseInsensitiveCompare("html") == .orderedSame
+            let prefix = isHTML ? Self.htmlComment(comment) : comment + "\n\n"
+            try await core.patch(
+                "/me/messages/\(draft.id)",
+                body: DraftBodyPatch(body: OutgoingBodyContent(
+                    contentType: draft.body.contentType,
+                    content: prefix + draft.body.content))
+            )
+        }
+        try await core.post("/me/messages/\(draft.id)/send", body: EmptyBody())
+    }
+
+    /// Wrap validated SMTP addresses in Graph's recipient envelope.
+    private func recipientBodies(_ addresses: [String]) -> [OutgoingRecipientBody] {
+        addresses.map { OutgoingRecipientBody(emailAddress: OutgoingAddressBody(address: $0)) }
+    }
+
+    /// Post a new message into an existing chat thread. Chat.ReadWrite
+    /// covers this — `ChatMessage.Send` is a more granular scope but
+    /// the broader one we already request is a superset.
+    func sendChatMessage(chatId: String, content: String) async throws {
+        try await core.post(
+            "/me/chats/\(chatId)/messages",
+            body: ChatMessageSendBody(
+                body: ChatMessageSendContent(contentType: "text", content: content)
+            )
+        )
+    }
+
+    /// Create a new Teams chat with the given member identities (UPNs or
+    /// AAD ids) and return its id. The list must include the signed-in user
+    /// — Graph does not add the creator implicitly — so the caller passes
+    /// `[self] + recipients`. Two members create a 1:1 chat (idempotent, so
+    /// re-chatting the same person reuses the thread); three or more create
+    /// a group. An unknown or external identity fails here with a Graph
+    /// error the caller surfaces. Requires the `Chat.Create` scope.
+    func createChat(memberIdentities: [String]) async throws -> String {
+        let chatType = memberIdentities.count > 2 ? "group" : "oneOnOne"
+        let members = memberIdentities.map {
+            CreateChatMemberBody(userRef: "https://graph.microsoft.com/v1.0/users('\($0)')")
+        }
+        let chat: ChatResponse = try await core.postDecoded(
+            "/chats", body: CreateChatBody(chatType: chatType, members: members)
+        )
+        return chat.id
+    }
+
+    /// Mark a chat as read for the signed-in user — advances the
+    /// per-user `viewpoint.lastMessageReadDateTime`, which is what we
+    /// now key the chat-list filter off. Chat.ReadWrite required.
+    func markChatRead(chatId: String, userId: String, tenantId: String) async throws {
+        try await core.post(
+            "/chats/\(chatId)/markChatReadForUser",
+            body: MarkChatReadBody(
+                user: TeamworkUserIdentityBody(id: userId, tenantId: tenantId)
+            )
+        )
+    }
+
+    /// Mark a chat as unread for the signed-in user. Setting
+    /// `lastMessageReadDateTime` to a distant past timestamp marks the
+    /// whole chat unread (Graph's filter then treats the latest message
+    /// as newer than the read mark). Chat.ReadWrite required.
+    func markChatUnread(chatId: String, userId: String, tenantId: String) async throws {
+        try await core.post(
+            "/chats/\(chatId)/markChatUnreadForUser",
+            body: MarkChatUnreadBody(
+                user: TeamworkUserIdentityBody(id: userId, tenantId: tenantId)
+            )
+        )
+    }
+
+    /// Chat ids whose last message arrived within today (local midnight
+    /// to tomorrow's local midnight) and are currently read for the
+    /// signed-in user. Drives the "Mark today's chats unread" empty-
+    /// state action. Filtering is client-side because Graph doesn't
+    /// expose `viewpoint.lastMessageReadDateTime` as a $filter field.
+    func idsOfReadChatsToday() async throws -> [String] {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: Date())
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? Date()
+
+        let data: GraphList<ChatResponse> = try await core.get("/me/chats", query: [
+            "$select": "id,lastMessagePreview,viewpoint",
+            "$expand": "lastMessagePreview",
+            "$top": "50"
+        ])
+
+        var ids: [String] = []
+        for chat in data.value {
+            if chat.viewpoint?.isHidden == true { continue }
+            guard let preview = chat.lastMessagePreview else { continue }
+            guard preview.messageType.isEmpty || preview.messageType == "message" else { continue }
+            guard let created = parseISO8601(preview.createdDateTime),
+                  created >= todayStart, created < tomorrowStart else { continue }
+            let lastRead = (chat.viewpoint?.lastMessageReadDateTime)
+                .flatMap(parseISO8601) ?? .distantPast
+            // Already-read chats only — pulling an unread one back to
+            // unread is a no-op and just wastes a round-trip.
+            guard lastRead >= created else { continue }
+            ids.append(chat.id)
+        }
+        return ids
+    }
+
+    /// Mail.ReadWrite required. Idempotent.
+    func flagEmail(id: String) async throws {
+        try await core.patch("/me/messages/\(id)",
+                        body: FlagBody(flag: FlagStatusBody(flagStatus: "flagged")))
+    }
+
+    /// Mail.ReadWrite required. Idempotent.
+    func unflagEmail(id: String) async throws {
+        try await core.patch("/me/messages/\(id)",
+                        body: FlagBody(flag: FlagStatusBody(flagStatus: "notFlagged")))
+    }
+
+/// Microsoft Graph's per-batch ceiling for `/$batch` operations.
+    /// Chunking at this size keeps us inside the limit and avoids the
+    /// 429 Too Many Requests bursts we'd see firing concurrent PATCHes.
+    private static let graphBatchSize = 20
+
+    /// Bulk mark-read via `/$batch`. Chunks larger inputs into
+    /// `graphBatchSize`-op batches. Returns the IDs that came back
+    /// non-2xx so the caller can selectively revert.
+    func batchMarkRead(ids: [String]) async throws -> Set<String> {
+        try await batchSetReadState(ids: ids, isRead: true)
+    }
+
+    /// Bulk mark-unread via `/$batch`. Used by the undo path so a
+    /// "Marked 20 read" action can be reversed in one round trip.
+    func batchMarkUnread(ids: [String]) async throws -> Set<String> {
+        try await batchSetReadState(ids: ids, isRead: false)
+    }
+
+    private func batchSetReadState(ids: [String], isRead: Bool) async throws -> Set<String> {
+        try await batchPatch(ids: ids) { _ in MarkReadBody(isRead: isRead) }
+    }
+
+    /// Bulk flag/unflag via `/$batch`. Same chunking rationale as
+    /// `batchMarkRead`.
+    func batchSetFlagged(ids: [String], flagged: Bool) async throws -> Set<String> {
+        let status = flagged ? "flagged" : "notFlagged"
+        return try await batchPatch(ids: ids) { _ in
+            FlagBody(flag: FlagStatusBody(flagStatus: status))
+        }
+    }
+
+    /// Bulk PATCH `/me/messages/{id}` over `/$batch`, chunked to Graph's
+    /// per-batch ceiling. Returns the ids whose sub-response wasn't 2xx.
+    /// `makeBody` supplies each message's PATCH body, so mark-read and
+    /// flag/unflag share one chunk-and-collect-failures loop.
+    private func batchPatch<B: Encodable>(
+        ids: [String],
+        makeBody: (String) -> B
+    ) async throws -> Set<String> {
+        var failed: Set<String> = []
+        for chunk in ids.batched(by: Self.graphBatchSize) {
+            let requests = chunk.enumerated().map { (i, id) in
+                BatchRequest(
+                    id: "\(i)",
+                    method: "PATCH",
+                    url: "/me/messages/\(id)",
+                    headers: ["Content-Type": "application/json"],
+                    body: makeBody(id)
+                )
+            }
+            let response: BatchResponse = try await core.postDecoded(
+                "/$batch",
+                body: BatchEnvelope(requests: requests)
+            )
+            failed.formUnion(failedIds(in: response, against: chunk))
+        }
+        return failed
+    }
+
+    private func failedIds(in response: BatchResponse, against ids: [String]) -> Set<String> {
+        var failed: Set<String> = []
+        for r in response.responses where !(200..<300).contains(r.status) {
+            if let idx = Int(r.id), idx < ids.count {
+                failed.insert(ids[idx])
+            }
+        }
+        return failed
+    }
+
+    /// Fetch chats with unread activity. "Unread" here uses Graph's
+    /// per-user `viewpoint.lastMessageReadDateTime`: a chat is unread
+    /// when the last message's `createdDateTime` is newer than the
+    /// user's last-read timestamp. This replaces the older heuristic of
+    /// "the last message wasn't from me" (which was a workaround from
+    /// when Graph didn't expose read state for chats).
+    ///
+    /// Additional filters:
+    /// - Skip chats the user hid in Teams (`viewpoint.isHidden`).
+    /// - Skip non-message events (joins, leaves, renames).
+    ///
+    /// There is no age cutoff: a genuinely unread chat surfaces however
+    /// old its last message is, so nothing unread is silently dropped.
+    ///
+    /// We intentionally do NOT skip chats where the last message is
+    /// from the signed-in user — Teams reliably advances
+    /// `lastMessageReadDateTime` on send, so the viewpoint check
+    /// already handles that case. Adding a `from.id == userID` skip
+    /// here would fight against the "Mark today's chats unread" bulk
+    /// action (which flips viewpoint back to unread; the explicit
+    /// skip would re-hide those chats).
+    func unreadChats() async throws -> [ChatMessage] {
+        let data: GraphList<ChatResponse> = try await core.get("/me/chats", query: [
+            "$select": "id,topic,webUrl,lastMessagePreview,viewpoint",
+            "$expand": "lastMessagePreview,members",
+            "$top": "50"
+        ])
+
+        var messages: [ChatMessage] = []
+
+        for chat in data.value {
+            guard let preview = chat.lastMessagePreview,
+                  let sent = parseISO8601(preview.createdDateTime) else { continue }
+            // `isUnreadChat` (BlickGraph) is the single authority on what
+            // counts as unread, shared with the widget/watch snapshot count.
+            guard isUnreadChat(
+                isHidden: chat.viewpoint?.isHidden,
+                messageType: preview.messageType,
+                hasSenderUser: preview.from?.user != nil,
+                sent: sent,
+                lastRead: chat.viewpoint?.lastMessageReadDateTime.flatMap(parseISO8601)
+            ), let from = preview.from?.user else { continue }
+
+            messages.append(makeChatMessage(chat, sent: sent, sender: from, isRead: false))
+        }
+
+        return messages
+    }
+
+    /// Recent chats, read and unread, newest first — the "browse chats" list
+    /// behind the Chats header, as opposed to `unreadChats`.
+    /// Same display gate as the unread fetch; each chat's read state comes from
+    /// the per-user `viewpoint.lastMessageReadDateTime`.
+    func recentChats() async throws -> [ChatMessage] {
+        let data: GraphList<ChatResponse> = try await core.get("/me/chats", query: [
+            "$select": "id,topic,webUrl,lastMessagePreview,viewpoint",
+            "$expand": "lastMessagePreview,members",
+            "$top": "50"
+        ])
+
+        var messages: [ChatMessage] = []
+        for chat in data.value {
+            guard let preview = chat.lastMessagePreview,
+                  let sent = parseISO8601(preview.createdDateTime),
+                  isDisplayableChat(isHidden: chat.viewpoint?.isHidden,
+                                    messageType: preview.messageType,
+                                    hasSenderUser: preview.from?.user != nil,
+                                    sent: sent),
+                  let from = preview.from?.user else { continue }
+            let lastRead = chat.viewpoint?.lastMessageReadDateTime.flatMap(parseISO8601)
+            let isRead = !(sent > (lastRead ?? .distantPast))
+            messages.append(makeChatMessage(chat, sent: sent, sender: from, isRead: isRead))
+        }
+        return messages.sorted { $0.sent > $1.sent }
+    }
+
+    /// Build a `ChatMessage` from a chat, its resolved last-message time and
+    /// sender, and a read flag. Shared by the unread and browse fetches so the
+    /// two never drift on participant filtering or body handling.
+    private func makeChatMessage(_ chat: ChatResponse, sent: Date,
+                                 sender: ChatUserResponse, isRead: Bool) -> ChatMessage {
+        let others: [String] = (chat.members ?? []).compactMap { m in
+            guard let uid = m.userId, let name = m.displayName, !name.isEmpty else { return nil }
+            if uid == userID || uid == sender.id { return nil }
+            return name
+        }
+        return ChatMessage(
+            chatId: chat.id,
+            topic: chat.topic ?? "",
+            from: sender.displayName,
+            preview: Klartext.plainText(fromHTML: chat.lastMessagePreview?.body.content ?? ""),
+            sent: sent,
+            otherParticipants: others,
+            webUrl: chat.webUrl,
+            isRead: isRead
+        )
+    }
+
+    /// Fetch a chat's recent transcript for the preview sheet: the run of
+    /// messages back to the signed-in user's own last message, or `cap`
+    /// messages, whichever comes first. One request, no paging — when the
+    /// run is longer than the cap the sheet hands the rest off to Teams.
+    ///
+    /// The endpoint returns newest-first by default, but doesn't guarantee
+    /// order, so we sort client-side; the page size (50) sits well above
+    /// the cap so the true newest messages are present to sort. System-event
+    /// messages are dropped and bodies HTML-stripped, matching `unreadChats`.
+    /// The result is ordered oldest-first for display, with `hasMore` set
+    /// when the cap truncated the run.
+    func fetchChatThread(chatId: String, cap: Int = 20) async throws -> ChatThread {
+        let page: GraphList<ChatMessageResponse> = try await core.get(
+            "/chats/\(chatId)/messages",
+            query: ["$top": "50"]
+        )
+
+        let newestFirst = page.value
+            .compactMap { msg -> (ChatMessageResponse, Date)? in
+                guard let sent = parseISO8601(msg.createdDateTime) else { return nil }
+                return (msg, sent)
+            }
+            .sorted { $0.1 > $1.1 }
+
+        var collected: [ChatThreadMessage] = []
+        var reachedMine = false
+        for (msg, sent) in newestFirst {
+            guard msg.messageType == "message", let user = msg.from?.user else { continue }
+            let isMine = user.id == userID
+            let attachments = msg.attachments ?? []
+            let bodyHasImage = msg.body.content.range(of: "<img", options: .caseInsensitive) != nil
+            // Image vs. file classification is delegated to Klartext so the
+            // extension/MIME rules live in one place across the email and chat
+            // transports (Klartext.isImageAttachment, klartext#5).
+            let hasImage = bodyHasImage
+                || attachments.contains { Klartext.isImageAttachment(mimeType: $0.contentType, filename: $0.name) }
+            let hasFile = attachments.contains { !Klartext.isImageAttachment(mimeType: $0.contentType, filename: $0.name) }
+            collected.append(ChatThreadMessage(
+                id: msg.id,
+                from: user.displayName,
+                isFromMe: isMine,
+                body: Klartext.plainText(fromHTML: msg.body.content),
+                sent: sent,
+                hasImage: hasImage,
+                hasFile: hasFile
+            ))
+            // Include my own message as the top anchor, then stop — it marks
+            // where I left off.
+            if isMine { reachedMine = true; break }
+            if collected.count >= cap { break }
+        }
+
+        // The run is truncated only if the cap stopped us before reaching my
+        // own message. Reaching my message, or exhausting a short thread,
+        // means the whole run is shown.
+        let hasMore = !reachedMine && collected.count >= cap
+        return ChatThread(messages: collected.reversed(), hasMore: hasMore)
+    }
+}
+
+private extension Array {
+    /// Split into contiguous sub-arrays of at most `size` elements.
+    func batched(by size: Int) -> [[Element]] {
+        guard size > 0, !isEmpty else { return isEmpty ? [] : [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
+    }
+}

@@ -1,0 +1,1001 @@
+// MessagePreviewSheet.swift
+// Blick
+// Author: David M. Anderson
+// Built with AI assistance (Claude, Anthropic)
+
+import BlickKit
+import KlartextUI
+import SwiftUI
+#if DEBUG
+import os
+private let log = Logger(subsystem: "com.excelano.checkin", category: "preview")
+#endif
+
+/// Drives the preview sheet via `.sheet(item:)`. `openComposer` lets a
+/// long-press "Reply" action jump straight to the composer without
+/// showing the preview body first.
+struct MessagePreviewTarget: Identifiable {
+    enum Kind {
+        case email(Email)
+        case chat(ChatMessage)
+    }
+
+    let kind: Kind
+    let openComposer: Bool
+
+    var id: String {
+        switch kind {
+        case .email(let e): return "email-\(e.id)"
+        case .chat(let c): return "chat-\(c.id.uuidString)"
+        }
+    }
+
+    static func email(_ e: Email, openComposer: Bool = false) -> Self {
+        .init(kind: .email(e), openComposer: openComposer)
+    }
+
+    static func chat(_ c: ChatMessage, openComposer: Bool = false) -> Self {
+        .init(kind: .chat(c), openComposer: openComposer)
+    }
+}
+
+/// Lean preview of a chat or email. Header at top, scrollable body in
+/// the middle, action bar pinned to the bottom. Reply swaps `ComposeView`
+/// (inline mode) in place of the body; we don't push a second sheet.
+struct MessagePreviewSheet: View {
+    var inbox: Inbox
+    let target: MessagePreviewTarget
+    /// Parent-supplied close action. iPhone presents this view in a
+    /// `.sheet(item:)` and the iPad split view renders it as the detail
+    /// pane; both bind the same `previewTarget` and pass
+    /// `{ previewTarget = nil }`. The previous `@Environment(\.dismiss)`
+    /// silently did nothing in the split-view detail context.
+    let onClose: () -> Void
+
+    @State private var showingComposer = false
+    /// Presents the forward composer over the preview. Email-only; the
+    /// original stays unread, so the preview underneath is left intact.
+    @State private var showingForward = false
+    /// The fetched email body (HTML) plus attachment metadata, as a KlartextUI
+    /// hand-off. Feeds the native fold (via `parsed`) and the HTML web view.
+    @State private var emailContent: EmailContent?
+    /// The email body parsed once into visible / quoted / attachments, cached
+    /// alongside `emailContent` so SwiftUI re-renders (the Web View and Load
+    /// Images toggles each rebuild the body) don't re-run the HTML parse every
+    /// time. Set together with `emailContent` in `loadBodyIfNeeded`.
+    @State private var parsed: ParsedBody?
+    @State private var bodyFetchFailed = false
+    /// Switches the email body between the native text fold (default) and the
+    /// faithful HTML render. Only meaningful when the body has HTML.
+    @State private var showWebView = false
+    /// Per-message opt-in to load remote http(s) images in the HTML view. Off
+    /// by default: a remote image is a tracking pixel and a new external
+    /// destination until the reader chooses to load it. `cid:` inline images
+    /// (already on device) always render regardless of this gate.
+    @State private var loadRemoteImages = false
+    @State private var didAutoMarkRead = false
+    @State private var recipientsExpanded = false
+    /// Set when the user taps the orange conflict indicator on the
+    /// meeting info row. Drives a sheet-on-sheet presentation of
+    /// `ConflictResolutionSheet`. Same flow as the calendar card's
+    /// conflict button, scoped to the preview's lifetime.
+    @State private var conflictTarget: Meeting?
+    /// Chat transcript walked back to the user's last reply, loaded lazily
+    /// when the sheet opens. Nil while loading; `threadFetchFailed` true
+    /// when the fetch failed, in which case the sheet degrades to the
+    /// single last-message preview it already holds.
+    @State private var chatThread: ChatThread?
+    @State private var threadFetchFailed = false
+
+    /// Attachment save/open state. `downloadingAttachmentID` is the resolved
+    /// attachment's `id` currently downloading (drives the per-row spinner);
+    /// `attachmentPreview` non-nil presents Quick Look; `attachmentError` non-nil
+    /// raises a one-line alert when a download fails or an attachment kind can't
+    /// be opened.
+    @State private var downloadingAttachmentID: String?
+    @State private var attachmentPreview: AttachmentPreviewItem?
+    @State private var attachmentError: String?
+
+    var body: some View {
+        ZStack {
+            Brand.bg.ignoresSafeArea()
+            if showingComposer {
+                ComposeView(
+                    inbox: inbox,
+                    onClose: { showingComposer = false },
+                    onSent: { onClose() },
+                    mode: .reply(replyContext),
+                    presentation: .inline
+                )
+            } else {
+                previewBody
+            }
+        }
+        .preferredColorScheme(.dark)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .sheet(item: $conflictTarget) { meeting in
+            ConflictResolutionSheet(inbox: inbox, primaryMeetingId: meeting.id)
+        }
+        .sheet(isPresented: $showingForward) {
+            if let email = forwardEmailTarget {
+                ComposeView(
+                    inbox: inbox,
+                    onClose: { showingForward = false },
+                    mode: .forward(emailId: email.id, subject: email.subject)
+                )
+            }
+        }
+        .sheet(item: $attachmentPreview) { item in
+            QuickLookPreview(fileURL: item.url)
+        }
+        .alert("Attachment", isPresented: Binding(
+            get: { attachmentError != nil },
+            set: { if !$0 { attachmentError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(attachmentError ?? "")
+        }
+        .task {
+            #if DEBUG
+            log.info("preview sheet task: openComposer=\(target.openComposer, privacy: .public), kind=\(targetKindString, privacy: .public)")
+            #endif
+            if target.openComposer && !showingComposer {
+                showingComposer = true
+                return
+            }
+            await loadBodyIfNeeded()
+            await loadChatThreadIfNeeded()
+            await autoMarkReadIfNeeded()
+        }
+    }
+
+    /// True once we hold an email body that actually carries HTML — the gate
+    /// for offering the Web View toggle and for letting it render.
+    private var hasHTML: Bool {
+        guard case .email = target.kind else { return false }
+        return !(emailContent?.html?.isEmpty ?? true)
+    }
+
+    /// The faithful HTML render is on screen.
+    private var webViewActive: Bool { hasHTML && showWebView }
+
+    /// Stable identity for the web view, so SwiftUI rebuilds it (a fresh
+    /// configuration and cid handler, which can't be re-registered) when the
+    /// detail pane is reused for a different email on iPad.
+    private var emailIdentity: String {
+        if case .email(let email) = target.kind { return email.id }
+        return ""
+    }
+
+    @ViewBuilder
+    private var previewBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if showsHeader {
+                header
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
+                Divider().overlay(Brand.bgDarker)
+            }
+            if hasHTML {
+                bodyModeBar
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                Divider().overlay(Brand.bgDarker)
+            }
+            bodyRegion
+            Divider().overlay(Brand.bgDarker)
+            if let meeting = matchingMeeting {
+                switch meeting.responseStatus {
+                case .notResponded:
+                    rsvpRow(for: meeting)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
+                case .accepted, .tentativelyAccepted, .declined:
+                    respondedPill(label: meeting.responseStatus.displayLabel ?? "")
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
+                case .none, .organizer:
+                    EmptyView()
+                }
+            } else if inviteData != nil {
+                respondedPill(label: "Removed")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 4)
+            }
+            actionBar
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+        }
+    }
+
+    /// The scrollable body. In the default text mode (and for chats) this is a
+    /// SwiftUI `ScrollView`. In HTML mode the body is an `EmailHTMLView`, a web
+    /// view that scrolls its own content, so it fills the region directly
+    /// rather than nesting inside an outer scroll view. The meeting info row
+    /// stays pinned above either way.
+    @ViewBuilder
+    private var bodyRegion: some View {
+        if webViewActive, let content = emailContent {
+            VStack(alignment: .leading, spacing: 12) {
+                if let invite = inviteData {
+                    meetingInfoRow(start: invite.start, end: invite.end)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                }
+                EmailHTMLView(content: content, allowRemoteContent: loadRemoteImages)
+                    .id(emailIdentity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Invitation chrome (calendar icon + time) is driven
+                    // by the email — `isInvite` is the canonical source
+                    // of truth. The conflict-triangle row inside hides
+                    // itself when `matchingMeeting` is nil or has no
+                    // conflict.
+                    if let invite = inviteData {
+                        meetingInfoRow(start: invite.start, end: invite.end)
+                    }
+                    bodyText
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// The pinned control strip shown only when the body carries HTML: a
+    /// toggle between the native text fold and the faithful HTML render, plus
+    /// (in HTML mode, while remote content is still blocked) a one-tap
+    /// "Load images" opt-in for this message.
+    @ViewBuilder
+    private var bodyModeBar: some View {
+        HStack(spacing: 16) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { showWebView.toggle() }
+            } label: {
+                Label(showWebView ? "Text" : "Web View",
+                      systemImage: showWebView ? "textformat" : "globe")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Brand.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(showWebView ? "Show the message as plain text" : "Show the message as formatted HTML")
+
+            Spacer()
+
+            if webViewActive {
+                if loadRemoteImages {
+                    Label("Images loaded", systemImage: "photo")
+                        .font(.caption2)
+                        .foregroundStyle(Brand.textMuted)
+                } else {
+                    Button {
+                        loadRemoteImages = true
+                    } label: {
+                        Label("Load images", systemImage: "photo")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Brand.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Load remote images for this message")
+                }
+            }
+        }
+    }
+
+    /// Tuple capturing the data we need to render the invitation
+    /// chrome from the email itself: start/end always come from the
+    /// `eventMessage` cast fields, so they're available on every
+    /// invite — not gated on having a matching Meeting.
+    private var inviteData: (start: Date, end: Date)? {
+        guard case .email(let email) = target.kind,
+              email.isInvite,
+              let start = email.meetingStart,
+              let end = email.meetingEnd else { return nil }
+        return (start, end)
+    }
+
+    /// Date + time on its own line, conflict warning (when applicable)
+    /// on a separate line below in orange and tappable to open the
+    /// conflict resolver — same flow as the calendar card's button.
+    /// Time comes from the email's own `eventMessage` fields; the
+    /// conflict line requires `matchingMeeting` (only meetings the
+    /// matcher resolved carry overlap info).
+    @ViewBuilder
+    private func meetingInfoRow(start: Date, end: Date) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.footnote)
+                Text(formatMeetingTime(start, end: end))
+                    .font(.footnote)
+            }
+            .foregroundStyle(Brand.textMuted)
+            if let meeting = matchingMeeting, meeting.hasConflict {
+                Button {
+                    conflictTarget = meeting
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                        Text("Overlaps another meeting")
+                            .font(.footnote)
+                    }
+                    .foregroundStyle(.orange)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Open conflict resolution")
+            }
+        }
+    }
+
+    /// Non-interactive status pill shown in place of the RSVP buttons.
+    /// Carries either the user's response ("Accepted" / "Tentative" /
+    /// "Declined") or "Removed" when the invite has no corresponding
+    /// event in the calendar. Mirrors `EmailRow`'s responded pill so
+    /// both surfaces convey the same state with the same chrome.
+    private func respondedPill(label: String) -> some View {
+        HStack {
+            RespondedPill(label: label, style: .filled(Brand.bgDarker))
+            Spacer()
+        }
+    }
+
+    /// Same Accept/Maybe/Decline triplet that lives on the meeting
+    /// card and the email row. Routing the tap through
+    /// `Inbox.respondToMeeting` keeps the meeting card, email list,
+    /// and badge in sync — same downstream path as the calendar card.
+    private func rsvpRow(for meeting: Meeting) -> some View {
+        RsvpRow(outlineColor: Brand.accent) { response in
+            Task {
+                await inbox.respondToMeeting(response, meetingId: meeting.id)
+                onClose()
+            }
+        }
+    }
+
+    /// Recomputed each render so an RSVP made elsewhere (Outlook,
+    /// another device) while the sheet is open is reflected the moment
+    /// the summary refreshes. Only set for actionable invites whose
+    /// underlying meeting is in today's summary window.
+    private var matchingMeeting: Meeting? {
+        guard case .email(let email) = target.kind, email.isInvite else { return nil }
+        return inbox.meetingMatching(email)
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        switch target.kind {
+        case .email(let email):
+            VStack(alignment: .leading, spacing: 6) {
+                Text(email.subject)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(3)
+                HStack(spacing: 6) {
+                    Text(email.from)
+                        .font(.subheadline)
+                        .foregroundStyle(Brand.accent)
+                    Spacer(minLength: 8)
+                    Text(relativeTime(email.received))
+                        .font(.caption)
+                        .foregroundStyle(Brand.textMuted)
+                }
+                recipientRow(for: email)
+                attachmentIndicator
+            }
+        case .chat(let chat):
+            // Sender + time are intentionally omitted: the transcript below
+            // carries every message's author and time, so a header row would
+            // just duplicate its newest entry. Only the chat-level context
+            // the transcript doesn't show (topic, participants) lives here.
+            VStack(alignment: .leading, spacing: 6) {
+                if !chat.topic.isEmpty {
+                    Text(chat.topic)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                }
+                if !chat.otherParticipants.isEmpty {
+                    Text("with \(chat.otherParticipants.joined(separator: ", "))")
+                        .font(.caption)
+                        .foregroundStyle(Brand.textMuted)
+                        .lineLimit(2)
+                }
+            }
+        }
+    }
+
+    /// Email always has a header (subject + sender). A chat shows one only
+    /// when it carries context the transcript doesn't — a topic or other
+    /// participants — so a 1:1 chat opens straight into its transcript with
+    /// no empty chrome.
+    private var showsHeader: Bool {
+        switch target.kind {
+        case .email:
+            return true
+        case .chat(let chat):
+            return !chat.topic.isEmpty || !chat.otherParticipants.isEmpty
+        }
+    }
+
+    /// Paperclip + the real attachment names, once the body has loaded.
+    /// Driven by Klartext's `userFacing` filter, which excludes truly inline
+    /// parts (signature logos, body-referenced images, tracking pixels) by
+    /// testing whether each part's Content-ID is actually referenced by a
+    /// `cid:` in the HTML — accurate where Graph's `hasAttachments` over-
+    /// reported. Absent until the body loads; nothing flickers in before then.
+    @ViewBuilder
+    private var attachmentIndicator: some View {
+        if let attachments = parsed?.attachments.userFacing, !attachments.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(attachments) { attachment in
+                    attachmentRow(attachment)
+                }
+            }
+        }
+    }
+
+    /// One tappable attachment row: paperclip + filename, swapped for a spinner
+    /// while its bytes download. Tapping downloads on demand and opens Quick Look
+    /// (which carries its own Share / Save to Files). Accent color signals the row
+    /// is actionable, unlike the muted static list it replaced.
+    @ViewBuilder
+    private func attachmentRow(_ attachment: Attachment) -> some View {
+        let isDownloading = downloadingAttachmentID == attachment.id
+        Button {
+            Task { await openAttachment(attachment) }
+        } label: {
+            HStack(spacing: 4) {
+                if isDownloading {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "paperclip").font(.caption)
+                }
+                Text(attachment.filename ?? "Attachment")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .foregroundStyle(Brand.accent)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDownloading)
+        .accessibilityLabel("Attachment, \(attachment.filename ?? "unnamed")")
+        .accessibilityHint("Opens the attachment")
+    }
+
+    /// Download an attachment's bytes and hand them to Quick Look. `sourceId` is
+    /// the Graph attachment id carried through Klartext; a nil one (nothing to
+    /// fetch against) or a kind with no bytes — a cloud `referenceAttachment` or
+    /// an embedded `itemAttachment` — surfaces the one-line error rather than a
+    /// crash. Byte fetch stays on the authenticated device; the file goes only to
+    /// Apple's own Quick Look / share sheet, so the privacy posture is unchanged.
+    @MainActor
+    private func openAttachment(_ attachment: Attachment) async {
+        guard case .email(let email) = target.kind else { return }
+        guard let attachmentId = attachment.sourceId else {
+            attachmentError = "This attachment can't be opened."
+            return
+        }
+        downloadingAttachmentID = attachment.id
+        defer { downloadingAttachmentID = nil }
+        do {
+            let data = try await inbox.downloadAttachment(
+                emailId: email.id, attachmentId: attachmentId)
+            let url = try AttachmentPreviewFile.write(data, filename: attachment.filename)
+            attachmentPreview = AttachmentPreviewItem(url: url)
+        } catch {
+            attachmentError = "Couldn't open \(attachment.filename ?? "this attachment")."
+        }
+    }
+
+    /// Apple Mail-style expandable recipient row. Collapsed: a one-line
+    /// summary like "also to: Alice, Bob +3". Expanded: stacked "to:"
+    /// and "cc:" lines. Hidden entirely when the email has no other
+    /// recipients beyond the sender and the signed-in user.
+    @ViewBuilder
+    private func recipientRow(for email: Email) -> some View {
+        let tos = displayedRecipients(email.toRecipients)
+        let ccs = displayedRecipients(email.ccRecipients)
+        if !tos.isEmpty || !ccs.isEmpty {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    recipientsExpanded.toggle()
+                }
+            } label: {
+                if recipientsExpanded {
+                    expandedRecipients(tos: tos, ccs: ccs)
+                } else {
+                    collapsedRecipients(tos: tos, ccs: ccs)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(recipientsExpanded ? "Hide recipients" : "Show recipients")
+        }
+    }
+
+    private func collapsedRecipients(tos: [Recipient], ccs: [Recipient]) -> some View {
+        HStack(spacing: 4) {
+            Text(compactRecipientSummary(tos: tos, ccs: ccs))
+                .font(.caption)
+                .foregroundStyle(Brand.textMuted)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(Brand.textMuted)
+        }
+    }
+
+    private func expandedRecipients(tos: [Recipient], ccs: [Recipient]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if !tos.isEmpty {
+                Text("to: \(tos.map(\.displayName).joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(Brand.textMuted)
+                    .multilineTextAlignment(.leading)
+            }
+            if !ccs.isEmpty {
+                Text("cc: \(ccs.map(\.displayName).joined(separator: ", "))")
+                    .font(.caption)
+                    .foregroundStyle(Brand.textMuted)
+                    .multilineTextAlignment(.leading)
+            }
+            Image(systemName: "chevron.up")
+                .font(.caption2)
+                .foregroundStyle(Brand.textMuted)
+        }
+    }
+
+    /// First two names of the combined To+Cc list followed by "+N" when
+    /// more remain. Kept short so the row fits on a single line in the
+    /// medium sheet detent.
+    private func compactRecipientSummary(tos: [Recipient], ccs: [Recipient]) -> String {
+        let all = tos + ccs
+        let names = all.map(\.displayName)
+        let head = names.prefix(2).joined(separator: ", ")
+        let extra = names.count - 2
+        if extra > 0 {
+            return "also to: \(head) +\(extra)"
+        }
+        return "also to: \(head)"
+    }
+
+    /// Strip the signed-in user out of a recipient list so the UI shows
+    /// only "the other people on this email." Case-insensitive on the
+    /// SMTP address. Falls through to the unfiltered list when we
+    /// haven't fetched the user's mail yet — better to show too many
+    /// than to drop everyone.
+    private func displayedRecipients(_ recipients: [Recipient]) -> [Recipient] {
+        let me = inbox.currentUserMail.lowercased()
+        guard !me.isEmpty else { return recipients }
+        return recipients.filter { $0.address.lowercased() != me }
+    }
+
+    @ViewBuilder
+    private var bodyText: some View {
+        switch target.kind {
+        case .email:
+            if let content = emailContent {
+                emailBodyContent(content)
+            } else if bodyFetchFailed {
+                Text("Couldn't load the message body. Pull down to dismiss and try again.")
+                    .font(.body)
+                    .foregroundStyle(.orange)
+            } else {
+                ProgressView()
+                    .tint(Brand.accent)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 40)
+            }
+        case .chat(let chat):
+            chatTranscript(for: chat)
+        }
+    }
+
+    /// Render an email body through KlartextUI's `EmailTextView`: the new
+    /// message in full, the quoted history folded behind a disclosure, and a
+    /// bare forward (empty `visible`) shown directly. `separateSignature: false`
+    /// keeps the signature in the body — the sheet is a reader, not a glance.
+    /// The host styling flows through: `.white` for the new content, with
+    /// `Brand.textMuted` passed as the subdued color for the quoted history so
+    /// it matches the rest of the sheet rather than system gray.
+    ///
+    /// `EmailTextView` renders nothing for a genuinely empty body, so the
+    /// "(no message body)" placeholder stays here — suppressed for invites,
+    /// which use the meeting info row above as their content.
+    private func emailBodyContent(_ content: EmailContent) -> some View {
+        let options = Options(separateSignature: false)
+        let visible = parsed?.visible.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let quoted = parsed?.quoted?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let isEmpty = visible.isEmpty && quoted.isEmpty
+        return VStack(alignment: .leading, spacing: 12) {
+            if isEmpty {
+                if inviteData == nil {
+                    Text("(no message body)")
+                        .font(.body)
+                        .foregroundStyle(Brand.textMuted)
+                        .italic()
+                }
+            } else {
+                EmailTextView(content: content, options: options, subduedStyle: Brand.textMuted)
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// The chat preview body. On open we already hold the last message
+    /// (`chat.preview`) from the summary fetch, so we render it
+    /// immediately and load the earlier run back to the user's last reply
+    /// in above it. The fetched transcript replaces the seed when it
+    /// lands; a failed fetch degrades silently to the seed alone.
+    @ViewBuilder
+    private func chatTranscript(for chat: ChatMessage) -> some View {
+        if let thread = chatThread, !thread.messages.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                if thread.hasMore {
+                    earlierInTeamsLine(chat)
+                }
+                ForEach(Array(thread.messages.enumerated()), id: \.element.id) { index, message in
+                    let previous = index > 0 ? thread.messages[index - 1] : nil
+                    chatMessageRow(message, showSender: startsNewSenderRun(message, after: previous))
+                }
+            }
+        } else if chatThread == nil && !threadFetchFailed {
+            // Loading: seed with the message we already have, spinner above
+            // for the earlier context still arriving.
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small).tint(Brand.accent)
+                    Text("Loading earlier messages\u{2026}")
+                        .font(.caption)
+                        .foregroundStyle(Brand.textMuted)
+                }
+                chatSeedBody(chat.preview)
+            }
+        } else {
+            // Loaded-but-empty or failed: degrade to the single last message.
+            chatSeedBody(chat.preview)
+        }
+    }
+
+    /// The seed / fallback rendering: the one last message we already hold,
+    /// matching the sheet's prior chat behavior.
+    @ViewBuilder
+    private func chatSeedBody(_ text: String) -> some View {
+        if text.isEmpty {
+            Text("(no message body)")
+                .font(.body)
+                .foregroundStyle(Brand.textMuted)
+                .italic()
+        } else {
+            Text(text)
+                .font(.body)
+                .foregroundStyle(.white)
+                .textSelection(.enabled)
+        }
+    }
+
+    /// One transcript message. The sender label is shown only at the start
+    /// of a run from the same person, so consecutive messages group under a
+    /// single name. The user's own anchor message sits in a subtle card so
+    /// "where I left off" reads at a glance.
+    @ViewBuilder
+    private func chatMessageRow(_ message: ChatThreadMessage, showSender: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if showSender {
+                HStack(spacing: 6) {
+                    Text(message.isFromMe ? "You" : message.from)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(message.isFromMe ? Brand.accent : Brand.textMuted)
+                    Text(relativeTime(message.sent))
+                        .font(.caption2)
+                        .foregroundStyle(Brand.textMuted)
+                }
+            }
+            // An image- or file-only message has no text to strip, so the
+            // indicator below stands in for the body rather than a misleading
+            // "(no message text)".
+            if !message.body.isEmpty {
+                Text(message.body)
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !message.hasImage && !message.hasFile {
+                Text("(no message text)")
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if message.hasImage || message.hasFile {
+                unshownContentIndicator(image: message.hasImage, file: message.hasFile)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(message.isFromMe ? 8 : 0)
+        .background(
+            message.isFromMe ? Brand.bgDarker : .clear,
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+    }
+
+    /// A quiet caption marking content the transcript can't render — a pasted
+    /// image, a shared file — so a stripped-to-text message doesn't read as
+    /// the whole story. Tap-free; the sheet's own "Open in Teams" path is how
+    /// the user actually gets to the content.
+    private func unshownContentIndicator(image: Bool, file: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: image && !file ? "photo" : "paperclip")
+                .font(.caption2)
+            Text(unshownContentLabel(image: image, file: file))
+                .font(.caption)
+        }
+        .foregroundStyle(Brand.textMuted)
+    }
+
+    private func unshownContentLabel(image: Bool, file: Bool) -> String {
+        switch (image, file) {
+        case (true, true): return "Image and attachment not shown"
+        case (true, false): return "Image not shown"
+        default: return "Attachment not shown"
+        }
+    }
+
+    /// True when `message` begins a new run of messages from a different
+    /// author than the one above it. "You" is its own author so a stretch
+    /// of the user's own messages groups together too.
+    private func startsNewSenderRun(_ message: ChatThreadMessage,
+                                    after previous: ChatThreadMessage?) -> Bool {
+        guard let previous else { return true }
+        if message.isFromMe != previous.isFromMe { return true }
+        return !message.isFromMe && message.from != previous.from
+    }
+
+    /// Tappable hint shown at the top of the transcript when the run back
+    /// to the user's last reply was longer than the cap, handing the full
+    /// history off to Teams.
+    @ViewBuilder
+    private func earlierInTeamsLine(_ chat: ChatMessage) -> some View {
+        Button {
+            openChatInTeams(webUrl: chat.webUrl)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.up.forward.app")
+                    .font(.caption)
+                Text("Earlier messages are in Teams")
+                    .font(.caption)
+            }
+            .foregroundStyle(Brand.accent)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Open this chat in Teams")
+    }
+
+    @ViewBuilder
+    private var actionBar: some View {
+        HStack(spacing: 12) {
+            // Mark unread and Forward are secondary actions; they collapse to
+            // icons so the primary Reply keeps its label without the three
+            // crowding onto one line on a narrow phone.
+            if canMarkUnread {
+                Button {
+                    Task { await markUnreadAndDismiss() }
+                } label: {
+                    Image(systemName: markUnreadSymbol)
+                        .font(.title2)
+                        .foregroundStyle(Brand.accent)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Mark unread")
+            }
+            Spacer()
+            if forwardEmailTarget != nil {
+                Button {
+                    showingForward = true
+                } label: {
+                    Image(systemName: "arrowshape.turn.up.right")
+                        .font(.title2)
+                        .foregroundStyle(Brand.accent)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Forward")
+            }
+            Button {
+                showingComposer = true
+            } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(canReply ? Brand.accent : Brand.bgDarker)
+                    .foregroundStyle(canReply ? .white : Brand.textMuted)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canReply)
+        }
+    }
+
+    /// The email this preview can forward, or nil for chats (Teams has no
+    /// forward). Drives both the action-bar button's visibility and the
+    /// sheet's mode.
+    private var forwardEmailTarget: Email? {
+        if case .email(let email) = target.kind { return email }
+        return nil
+    }
+
+    /// Flatten the preview target into the reply payload `ComposeView` needs,
+    /// so the composer never reaches back into the message models. Email
+    /// carries the sender's address (its likely UPN) so an email reply can
+    /// cross to a chat; a chat carries no address, so a chat reply stays chat.
+    private var replyContext: ComposeView.Mode.Reply {
+        switch target.kind {
+        case .email(let email):
+            return .init(
+                source: .email,
+                emailId: email.id,
+                chatId: nil,
+                senderName: email.from,
+                senderAddress: email.fromAddress,
+                reference: email.subject,
+                emailReplyAllTail: emailReplyAllTail(email),
+                chatOthersTail: ""
+            )
+        case .chat(let chat):
+            return .init(
+                source: .chat,
+                emailId: nil,
+                chatId: chat.chatId,
+                senderName: chat.from,
+                senderAddress: nil,
+                reference: chat.topic,
+                emailReplyAllTail: "",
+                chatOthersTail: othersTail(chat.otherParticipants.count)
+            )
+        }
+    }
+
+    /// " and N others" for a reply-all's fan-out — everyone on the To/Cc lines
+    /// besides the sender and the signed-in user (Graph's `/replyAll` drops the
+    /// current user, so we filter the same way), else "".
+    private func emailReplyAllTail(_ email: Email) -> String {
+        let me = inbox.currentUserMail.lowercased()
+        let sender = email.fromAddress.lowercased()
+        let others = (email.toRecipients + email.ccRecipients).filter {
+            let address = $0.address.lowercased()
+            return address != me && address != sender
+        }
+        return othersTail(others.count)
+    }
+
+    private func othersTail(_ count: Int) -> String {
+        count == 0 ? "" : " and \(count) other\(count == 1 ? "" : "s")"
+    }
+
+    /// Email always offers Mark Unread (we auto-marked it on open).
+    /// Chat offers it only when we have a `chatId` to address the
+    /// Graph mutation. The same auto-mark-on-open logic applies.
+    private var canMarkUnread: Bool {
+        switch target.kind {
+        case .email: return true
+        case .chat(let chat): return chat.chatId != nil
+        }
+    }
+
+    private var markUnreadSymbol: String {
+        switch target.kind {
+        case .email: return "envelope.badge"
+        case .chat: return "bubble.left.fill"
+        }
+    }
+
+    #if DEBUG
+    private var targetKindString: String {
+        switch target.kind {
+        case .email(let e): return "email[\(e.id)]"
+        case .chat(let c): return "chat[\(c.chatId ?? "no-chat-id")]"
+        }
+    }
+    #endif
+
+    /// True when we have somewhere to send the reply. Email always
+    /// supports reply-all (Graph degrades gracefully on single
+    /// recipient). Chat requires a chatId.
+    private var canReply: Bool {
+        switch target.kind {
+        case .email: return true
+        case .chat(let chat): return chat.chatId != nil
+        }
+    }
+
+    private func loadBodyIfNeeded() async {
+        guard case .email(let email) = target.kind, emailContent == nil else { return }
+        do {
+            let content = try await inbox.fetchEmailContent(emailId: email.id)
+            #if DEBUG
+            // Diagnostic hook for the "renders as text not HTML" and
+            // "inline image didn't paint" class of problem. `print()` flows
+            // through devicectl's `--console` capture; os.Logger does not.
+            // Filter the launched stream with `grep "CHECKIN-DEBUG"`. Kept in
+            // place rather than re-added per-investigation. Logs the body's
+            // HTML length, how many cid: images it references, and each part's
+            // inline classification, Content-ID, and fetched byte count — so a
+            // logo that fails to paint shows immediately whether the part was
+            // resolved, whether its bytes loaded, and whether the HTML even
+            // references it via cid:.
+            let cidRefs = content.html.map { $0.components(separatedBy: "cid:").count - 1 } ?? 0
+            print("CHECKIN-DEBUG email body html (len=\(content.html?.count ?? -1)) cid:refs=\(cidRefs) parts=\(content.parts.count)")
+            for (i, p) in content.parts.enumerated() {
+                print("CHECKIN-DEBUG  part[\(i)] disp=\(p.disposition) cid=\(p.contentID ?? "nil") mime=\(p.mimeType) bytes=\(p.data?.count ?? -1) name=\(p.filename ?? "nil")")
+            }
+            #endif
+            emailContent = content
+            parsed = content.parsed(options: Options(separateSignature: false))
+        } catch {
+            #if DEBUG
+            print("CHECKIN-DEBUG fetchEmailContent failed: \(error)")
+            #endif
+            bodyFetchFailed = true
+        }
+    }
+
+    /// Load the chat's recent transcript when the sheet opens. No-op for
+    /// emails and for chats without a `chatId` (the seed preview stands in).
+    /// On failure the sheet keeps showing the seed message it already holds.
+    private func loadChatThreadIfNeeded() async {
+        guard case .chat(let chat) = target.kind,
+              let chatId = chat.chatId,
+              chatThread == nil, !threadFetchFailed else { return }
+        do {
+            chatThread = try await inbox.fetchChatThread(chatId: chatId)
+        } catch {
+            threadFetchFailed = true
+        }
+    }
+
+    private func autoMarkReadIfNeeded() async {
+        guard !didAutoMarkRead else { return }
+        switch target.kind {
+        case .email(let email):
+            // Email body has to load before we mark read — otherwise a
+            // fetch failure would silently mark unread emails as read.
+            guard emailContent != nil else { return }
+            didAutoMarkRead = true
+            await inbox.markRead(emailId: email.id)
+        case .chat(let chat):
+            // Chat preview body is preloaded with the summary, so no
+            // fetch gate — opening the sheet implies the user saw it.
+            guard chat.chatId != nil else { return }
+            didAutoMarkRead = true
+            await inbox.markChatRead(chat)
+        }
+    }
+
+    private func markUnreadAndDismiss() async {
+        switch target.kind {
+        case .email(let email):
+            await inbox.markUnread(email)
+        case .chat(let chat):
+            await inbox.markChatUnread(chat)
+        }
+        onClose()
+    }
+}

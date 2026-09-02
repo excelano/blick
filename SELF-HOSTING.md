@@ -7,18 +7,18 @@ You will need a Mac with Xcode 15 or later, an Apple Developer account (the free
 ## Step 1: Clone and choose your identifiers
 
 1. Fork [excelano/blick](https://github.com/excelano/blick) on GitHub, or just clone it directly.
-2. Decide on your **bundle ID** (for example, `com.example.checkin`). It must be unique to your Apple Developer team.
-3. Decide on your **redirect URI scheme**. The MSAL convention is `msauth.<bundle-id>`, so a bundle ID of `com.example.checkin` gives a redirect URI scheme of `msauth.com.example.checkin` and a full redirect URI of `msauth.com.example.checkin://auth`. The widget extension is a second bundle, `<bundle-id>.CheckInWidget`, with its own redirect URI, `msauth.<bundle-id>.CheckInWidget://auth`. You register both in Azure (Step 4), because the interactive widget authenticates under the extension's own bundle ID.
+2. Decide on your **bundle ID** (for example, `com.example.blick`). It must be unique to your Apple Developer team.
+3. Decide on your **redirect URI scheme**. The MSAL convention is `msauth.<bundle-id>`, so a bundle ID of `com.example.blick` gives a redirect URI scheme of `msauth.com.example.blick` and a full redirect URI of `msauth.com.example.blick://auth`. The widget extension is a second bundle, `<bundle-id>.BlickWidget`, with its own redirect URI, `msauth.<bundle-id>.BlickWidget://auth`. You register both in Azure (Step 4), because the interactive widget authenticates under the extension's own bundle ID.
 
 ## Step 2: Update the source
 
-1. Open `CheckIn/Info.plist`. Replace the `CFBundleURLSchemes` entry from `msauth.com.excelano.checkin` to your scheme.
-2. Open `CheckIn/Utilities/Constants.swift`. Set `clientID` to your Azure client ID (you create this in step 4). Update `redirectURI` from `msauth.com.excelano.checkin://auth` to `msauth.<your-bundle-id>://auth`. Update `authority` if you are running single-tenant.
-3. A grep for `com.excelano.checkin` across the repo finds every reference, including `PRODUCT_BUNDLE_IDENTIFIER` entries inside `CheckIn.xcodeproj/project.pbxproj`. Update each to match your chosen value (a sed pass works for the `.pbxproj`: `sed -i '' 's/com\.excelano\.checkin/your.bundle.id/g' CheckIn.xcodeproj/project.pbxproj`).
+1. Open `Blick/Info.plist`. Replace the `CFBundleURLSchemes` entry from `msauth.com.excelano.checkin` to your scheme.
+2. Open `Blick/Utilities/Constants.swift`. Set `clientID` to your Azure client ID (you create this in step 4). Update `redirectURI` from `msauth.com.excelano.checkin://auth` to `msauth.<your-bundle-id>://auth`. Update `authority` if you are running single-tenant.
+3. A grep for `com.excelano.checkin` across the repo finds every reference, including `PRODUCT_BUNDLE_IDENTIFIER` entries inside `Blick.xcodeproj/project.pbxproj`. Update each to match your chosen value (a sed pass works for the `.pbxproj`: `sed -i '' 's/com\.excelano\.checkin/your.bundle.id/g' Blick.xcodeproj/project.pbxproj`).
 
 ## Step 3: Configure the Xcode project
 
-1. Open the project: `open CheckIn.xcodeproj`.
+1. Open the project: `open Blick.xcodeproj`.
 2. In **Signing & Capabilities**, set **Team** to your Apple Developer team.
 3. Verify the deployment target is iOS 17 (the committed project sets it on the target; the project-level default may differ).
 4. MSAL is wired in as a Swift Package Manager dependency at `https://github.com/AzureAD/microsoft-authentication-library-for-objc`. Xcode resolves it on first open.
@@ -29,7 +29,7 @@ You will need a Mac with Xcode 15 or later, an Apple Developer account (the free
 2. Navigate to **Microsoft Entra ID** > **App registrations** > **New registration**.
 3. Name the registration whatever you like (for example, "Blick personal").
 4. Under **Supported account types**, choose multi-tenant if you plan to sign in with multiple M365 accounts; otherwise single-tenant.
-5. Under **Redirect URI**, choose **Public client/native (mobile & desktop)** and enter your custom redirect URI (`msauth.<your-bundle-id>://auth`). Then add a **second** redirect URI for the widget extension: `msauth.<your-bundle-id>.CheckInWidget://auth`. The interactive widget's presence buttons run in the widget extension process, which authenticates under its own bundle ID, so Entra must have that redirect URI registered as well. If you omit it, the widget's buttons work right after sign-in but fail silently once the access token expires (roughly an hour later), because the token refresh carries the extension's redirect URI (see Common errors, AADSTS50011).
+5. Under **Redirect URI**, choose **Public client/native (mobile & desktop)** and enter your custom redirect URI (`msauth.<your-bundle-id>://auth`). Then add a **second** redirect URI for the widget extension: `msauth.<your-bundle-id>.BlickWidget://auth`. The interactive widget's presence buttons run in the widget extension process, which authenticates under its own bundle ID, so Entra must have that redirect URI registered as well. If you omit it, the widget's buttons work right after sign-in but fail silently once the access token expires (roughly an hour later), because the token refresh carries the extension's redirect URI (see Common errors, AADSTS50011).
 6. Click **Register**.
 7. In the registration's sidebar, open **API permissions** > **Add a permission** > **Microsoft Graph** > **Delegated permissions**. The base set Blick requires is `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`, and `MailboxSettings.ReadWrite` (the last one drives the Out-of-Office toggle). For Teams chat and presence support also add `Chat.ReadWrite` and `Presence.ReadWrite`; the same `Presence.ReadWrite` permission drives the widget presence pills, the Control Center controls, and the Siri / Shortcuts intents.
 8. Click **Add permissions**. If your tenant requires admin consent for any permission (typically `Chat.ReadWrite` or `Presence.ReadWrite`), grant it via **Grant admin consent for [tenant]**, or have an administrator do so. Without consent, MSAL returns AADSTS65001 on sign-in for the affected scopes.
@@ -54,7 +54,7 @@ After install, confirm the app behaves as expected. Sign in with an M365 account
 
 ## Common errors
 
-**AADSTS50011: redirect URI mismatch.** Your `Info.plist` URL scheme, `Constants.redirectURI`, and the Azure App Registration redirect URI must agree exactly, including the `://auth` suffix. If sign-in succeeds but the **widget's presence buttons do nothing**, and especially if they stop working only after the app has been idle for an hour or so, the cause is the missing widget redirect URI: add `msauth.<your-bundle-id>.CheckInWidget://auth` to the registration. This failure is silent and delayed because the widget contacts Entra only when its cached token expires and it has to refresh; before that, a cached token masks the problem.
+**AADSTS50011: redirect URI mismatch.** Your `Info.plist` URL scheme, `Constants.redirectURI`, and the Azure App Registration redirect URI must agree exactly, including the `://auth` suffix. If sign-in succeeds but the **widget's presence buttons do nothing**, and especially if they stop working only after the app has been idle for an hour or so, the cause is the missing widget redirect URI: add `msauth.<your-bundle-id>.BlickWidget://auth` to the registration. This failure is silent and delayed because the widget contacts Entra only when its cached token expires and it has to refresh; before that, a cached token masks the problem.
 
 **AADSTS65001: admin consent required.** A scope your registration requests needs admin consent. Either drop the scope (for example, disable Teams in your build) or have a tenant admin grant consent.
 

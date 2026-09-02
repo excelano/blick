@@ -1,0 +1,56 @@
+// BlickCountIntent.swift
+// Blick
+// Author: David M. Anderson
+// Built with AI assistance (Claude, Anthropic)
+
+import AppIntents
+
+/// Speak back one of Blick's inbox counts — unread emails, unread
+/// chats, remaining meetings today, or all unread messages — from Siri,
+/// Shortcuts, or Spotlight. Runs headless: refreshes Blick's summary,
+/// then reads the count, so the spoken number matches the panel. The
+/// pure counts don't need the full email set (the server total comes
+/// back with a normal refresh), so this uses the default refresh.
+struct BlickCountIntent: AppIntent {
+    static var title: LocalizedStringResource = "Count"
+    static var description = IntentDescription(
+        "Count your unread emails, unread chats, remaining meetings, or all unread messages."
+    )
+    static var openAppWhenRun = false
+
+    @Parameter(title: "What to count")
+    var metric: CountMetric
+
+    @Dependency var inbox: Inbox
+
+    init() {}
+
+    init(metric: CountMetric) {
+        self.metric = metric
+    }
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("How many \(\.$metric)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
+        try await inbox.refreshForIntent()
+
+        switch metric {
+        case .unreadEmails:
+            let n = inbox.unreadEmailCount
+            return .result(value: n, dialog: "\(IntentSpeech.count(n, singular: "unread email", plural: "unread emails"))")
+        case .unreadChats:
+            let n = inbox.unreadChatCount
+            return .result(value: n, dialog: "\(IntentSpeech.count(n, singular: "unread chat", plural: "unread chats"))")
+        case .remainingMeetings:
+            let n = inbox.remainingMeetingCount
+            return .result(value: n, dialog: "\(IntentSpeech.remainingMeetings(n))")
+        case .unreadMessages:
+            let emails = inbox.unreadEmailCount
+            let chats = inbox.unreadChatCount
+            return .result(value: emails + chats, dialog: "\(IntentSpeech.unreadMessages(emails: emails, chats: chats))")
+        }
+    }
+}
