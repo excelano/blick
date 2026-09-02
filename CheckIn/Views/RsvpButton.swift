@@ -94,10 +94,10 @@ struct RsvpRow: View {
     }
 }
 
-/// Non-interactive capsule showing a meeting's responded state ("Accepted",
-/// "Removed", …). Filled on dark-card surfaces, outlined on the main app
-/// background — the chrome is the only thing that differs, so callers pick a
-/// `style` and the text/padding/shape live here.
+/// Non-interactive capsule showing a meeting's response state ("Accepted",
+/// "Removed", "Needs reply", …). Filled on dark-card surfaces, outlined on
+/// the main app background — the chrome is the only thing that differs, so
+/// callers pick a `style` and the text/padding/shape live here.
 struct RespondedPill: View {
     enum Style {
         case filled(Color)
@@ -105,11 +105,16 @@ struct RespondedPill: View {
     }
     let label: String
     let style: Style
+    /// Muted by default, which suits a state that is already settled and
+    /// only needs to be legible. A state still waiting on the user passes
+    /// an explicit color so it reads as something to act on rather than
+    /// something to note.
+    var textColor: Color = Brand.textMuted
 
     var body: some View {
         let base = Text(label)
             .font(.caption.weight(.medium))
-            .foregroundStyle(Brand.textMuted)
+            .foregroundStyle(textColor)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
         switch style {

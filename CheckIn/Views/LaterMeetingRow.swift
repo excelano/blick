@@ -24,6 +24,15 @@ struct LaterMeetingRow: View {
     /// a Button keeps the row from advertising an action it can't perform.
     private var isJoinable: Bool { meeting.joinUrl != nil }
 
+    /// An invitation the user hasn't answered yet. Worth surfacing because
+    /// the compact row has no RSVP buttons — the actions live in the
+    /// long-press menu — so without a marker an unanswered invite looks
+    /// exactly like an accepted one. Suppressed for meetings that have
+    /// already ended, where the question is moot.
+    private var needsReply: Bool {
+        !isPast && meeting.responseStatus == .notResponded
+    }
+
     var body: some View {
         // Mirror the watch glance's "live" treatment on the Later Today
         // rows: once a meeting is within the imminent window or already
@@ -45,6 +54,15 @@ struct LaterMeetingRow: View {
                 content(accent: accent)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(accessibilityLabel)
+            }
+
+            if needsReply {
+                RespondedPill(label: "Needs reply",
+                              style: .outlined(Brand.accent),
+                              textColor: Brand.accent)
+                    // Folded into the row's own label below, so VoiceOver
+                    // reads one phrase instead of two fragments.
+                    .accessibilityHidden(true)
             }
 
             if meeting.hasConflict {
@@ -84,6 +102,7 @@ struct LaterMeetingRow: View {
     }
 
     private var accessibilityLabel: String {
-        "\(meetingTimeRange(start: meeting.start, end: meeting.end)): \(meeting.subject)"
+        let base = "\(meetingTimeRange(start: meeting.start, end: meeting.end)): \(meeting.subject)"
+        return needsReply ? "\(base). Needs reply" : base
     }
 }
