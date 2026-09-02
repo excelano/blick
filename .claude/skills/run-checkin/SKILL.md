@@ -40,16 +40,40 @@ xcodebuild -project /Users/anderix/email/blick/CheckIn.xcodeproj \
 `-allowProvisioningUpdates` lets Xcode refresh the provisioning profile
 if needed. Without it you'll hit signing errors after profile renewals.
 
-The install steps below glob `DerivedData/CheckIn-*`, so the exact
-per-project DerivedData hash doesn't matter. It changes whenever the
-project path changes (it did after the move to `~/email/blick`).
+The DerivedData hash changes whenever the project path changes (it did
+after the move to `~/email/blick`), so the install step resolves it at
+run time rather than hardcoding it. Resolve it by newest match, never
+with a bare `CheckIn-*` glob — see the warning under Install.
 
 ## Install
 
 ```bash
+APP=$(ls -dt ~/Library/Developer/Xcode/DerivedData/CheckIn-*/Build/Products/Debug-iphoneos/CheckIn.app | head -1)
 xcrun devicectl device install app \
-  --device 8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC \
-  ~/Library/Developer/Xcode/DerivedData/CheckIn-*/Build/Products/Debug-iphoneos/CheckIn.app
+  --device 8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC "$APP"
+```
+
+**Never pass the bare `CheckIn-*` glob to `devicectl`.** Xcode keeps a
+separate DerivedData directory per project *path*, and stale ones from
+earlier paths survive a move. When more than one matches, the glob expands
+to multiple arguments and devicectl fails with `Unexpected argument`.
+
+This failure is worse than it looks, and it cost a false verification once.
+A failed install does not stop a subsequent `process launch` — the launch
+succeeds against the **previously installed** build, so the phone comes up
+looking healthy while running old code. Always confirm the install printed
+`App installed:` before launching, and treat a launch that follows a failed
+install as testing nothing.
+
+`ls -dt ... | head -1` picks the most recently built product, which is
+correct even when several directories legitimately exist. If a stale
+directory is just dead weight, check what project path it belongs to and
+delete it:
+
+```bash
+for d in ~/Library/Developer/Xcode/DerivedData/CheckIn-*/; do
+  echo "$d"; /usr/libexec/PlistBuddy -c "Print :WorkspacePath" "$d/info.plist" 2>/dev/null
+done
 ```
 
 ## Launch
@@ -153,9 +177,9 @@ xcodebuild -project /Users/anderix/email/blick/CheckIn.xcodeproj \
   -scheme CheckIn -configuration Debug \
   -destination "platform=iOS,id=00008120-001019EA18834032" \
   -allowProvisioningUpdates build 2>&1 | tail -3 \
+&& APP=$(ls -dt ~/Library/Developer/Xcode/DerivedData/CheckIn-*/Build/Products/Debug-iphoneos/CheckIn.app | head -1) \
 && xcrun devicectl device install app \
-     --device 8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC \
-     ~/Library/Developer/Xcode/DerivedData/CheckIn-*/Build/Products/Debug-iphoneos/CheckIn.app 2>&1 | tail -3 \
+     --device 8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC "$APP" 2>&1 | tail -3 \
 && xcrun devicectl device process launch \
      --device 8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC \
      com.excelano.checkin 2>&1 | tail -2

@@ -85,6 +85,10 @@ struct AgendaView: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .contextMenu {
+                            meetingContextMenu(for: meeting, inbox: inbox,
+                                               onResolveConflict: { conflictTarget = $0 })
+                        }
                     }
                 } header: {
                     dayHeader(day)

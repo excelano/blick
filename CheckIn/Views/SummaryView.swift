@@ -317,7 +317,8 @@ struct SummaryView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 16, leading: 0, bottom: 6, trailing: 0))
                         .contextMenu {
-                            meetingContextMenu(for: meeting)
+                            meetingContextMenu(for: meeting, inbox: inbox,
+                                               onResolveConflict: { conflictTarget = $0 })
                         }
                 }
             }
@@ -340,7 +341,8 @@ struct SummaryView: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                         .contextMenu {
-                            meetingContextMenu(for: meeting)
+                            meetingContextMenu(for: meeting, inbox: inbox,
+                                               onResolveConflict: { conflictTarget = $0 })
                         }
                 }
             } header: {
@@ -671,70 +673,6 @@ struct SummaryView: View {
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Brand.textMuted)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func meetingContextMenu(for meeting: Meeting) -> some View {
-        if meeting.hasConflict {
-            Button {
-                conflictTarget = meeting
-            } label: {
-                Label("Resolve conflict", systemImage: "exclamationmark.triangle")
-            }
-            Divider()
-        }
-        if meeting.responseStatus.canRsvp {
-            if meeting.responseStatus != .accepted {
-                Button {
-                    Task { await inbox.respondToMeeting(.accepted, meetingId: meeting.id) }
-                } label: {
-                    Label("Accept", systemImage: "checkmark")
-                }
-            }
-            if meeting.responseStatus != .tentativelyAccepted {
-                Button {
-                    Task { await inbox.respondToMeeting(.tentativelyAccepted, meetingId: meeting.id) }
-                } label: {
-                    Label("Tentative", systemImage: "questionmark")
-                }
-            }
-            if meeting.responseStatus != .declined {
-                Button(role: .destructive) {
-                    Task { await inbox.respondToMeeting(.declined, meetingId: meeting.id) }
-                } label: {
-                    Label("Decline", systemImage: "xmark")
-                }
-            }
-            Divider()
-        }
-        if let urlString = meeting.joinUrl {
-            Button {
-                UIPasteboard.general.string = urlString
-            } label: {
-                Label("Copy join link", systemImage: "doc.on.doc")
-            }
-        }
-        if meeting.responseStatus.canRsvp,
-           let email = meeting.organizerEmail, !email.isEmpty {
-            Button {
-                UIPasteboard.general.string = email
-            } label: {
-                Label("Copy organizer email", systemImage: "doc.on.doc")
-            }
-        }
-        // Delete is hidden when Decline is already available — they
-        // functionally do the same thing from the user's perspective
-        // (get the meeting off the day's view). Decline is shown
-        // whenever the user can RSVP and hasn't already declined.
-        let canDecline = meeting.responseStatus.canRsvp && meeting.responseStatus != .declined
-        if !canDecline {
-            Divider()
-            Button(role: .destructive) {
-                Task { await inbox.deleteMeeting(meetingId: meeting.id) }
-            } label: {
-                Label("Delete", systemImage: "trash")
             }
         }
     }

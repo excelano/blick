@@ -638,14 +638,16 @@ final class Inbox {
         guard let meeting = meetingWithId(meetingId) else { return }
         let meetingsByIdSnapshot = meetingsById
         let todayMeetingIdsSnapshot = todayMeetingIds
+        let agendaMeetingIdsSnapshot = agendaMeetingIds
         let inviteEmailMeetingIdsSnapshot = inviteEmailMeetingIds
         let referenceMeetingIdsSnapshot = referenceMeetingIds
 
-        // Pull the meeting out of every index and the master dict. If
+        // Pull the meeting out of all four indexes and the master dict. If
         // it was today's next meeting, removing its id from the front
         // of `todayMeetingIds` automatically promotes whatever was
         // next in line — `nextMeeting` is computed from that list.
         todayMeetingIds.removeAll { $0 == meetingId }
+        agendaMeetingIds.removeAll { $0 == meetingId }
         referenceMeetingIds.remove(meetingId)
         for (emailId, mId) in inviteEmailMeetingIds where mId == meetingId {
             inviteEmailMeetingIds.removeValue(forKey: emailId)
@@ -660,6 +662,7 @@ final class Inbox {
             logger.error("deleteEvent failed: \(error.localizedDescription, privacy: .public)")
             meetingsById = meetingsByIdSnapshot
             todayMeetingIds = todayMeetingIdsSnapshot
+            agendaMeetingIds = agendaMeetingIdsSnapshot
             inviteEmailMeetingIds = inviteEmailMeetingIdsSnapshot
             referenceMeetingIds = referenceMeetingIdsSnapshot
             recomputeConflicts()
