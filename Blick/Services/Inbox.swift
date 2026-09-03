@@ -1140,6 +1140,89 @@ final class Inbox {
         }
     }
 
+    /// File a message out of the Inbox: Archive, Delete (a move to Deleted
+    /// Items), or a user-chosen folder. All three are the same operation with
+    /// a different destination, so they share one path.
+    ///
+    /// Optimistic: the row leaves the glance immediately and comes back if
+    /// Graph rejects the move. On success an undo is registered, which is what
+    /// makes offering a destructive action on a mail row reasonable at all.
+    /// The undo moves the message back to the Inbox using the id `/move`
+    /// returned, not the original — the message is re-created by the move and
+    /// the old id no longer resolves.
+    func disposeEmail(_ email: Email, to destination: String, verb: String) async {
+        #if DEBUG
+        if DemoMode.isActive { return }
+        #endif
+        let removed: Int? = summary?.emails.firstIndex(where: { $0.id == email.id })
+        if let idx = removed {
+            summary?.emails.remove(at: idx)
+            // The message leaves the Inbox entirely, so an unread one stops
+            // counting toward the unread total even though it stays unread.
+            if !email.isRead {
+                summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 0) - 1)
+            }
+        }
+        do {
+            let newId = try await graphClient.moveMessage(id: email.id, toFolder: destination)
+            await updateAppBadge()
+            setPendingUndo(UndoableBulkAction(summary: "\(verb) \"\(truncate(email.subject, maxLen: 30))\"") { [weak self] in
+                guard let self else { return }
+                await self.undoDispose(email, movedId: newId)
+            })
+        } catch {
+            logger.error("disposeEmail(\(destination, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
+            restoreEmailToGlance(email)
+            await updateAppBadge()
+            showTransient("Couldn't \(verb.lowercased()) that message.", kind: .error)
+        }
+    }
+
+    func archiveEmail(_ email: Email) async {
+        await disposeEmail(email, to: WellKnownFolder.archive, verb: "Archived")
+    }
+
+    func deleteEmail(_ email: Email) async {
+        await disposeEmail(email, to: WellKnownFolder.deletedItems, verb: "Deleted")
+    }
+
+    func moveEmail(_ email: Email, to folder: MailFolder) async {
+        await disposeEmail(email, to: folder.id, verb: "Moved")
+    }
+
+    /// Move a filed message back to the Inbox and put its row back on the
+    /// glance. Best effort: if the move back fails the row stays gone and the
+    /// next refresh reconciles, since the message is still safely in whatever
+    /// folder it was filed into.
+    private func undoDispose(_ email: Email, movedId: String) async {
+        do {
+            try await graphClient.moveMessage(id: movedId, toFolder: WellKnownFolder.inbox)
+            restoreEmailToGlance(email)
+            await updateAppBadge()
+        } catch {
+            logger.error("undoDispose failed: \(error.localizedDescription, privacy: .public)")
+            showTransient("Couldn't undo that.", kind: .error)
+        }
+    }
+
+    /// Re-insert a row in received-time order and restore its contribution to
+    /// the unread total. Shared by the failure path and the undo path.
+    private func restoreEmailToGlance(_ email: Email) {
+        guard summary?.emails.contains(where: { $0.id == email.id }) == false else { return }
+        let insertAt = summary?.emails.firstIndex(where: { $0.received < email.received })
+            ?? summary?.emails.count ?? 0
+        summary?.emails.insert(email, at: insertAt)
+        if !email.isRead {
+            summary?.totalUnreadEmails = (summary?.totalUnreadEmails ?? 0) + 1
+        }
+    }
+
+    /// The folder list backing the Move picker. Transient — the caller owns
+    /// the result and its own loading state, like the browse fetches.
+    func mailFolders() async throws -> [MailFolder] {
+        try await graphClient.fetchMailFolders()
+    }
+
     // MARK: - Email: message content and attachments
 
     /// Used by the preview sheet to render the full email body. Returns a

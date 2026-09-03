@@ -336,6 +336,25 @@ struct ChatUserResponse: Decodable {
     let displayName: String
 }
 
+/// Body for `POST /me/messages/{id}/move`. `destinationId` takes either a
+/// real folder id or one of Graph's well-known names (see `WellKnownFolder`).
+struct MoveMessageBody: Encodable {
+    let destinationId: String
+}
+
+/// `/move` responds with the relocated message, which carries a NEW id —
+/// moving a message between folders re-creates it rather than retagging it.
+/// Only the id is needed, to move it back on undo.
+struct MovedMessageResponse: Decodable {
+    let id: String
+}
+
+struct MailFolderResponse: Decodable {
+    let id: String
+    let displayName: String
+    let childFolders: [MailFolderResponse]?
+}
+
 struct MarkReadBody: Encodable {
     let isRead: Bool
 }

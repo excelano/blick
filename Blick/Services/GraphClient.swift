@@ -380,6 +380,43 @@ final class GraphClient {
     }
 
     /// Mail.ReadWrite required. Idempotent.
+    /// Move a message to another folder and return its new id. Graph's move
+    /// re-creates the message in the destination, so the id changes; the
+    /// caller keeps the returned one to move it back for an undo.
+    ///
+    /// `destinationId` accepts a real folder id or a well-known name, which is
+    /// how archive and delete avoid a folder lookup entirely.
+    @discardableResult
+    func moveMessage(id: String, toFolder destinationId: String) async throws -> String {
+        let moved: MovedMessageResponse = try await core.postDecoded(
+            "/me/messages/\(id)/move",
+            body: MoveMessageBody(destinationId: destinationId)
+        )
+        return moved.id
+    }
+
+    /// The user's mail folders, flattened to two levels (top-level plus one
+    /// generation of children) and ordered for display. Two levels covers the
+    /// filing hierarchies people actually keep without paging the whole tree;
+    /// a deeper folder is still reachable by moving twice.
+    ///
+    /// Rides the existing `Mail.ReadWrite` scope — no new consent.
+    func fetchMailFolders() async throws -> [MailFolder] {
+        let data: GraphList<MailFolderResponse> = try await core.get("/me/mailFolders", query: [
+            "$top": "100",
+            "$select": "id,displayName",
+            "$expand": "childFolders($select=id,displayName;$top=100)"
+        ])
+        var folders: [MailFolder] = []
+        for parent in data.value.sorted(by: { $0.displayName < $1.displayName }) {
+            folders.append(MailFolder(id: parent.id, displayName: parent.displayName, depth: 0))
+            for child in (parent.childFolders ?? []).sorted(by: { $0.displayName < $1.displayName }) {
+                folders.append(MailFolder(id: child.id, displayName: child.displayName, depth: 1))
+            }
+        }
+        return folders
+    }
+
     func markEmailRead(id: String) async throws {
         try await core.patch("/me/messages/\(id)", body: MarkReadBody(isRead: true))
     }
