@@ -22,6 +22,8 @@ The rename on 2026-09-02 took the whole codebase from CheckIn to Blick and delib
 
 The trap worth remembering: `CheckInWidget` was both a Swift type name and the widget's `kind` string, spelled identically. A blanket find-and-replace renames both.
 
+One identifier did slip through that rename and had to be repaired: the local-notification prefix `checkin.meeting.`. Pending notifications live in iOS's store rather than in the app, and `MeetingNotifications.clearAll` cancels by prefix, so the renamed build could no longer see what the previous build had scheduled and every meeting reminder fired twice. It is now `blick.meeting.`, with the old prefix swept via `legacyIdentifierPrefixes`. The lesson generalises past the `com.excelano.*` shape: **anything the app writes into an OS-owned store keyed by a string** — notification identifiers, widget kinds, control kinds, App Group and UserDefaults keys, keychain items — is a persisted identifier even when it looks like an ordinary internal constant. Audit changed *string literals*, not just identifiers matching the bundle ID.
+
 ## Status
 
 Repo's canonical docs are `FEATURES.md` (shipped functionality), `POTENTIAL-FEATURES.md` (the feature backlog — ideas under consideration, not yet committed), `RELEASING.md` (the App Store cut runbook), `PRIVACY.md`, `SELF-HOSTING.md`, and `IT-APPROVAL.md`. Current task comes from conversation, not from this file.

@@ -15,6 +15,20 @@ import os
 @MainActor
 final class MeetingNotifications {
     private let identifierPrefix = "blick.meeting."
+
+    /// Prefixes earlier builds scheduled under. A pending notification lives
+    /// in iOS's store, not in the app, so a build that renames its prefix can
+    /// no longer match — and therefore never cancels — what a previous build
+    /// left on the schedule. The CheckIn-to-Blick rename did exactly that, and
+    /// every meeting already scheduled fired twice: once from the stale
+    /// `checkin.meeting.` request and once from its `blick.meeting.`
+    /// replacement. `clearAll` sweeps every prefix the app has ever used.
+    /// Add to this list rather than editing `identifierPrefix` in place.
+    private let legacyIdentifierPrefixes = ["checkin.meeting."]
+
+    private var allIdentifierPrefixes: [String] {
+        [identifierPrefix] + legacyIdentifierPrefixes
+    }
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "notifications")
 
     /// Prompt for alert + sound permission. Badge is already requested
@@ -77,7 +91,9 @@ final class MeetingNotifications {
     func clearAll() async {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests()
-        let ids = pending.map(\.identifier).filter { $0.hasPrefix(identifierPrefix) }
+        let ids = pending.map(\.identifier).filter { id in
+            allIdentifierPrefixes.contains { id.hasPrefix($0) }
+        }
         center.removePendingNotificationRequests(withIdentifiers: ids)
     }
 }
