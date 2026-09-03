@@ -5,6 +5,29 @@ the uncommitted backlog in `POTENTIAL-FEATURES.md`, and the App Store runbook in
 `RELEASING.md`. This file is scaffolding for one release: when 1.7 ships, its
 contents migrate into `FEATURES.md` and this file goes away.
 
+## Status as of 2026-09-02
+
+| Slice | State |
+|---|---|
+| 0 — Inbox section pass | Done, on `main`. Landed as one commit, not three; the cross-file split proved impossible (see below). |
+| A — seven-day agenda | Done, on `main`, verified on device. Two commits, not three. |
+| B — disposition | B1 and B2/B3 done, on branch `mail-disposition`. **Not yet verified against a live mailbox.** B4 (bulk) outstanding. |
+| C — starred senders | Not started. |
+| D — new-message nudge | Not started. |
+| E — release | Not started. |
+
+Two pieces of work landed alongside the plan rather than in it. The meeting context
+menu moved out of `SummaryView` into `MeetingContextMenu.swift` so agenda rows
+could carry RSVP, and compact meeting rows gained a "Needs reply" pill for
+invitations still unanswered — an agenda spanning a week is where those actually
+turn up. Separately, the whole codebase was renamed from CheckIn to Blick, which
+is why every path below reads `Blick/…`.
+
+The open risk in B is archive. It addresses Graph's well-known `archive` folder
+without a lookup, and a mailbox that never provisioned one will fail with
+"Couldn't archive that message." The fallback is resolving it by name from
+`fetchMailFolders`, which is already built for the Move picker.
+
 ## Why this cut looks the way it does
 
 Blick was designed as a status and triage surface that sits alongside Outlook and
@@ -181,11 +204,13 @@ consumed out of `POTENTIAL-FEATURES.md`, stage the ASC paste sheet, and follow
 
 ## Slice plan
 
-Fourteen commits across six slices. Each slice builds green and is independently
-verifiable on device. Slice 0 has to precede disposition and the nudge, since both
-land in `Inbox`. Starred senders has to precede the nudge's settings commit,
-because the default depends on the starred set existing. The agenda is independent
-of all of it and goes early for a visible win.
+Each slice builds green and is independently verifiable on device. Slice 0 had to
+precede disposition and the nudge, since both land in `Inbox`. Starred senders has
+to precede the nudge's settings commit, because the default depends on the starred
+set existing. The agenda was independent of all of it and went early for a visible
+win.
+
+Slices 0, A and B below are written as-built; C, D and E remain plans.
 
 ### Slice 0: Inbox section pass, one commit, no behavior change
 
@@ -203,30 +228,72 @@ boundary, and `markChatRead`'s doc comment had been orphaned above `chatIdentity
 by an earlier insertion, leaving one function undocumented and the other carrying
 two stacked doc comments.
 
-### Slice A: seven-day agenda, three commits
+### Slice A: seven-day agenda, two commits (done)
 
-`GraphClient.agendaEvents(days:)` wraps the existing `eventsInRange` and adds the
-conflict computation it currently skips, with agenda state and an accessor on
-`Inbox`. `AgendaView.swift` renders the rolling list with day separators, dimmed
-past events, a highlighted current event, and the same conflict triangles the
-today surfaces use. The third commit wires the "Later today" header chevron and
-the iPad detail-pane routing.
+Smaller than planned, in a useful way. The plan called for an
+`agendaEvents(days:)` wrapper adding conflict computation; neither was needed.
+`Inbox.recomputeConflicts()` already recomputes `hasConflict` across the whole
+meeting store, so loading the agenda window into the store makes agenda meetings
+and today's meetings flag each other for free, and `eventsInRange` is reused
+exactly as it stood. `GraphClient` took no code change at all, only a corrected
+doc comment.
 
-### Slice B: disposition, four commits
+The real work was the store. `agendaMeetingIds` is a fourth index, which made
+overlapping membership real for the first time — a today meeting is normally an
+agenda member too — so the drop-then-load in `loadTodayMeetings`, which had
+hand-checked two indexes inline, became a shared `idsRetained(excluding:)` helper
+both loaders consult before evicting anything.
 
-`GraphClient` gains `deleteMessage`, `moveMessage(id:toFolder:)`, and
-`fetchMailFolders`, with `Inbox` methods doing optimistic update and undo
-registration. The long-press menu gains Archive, Delete, and Move, with a
-destination picker sheet for the last. `MessagePreviewSheet` gets the same three
-actions. Bulk variants and the non-PATCH batch helper come last and are the first
-thing to cut if the release runs long, since single-message disposition is the
-feature and bulk is only an accelerant.
+`AgendaView.swift` renders the rolling list grouped under day headers, omitting
+days with nothing scheduled, and carries its own 30-second clock tick so a meeting
+crosses from upcoming to live to past without a refresh. `LaterMeetingRow` is
+shared rather than duplicated, gaining `isPast` for dimming, and it stopped
+rendering a tap target for meetings with no `joinUrl` — those taps were already
+dead, but the row still advertised "Join meeting in Teams" to VoiceOver.
 
-Worth checking early: the well-known `archive` folder has to actually resolve in
-the mailbox. Graph accepts it as a well-known name, but a mailbox that has never
-had Outlook's Archive button pressed may not have provisioned the folder. The
-fallback is a lookup by name through `fetchMailFolders`, which the same commit is
-building anyway.
+The iPad detail-pane routing in the original plan turned out to be unnecessary:
+the existing full lists are plain sheets in both size classes, so the agenda
+matches them.
+
+The entry point deviated. The plan said only "make the Later today header
+tappable", but that header renders only when the section is populated, so the
+agenda would have been unreachable at the end of a day — exactly when "what does
+tomorrow look like" gets asked. The section is now always rendered, carrying an
+inline "Nothing else today — see the week" row when the day is done.
+
+### Slice B: disposition, three commits so far (B4 outstanding)
+
+**As built.** Delete is a move to Deleted Items rather than
+`DELETE /me/messages/{id}`. Both land the message in the same folder, but `DELETE`
+answers 204 with no body while `/move` returns the relocated message — and a move
+re-creates the message, so its id changes. Without the new id there is no handle
+to move it back, and a destructive action with no undo is not worth offering.
+`Inbox.disposeEmail` is the one path all three actions share, and the undo moves
+the returned id back to the inbox, never the original.
+
+`emailDispositionMenu` was extracted from the start rather than inlined on one
+screen, because the meeting menu had just taught that the second caller always
+arrives; here there were three (summary rows, browse list, preview sheet). It
+takes an `onDisposed` callback because `Inbox` owns the summary's copy of a
+message but not the browse list's local `inboxEmails`/`results`, nor the preview
+sheet's need to dismiss itself. On the preview sheet the three actions sit behind
+an overflow menu, since that bar already collapses Mark unread and Forward to
+bare icons to fit Reply's label.
+
+B2 and B3 landed as one commit: B3 extends the same shared menu B2 introduced.
+
+**B4, still to do.** Bulk variants plus the non-PATCH batch helper — `batchPatch`
+is PATCH-only, and move is POST. This is the first thing to cut if the release
+runs long, since single-message disposition is the feature and bulk is only an
+accelerant.
+
+**Still unverified.** Archive is the open risk. It addresses the well-known
+`archive` folder without a lookup, and Graph accepts that name, but a mailbox that
+has never had Outlook's Archive button pressed may not have provisioned the
+folder. The failure surfaces as "Couldn't archive that message." The fallback is a
+lookup by name through `fetchMailFolders`, which the Move picker already builds,
+so the fix is small if it is needed. Undo is the other thing to exercise against
+live mail, since the whole delete-as-a-move design exists to make it possible.
 
 ### Slice C: starred senders, two commits
 
