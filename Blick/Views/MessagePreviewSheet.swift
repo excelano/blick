@@ -56,6 +56,9 @@ struct MessagePreviewSheet: View {
     /// Presents the forward composer over the preview. Email-only; the
     /// original stays unread, so the preview underneath is left intact.
     @State private var showingForward = false
+    /// Destination picker for "Move to…". Presented from this sheet rather
+    /// than the parent so the preview stays the thing being acted on.
+    @State private var showingMove = false
     /// The fetched email body (HTML) plus attachment metadata, as a KlartextUI
     /// hand-off. Feeds the native fold (via `parsed`) and the HTML web view.
     @State private var emailContent: EmailContent?
@@ -116,6 +119,12 @@ struct MessagePreviewSheet: View {
         .presentationDragIndicator(.visible)
         .sheet(item: $conflictTarget) { meeting in
             ConflictResolutionSheet(inbox: inbox, primaryMeetingId: meeting.id)
+        }
+        .sheet(isPresented: $showingMove) {
+            if let email = forwardEmailTarget {
+                MoveToFolderSheet(inbox: inbox, email: email,
+                                  onClose: { showingMove = false; onClose() })
+            }
         }
         .sheet(isPresented: $showingForward) {
             if let email = forwardEmailTarget {
@@ -806,6 +815,23 @@ struct MessagePreviewSheet: View {
                 .accessibilityLabel("Mark unread")
             }
             Spacer()
+            // Archive / Move / Delete live behind an overflow menu rather
+            // than three more buttons: the bar already collapses Mark unread
+            // and Forward to bare icons to fit Reply's label on a narrow
+            // phone, and six controls would not fit at all.
+            if let email = forwardEmailTarget {
+                Menu {
+                    emailDispositionMenu(for: email, inbox: inbox,
+                                         onMove: { _ in showingMove = true },
+                                         onDisposed: { onClose() })
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title2)
+                        .foregroundStyle(Brand.accent)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("File this message")
+            }
             if forwardEmailTarget != nil {
                 Button {
                     showingForward = true

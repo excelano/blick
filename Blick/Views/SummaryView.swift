@@ -23,6 +23,8 @@ struct SummaryView: View {
     @State private var showChatList = false
     /// The week agenda, opened by tapping the "Later today" header.
     @State private var showAgenda = false
+    /// The message the user chose "Move to…" for, driving the folder picker.
+    @State private var moveTarget: Email?
     /// The email a context-menu "Forward" targets. Drives a forward-mode
     /// `ComposeView` sheet straight from the list, without opening the preview.
     @State private var forwardEmail: Email?
@@ -86,6 +88,9 @@ struct SummaryView: View {
         }
         .sheet(isPresented: $showAgenda) {
             AgendaView(inbox: inbox, onClose: { showAgenda = false })
+        }
+        .sheet(item: $moveTarget) { email in
+            MoveToFolderSheet(inbox: inbox, email: email, onClose: { moveTarget = nil })
         }
         .sheet(item: $forwardEmail) { email in
             ComposeView(
@@ -533,6 +538,9 @@ struct SummaryView: View {
                                     Label(email.isFlagged ? "Unflag" : "Flag",
                                           systemImage: email.isFlagged ? "flag.slash" : "flag")
                                 }
+                                Divider()
+                                emailDispositionMenu(for: email, inbox: inbox,
+                                                     onMove: { moveTarget = $0 })
                                 if !email.fromAddress.isEmpty {
                                     Divider()
                                     Button {

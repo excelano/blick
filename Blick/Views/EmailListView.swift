@@ -35,6 +35,9 @@ struct EmailListView: View {
     /// The id of the row whose preview is open, so its read state can be synced
     /// when the sheet closes (the preview auto-marks read on the server).
     @State private var openedId: String?
+    /// The message the user chose "Move to…" for. This screen presents its
+    /// own picker, since it is a full-screen sheet in its own right.
+    @State private var moveTarget: Email?
 
     private var isSearchActive: Bool {
         !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -62,6 +65,10 @@ struct EmailListView: View {
         .task { await loadInbox() }
         .preferredColorScheme(.dark)
         .messagePreviewSheet(inbox: inbox, target: $previewTarget, onDismiss: markOpenedRead)
+        .sheet(item: $moveTarget) { email in
+            MoveToFolderSheet(inbox: inbox, email: email,
+                              onClose: { dropLocal(email.id); moveTarget = nil })
+        }
     }
 
     private func loadInbox() async {
@@ -105,6 +112,11 @@ struct EmailListView: View {
                     }
                     .tint(.orange)
                 }
+                .contextMenu {
+                    emailDispositionMenu(for: email, inbox: inbox,
+                                         onMove: { moveTarget = $0 },
+                                         onDisposed: { dropLocal(email.id) })
+                }
             }
         }
         .listStyle(.plain)
@@ -146,6 +158,15 @@ struct EmailListView: View {
         guard let id = openedId else { return }
         openedId = nil
         updateLocal(id) { $0.with(isRead: true) }
+    }
+
+    /// Drop a filed message from this screen's own lists. `Inbox` owns the
+    /// summary's copy, but the browse and search results are local state here,
+    /// so a message moved out of the Inbox has to be removed from them too or
+    /// it lingers as a row pointing at a message that has moved.
+    private func dropLocal(_ id: String) {
+        inboxEmails.removeAll { $0.id == id }
+        results.removeAll { $0.id == id }
     }
 
     private func updateLocal(_ id: String, _ transform: (Email) -> Email) {
