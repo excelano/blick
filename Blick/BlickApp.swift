@@ -26,6 +26,7 @@ struct BlickApp: App {
         // account), Inbox drops its summary and the cached user id so
         // the next refresh starts clean.
         auth.onSignOut = { [inbox] in inbox.reset() }
+        inbox.isAppActive = { UIApplication.shared.applicationState == .active }
         _authService = State(initialValue: auth)
         self.inbox = inbox
         // Watch-side relay. Activated here so the WCSession is live by the

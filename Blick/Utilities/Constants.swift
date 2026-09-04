@@ -43,4 +43,7 @@ enum AppStorageKey {
     static let customTenantID = "customTenantID"
     static let showingAllEmails = "showingAllEmails"
     static let meetingNotifications = "meetingNotifications"
+    /// Per-channel `NudgeScope` raw values. Unset reads as the default.
+    static let emailNudgeScope = "emailNudgeScope"
+    static let chatNudgeScope = "chatNudgeScope"
 }

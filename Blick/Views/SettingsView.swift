@@ -16,6 +16,8 @@ struct SettingsView: View {
     @AppStorage(AppStorageKey.customClientID) private var storedClientID: String = ""
     @AppStorage(AppStorageKey.customTenantID) private var storedTenantID: String = ""
     @AppStorage(AppStorageKey.meetingNotifications) private var meetingNotificationsEnabled: Bool = false
+    @AppStorage(AppStorageKey.emailNudgeScope) private var emailNudge: NudgeScope = .default
+    @AppStorage(AppStorageKey.chatNudgeScope) private var chatNudge: NudgeScope = .default
     #if DEBUG
     @AppStorage(DemoMode.userDefaultsKey) private var demoMode: Bool = false
     #endif
@@ -91,10 +93,30 @@ struct SettingsView: View {
                         Task { await inbox.disableMeetingNotifications() }
                     }
                 }
+            nudgePicker("New email", selection: $emailNudge)
+            nudgePicker("New chats", selection: $chatNudge)
         } header: {
             Text("Notifications")
         } footer: {
-            Text("Get a notification 1 minute before each meeting. Tap the notification to open the meeting in Teams.")
+            Text("Meeting reminders arrive 1 minute before each meeting; tap one to open it in Teams. New-message alerts arrive when iOS lets Blick refresh in the background, typically every 15 to 60 minutes and less often overnight or on low battery. Real-time delivery would need a server, and Blick has none.")
+        }
+    }
+
+    /// One channel's scope. Leaving Off asks for alert permission and drops
+    /// back to Off if it is refused, mirroring the meeting toggle.
+    private func nudgePicker(_ title: String, selection: Binding<NudgeScope>) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(NudgeScope.allCases) { scope in
+                Text(scope.label).tag(scope)
+            }
+        }
+        .tint(Brand.accent)
+        .listRowBackground(Brand.bgDarker)
+        .onChange(of: selection.wrappedValue) { old, new in
+            guard old == .off, new != .off else { return }
+            Task {
+                if await !inbox.enableMessageNudges() { selection.wrappedValue = .off }
+            }
         }
     }
 

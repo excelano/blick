@@ -149,6 +149,17 @@ final class Inbox {
     @ObservationIgnored var phoneConnectivity: PhoneConnectivity?
 
     private let meetingNotifications = MeetingNotifications()
+    private let messageNotifications = MessageNotifications()
+    private let newMessageTracker = NewMessageTracker()
+
+    /// Whether the app is in front of the user right now. The app wires this
+    /// to `UIApplication.applicationState` so it reads live state rather than
+    /// a flag that could lag a launch: a background-task or intent launch
+    /// reports background, a foreground refresh reports active. The nudge
+    /// posts only when this is false, since a banner for a message the user
+    /// is already looking at is noise. Defaults to active so nothing fires
+    /// before the app has wired it.
+    var isAppActive: () -> Bool = { true }
 
     /// Tracks the preferred presence we last pinned and when it lapses, shared
     /// with the widget through the App Group. Gates the heartbeat (paused while
@@ -228,6 +239,7 @@ final class Inbox {
         pendingUndo = nil
         undoExpiryTask?.cancel()
         undoExpiryTask = nil
+        newMessageTracker.reset()
         transientMessage = nil
         transientMessageExpiryTask?.cancel()
         transientMessageExpiryTask = nil
@@ -307,6 +319,8 @@ final class Inbox {
         isOutOfOffice = await oooT
         lastRefreshedAt = Date()
         lastRefreshFailed = anyFailed || meetingsResult.failed || emailsResult.failed || chatsFailed
+        await nudgeNewMessages(emails: emailsResult.failed ? nil : emailsResult.emails,
+                               chats: chatsFailed ? nil : chats)
         await updateAppBadge()
         await rescheduleMeetingNotificationsIfEnabled()
         publishStatusSnapshot()
@@ -942,6 +956,50 @@ final class Inbox {
         await meetingNotifications.clearAll()
     }
 
+    // MARK: - New-message nudge
+
+    /// Advance the seen ledger with what this refresh fetched, then notify
+    /// for whatever is new and in scope. The ledger always advances, even
+    /// when nothing will be posted, so a message seen while the app was open
+    /// does not notify from the next background run. A channel whose fetch
+    /// failed passes `nil` and leaves its ledger alone.
+    private func nudgeNewMessages(emails: [Email]?, chats: [ChatMessage]?) async {
+        let result = newMessageTracker.record(
+            emailIds: emails?.map(\.id),
+            chatKeys: chats?.compactMap(MessageNotifications.key(for:))
+        )
+        guard !isAppActive() else { return }
+
+        let emailScope = NudgeScope.stored(forKey: AppStorageKey.emailNudgeScope)
+        let chatScope = NudgeScope.stored(forKey: AppStorageKey.chatNudgeScope)
+        let newEmailIds = Set(result.newEmailIds)
+        let newChatKeys = Set(result.newChatKeys)
+        let newEmails = (emails ?? []).filter { email in
+            newEmailIds.contains(email.id) && qualifies(emailScope, starred: isStarred(email))
+        }
+        let newChats = (chats ?? []).filter { chat in
+            guard let key = MessageNotifications.key(for: chat) else { return false }
+            return newChatKeys.contains(key) && qualifies(chatScope, starred: isStarredName(chat.from))
+        }
+        guard !newEmails.isEmpty || !newChats.isEmpty else { return }
+        await messageNotifications.post(emails: newEmails, chats: newChats)
+    }
+
+    private func qualifies(_ scope: NudgeScope, starred: Bool) -> Bool {
+        switch scope {
+        case .off: false
+        case .all: true
+        case .starred: starred
+        }
+    }
+
+    /// Settings entry point when a channel goes from Off to something else:
+    /// make sure alerts are allowed. Returns the grant so the caller can put
+    /// the picker back to Off when the user declines.
+    func enableMessageNudges() async -> Bool {
+        await NotificationAuthorization.request()
+    }
+
     // MARK: - Presence, status message, and Out of Office
 
     /// sessionId for `/me/presence/setPresence`. Microsoft constrains
@@ -1288,6 +1346,11 @@ final class Inbox {
     // a device preference, not account state, so `reset()` leaves them alone.
 
     private let starredStore = StarredSenderStore()
+
+    /// Chat's match: Teams messages carry only the sender's display name.
+    func isStarredName(_ displayName: String) -> Bool {
+        starredStore.isStarred(displayName: displayName)
+    }
 
     func isStarred(_ email: Email) -> Bool {
         !email.fromAddress.isEmpty && starredAddresses.contains(StarredSender.normalize(email.fromAddress))
