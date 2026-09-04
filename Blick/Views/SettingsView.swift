@@ -29,6 +29,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 notificationsSection
+                starredSendersSection
                 advancedSection
                 if authService.isAuthenticated {
                     signOutSection
@@ -94,6 +95,24 @@ struct SettingsView: View {
             Text("Notifications")
         } footer: {
             Text("Get a notification 1 minute before each meeting. Tap the notification to open the meeting in Teams.")
+        }
+    }
+
+    private var starredSendersSection: some View {
+        Section {
+            NavigationLink {
+                StarredSendersView(inbox: inbox)
+            } label: {
+                HStack {
+                    Text("Starred senders")
+                    Spacer()
+                    Text("\(inbox.starredSenders.count)")
+                        .foregroundStyle(Brand.textMuted)
+                }
+            }
+            .listRowBackground(Brand.bgDarker)
+        } footer: {
+            Text("The people whose mail you never want to miss. Long-press a message to star its sender, or add someone from Contacts. New-message notifications can be limited to starred senders.")
         }
     }
 

@@ -36,6 +36,11 @@ final class Inbox {
     /// action). Nil when there's nothing to undo.
     private(set) var pendingUndo: UndoableBulkAction?
 
+    /// The starred set, mirrored from `StarredSenderStore` so views re-render
+    /// when it changes; the store itself is plain defaults with no observation.
+    private(set) var starredSenders: [StarredSender] = []
+    private var starredAddresses: Set<String> = []
+
     /// Transient user-facing note, set when an optimistic action reverted
     /// because Graph rejected it (`.error`) or when a bulk action found
     /// nothing to do (`.info`). Drives a floating banner in the summary
@@ -208,6 +213,7 @@ final class Inbox {
         self.authService = authService
         self.teamsEnabled = teamsEnabled
         self.showingAllEmails = UserDefaults.standard.bool(forKey: AppStorageKey.showingAllEmails)
+        reloadStarredSenders()
     }
 
     /// Drop in-memory state tied to the previous session so the next
@@ -1273,6 +1279,37 @@ final class Inbox {
         if !visible.isEmpty { return visible }
         let quoted = parsed.quoted?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return quoted.isEmpty ? "(no message body)" : quoted
+    }
+
+    // MARK: - Starred senders
+    //
+    // Star and unstar go through the App Group store and then re-read it, so
+    // the in-memory mirror is always what the store holds. Starred senders are
+    // a device preference, not account state, so `reset()` leaves them alone.
+
+    private let starredStore = StarredSenderStore()
+
+    func isStarred(_ email: Email) -> Bool {
+        !email.fromAddress.isEmpty && starredAddresses.contains(StarredSender.normalize(email.fromAddress))
+    }
+
+    func star(_ email: Email) {
+        star(displayName: email.from, address: email.fromAddress)
+    }
+
+    func star(displayName: String, address: String) {
+        starredStore.star(StarredSender(displayName: displayName, address: address))
+        reloadStarredSenders()
+    }
+
+    func unstar(address: String) {
+        starredStore.unstar(address: address)
+        reloadStarredSenders()
+    }
+
+    private func reloadStarredSenders() {
+        starredSenders = starredStore.all()
+        starredAddresses = Set(starredSenders.map(\.address))
     }
 
     // MARK: - Email: bulk actions

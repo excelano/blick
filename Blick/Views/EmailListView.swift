@@ -89,6 +89,7 @@ struct EmailListView: View {
                 let matchingMeeting = email.isInvite ? inbox.meetingMatching(email) : nil
                 EmailRow(
                     email: email,
+                    isStarred: inbox.isStarred(email),
                     matchingMeeting: matchingMeeting,
                     onTap: { openedId = email.id; previewTarget = .email(email) },
                     onRsvp: { response in
@@ -116,6 +117,19 @@ struct EmailListView: View {
                     .tint(.orange)
                 }
                 .contextMenu {
+                    if !email.fromAddress.isEmpty {
+                        Button {
+                            if inbox.isStarred(email) {
+                                inbox.unstar(address: email.fromAddress)
+                            } else {
+                                inbox.star(email)
+                            }
+                        } label: {
+                            Label(inbox.isStarred(email) ? "Unstar sender" : "Star sender",
+                                  systemImage: inbox.isStarred(email) ? "star.slash" : "star")
+                        }
+                    }
+                    Divider()
                     emailDispositionMenu(for: email, inbox: inbox,
                                          onMove: { moveTarget = $0 },
                                          onDisposed: { dropLocal(email.id) })

@@ -396,6 +396,7 @@ struct SummaryView: View {
                         let matchingMeeting = email.isInvite ? inbox.meetingMatching(email) : nil
                         EmailRow(
                             email: email,
+                            isStarred: inbox.isStarred(email),
                             matchingMeeting: matchingMeeting,
                             onTap: {
                                 #if DEBUG
@@ -469,6 +470,18 @@ struct SummaryView: View {
                                 } label: {
                                     Label(email.isFlagged ? "Unflag" : "Flag",
                                           systemImage: email.isFlagged ? "flag.slash" : "flag")
+                                }
+                                if !email.fromAddress.isEmpty {
+                                    Button {
+                                        if inbox.isStarred(email) {
+                                            inbox.unstar(address: email.fromAddress)
+                                        } else {
+                                            inbox.star(email)
+                                        }
+                                    } label: {
+                                        Label(inbox.isStarred(email) ? "Unstar sender" : "Star sender",
+                                              systemImage: inbox.isStarred(email) ? "star.slash" : "star")
+                                    }
                                 }
                                 Divider()
                                 emailDispositionMenu(for: email, inbox: inbox,

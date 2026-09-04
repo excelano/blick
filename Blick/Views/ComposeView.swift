@@ -186,8 +186,8 @@ struct ComposeView: View {
             // field builds a fresh presenter; clearing it removes the host.
             if let field = contactPickerField {
                 ContactPicker(
-                    onPick: { email in
-                        appendRecipient(email, to: field)
+                    onPick: { picked in
+                        appendRecipient(picked.address, to: field)
                         contactPickerField = nil
                     },
                     onCancel: { contactPickerField = nil }

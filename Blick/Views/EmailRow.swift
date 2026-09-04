@@ -8,6 +8,10 @@ import SwiftUI
 
 struct EmailRow: View {
     let email: Email
+    /// Whether the sender is in the starred set. Shows a small star after the
+    /// name so the user can see at a glance who is starred without opening
+    /// Settings; the menu's Star/Unstar item is the control.
+    var isStarred: Bool = false
     /// Set when this email is a meeting invitation AND the underlying
     /// meeting is in our current summary window. Drives the inline
     /// RSVP buttons and the subject-line conflict triangle. Nil for
@@ -36,6 +40,12 @@ struct EmailRow: View {
                         Text(email.from)
                             .font(.subheadline.weight(email.isRead ? .regular : .semibold))
                             .foregroundStyle(email.isRead ? Brand.textMuted : .white)
+                        if isStarred {
+                            Image(systemName: "star.fill")
+                                .font(.caption)
+                                .foregroundStyle(Brand.accent)
+                                .accessibilityLabel("Starred sender")
+                        }
                         if email.isFlagged {
                             Image(systemName: "flag.fill")
                                 .font(.caption)

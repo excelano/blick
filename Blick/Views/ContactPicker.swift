@@ -23,9 +23,17 @@ import SwiftUI
 /// Contacts with no email are disabled. A single-email contact selects
 /// immediately (`didSelect contact:`); a multi-email contact drills into its
 /// detail so the user taps a specific address (`didSelect property:`). Either
-/// way `onPick` receives one SMTP address string; cancel calls `onCancel`.
+/// way `onPick` receives one address with the contact's name; cancel calls
+/// `onCancel`.
+/// One selection from the picker: the address the user tapped and the
+/// contact's name, which is empty when Contacts did not supply one.
+struct PickedContact {
+    let displayName: String
+    let address: String
+}
+
 struct ContactPicker: UIViewControllerRepresentable {
-    let onPick: (String) -> Void
+    let onPick: (PickedContact) -> Void
     let onCancel: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -41,11 +49,11 @@ struct ContactPicker: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, CNContactPickerDelegate {
-        private let onPick: (String) -> Void
+        private let onPick: (PickedContact) -> Void
         private let onCancel: () -> Void
         private var didPresent = false
 
-        init(onPick: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+        init(onPick: @escaping (PickedContact) -> Void, onCancel: @escaping () -> Void) {
             self.onPick = onPick
             self.onCancel = onCancel
         }
@@ -73,7 +81,7 @@ struct ContactPicker: UIViewControllerRepresentable {
                 onCancel()
                 return
             }
-            onPick(email)
+            onPick(PickedContact(displayName: Self.fullName(of: contact), address: email))
         }
 
         /// Multi-email contact: the user tapped a specific email on the card.
@@ -82,7 +90,15 @@ struct ContactPicker: UIViewControllerRepresentable {
                 onCancel()
                 return
             }
-            onPick(email)
+            onPick(PickedContact(displayName: Self.fullName(of: contactProperty.contact), address: email))
+        }
+
+        /// The contact's formatted name, or empty when the picker handed back
+        /// a contact without the name keys. Callers fall back to the address.
+        private static func fullName(of contact: CNContact) -> String {
+            let required = CNContactFormatter.descriptorForRequiredKeys(for: .fullName)
+            guard contact.areKeysAvailable([required]) else { return "" }
+            return CNContactFormatter.string(from: contact, style: .fullName) ?? ""
         }
 
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
