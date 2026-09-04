@@ -189,8 +189,18 @@ xcodebuild -project /Users/anderix/email/blick/Blick.xcodeproj \
 
 About 30 seconds end-to-end on a warm DerivedData cache.
 
-## Test target
+## Tests
 
-`BlickWidgetExtension` and `BlickTests` are separate targets/schemes.
-For widget-only changes, use `-scheme BlickWidgetExtension`. For unit
-tests, `xcodebuild test` against the `BlickTests` scheme.
+The unit tests live in the `BlickKit` package (`BlickKit/Tests/BlickKitTests`),
+not in an app test target — there is no `BlickTests` scheme. Run them from the
+package directory against a simulator; `swift test` on the Mac host fails
+because `Brand` uses SwiftUI `Color` with no macOS platform declared:
+
+```bash
+cd /Users/anderix/email/blick/BlickKit
+xcodebuild test -scheme BlickKit \
+  -destination "platform=iOS Simulator,name=iPhone 17 Pro" 2>&1 \
+  | grep -E "error:|Suite .* (passed|failed)|Test run with|\*\* TEST"
+```
+
+For widget-only changes, build with `-scheme BlickWidgetExtension`.
