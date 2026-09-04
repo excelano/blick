@@ -1363,6 +1363,15 @@ final class Inbox {
     func star(displayName: String, address: String) {
         starredStore.star(StarredSender(displayName: displayName, address: address))
         reloadStarredSenders()
+        // Starring someone is the user saying they want to hear from that
+        // person, and the nudge defaults to starred senders without ever
+        // passing through Settings, so this is where alert permission gets
+        // asked for. Once decided, iOS does not prompt again.
+        let wantsNudges = NudgeScope.stored(forKey: AppStorageKey.emailNudgeScope) != .off
+            || NudgeScope.stored(forKey: AppStorageKey.chatNudgeScope) != .off
+        if wantsNudges {
+            Task { _ = await NotificationAuthorization.request() }
+        }
     }
 
     func unstar(address: String) {
