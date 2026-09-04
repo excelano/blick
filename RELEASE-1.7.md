@@ -5,13 +5,13 @@ the uncommitted backlog in `POTENTIAL-FEATURES.md`, and the App Store runbook in
 `RELEASING.md`. This file is scaffolding for one release: when 1.7 ships, its
 contents migrate into `FEATURES.md` and this file goes away.
 
-## Status as of 2026-09-02
+## Status as of 2026-09-04
 
 | Slice | State |
 |---|---|
 | 0 — Inbox section pass | Done, on `main`. Landed as one commit, not three; the cross-file split proved impossible (see below). |
 | A — seven-day agenda | Done, on `main`, verified on device. Two commits, not three. |
-| B — disposition | B1 and B2/B3 done, on branch `mail-disposition`. **Not yet verified against a live mailbox.** B4 (bulk) outstanding. |
+| B — disposition | B1 and B2/B3 done and verified against the live mailbox, on branch `mail-disposition`. Four fixes from that testing are in a fourth commit. B4 (bulk) outstanding. |
 | C — starred senders | Not started. |
 | D — new-message nudge | Not started. |
 | E — release | Not started. |
@@ -261,7 +261,7 @@ agenda would have been unreachable at the end of a day — exactly when "what do
 tomorrow look like" gets asked. The section is now always rendered, carrying an
 inline "Nothing else today — see the week" row when the day is done.
 
-### Slice B: disposition, three commits so far (B4 outstanding)
+### Slice B: disposition, four commits so far (B4 outstanding)
 
 **As built.** Delete is a move to Deleted Items rather than
 `DELETE /me/messages/{id}`. Both land the message in the same folder, but `DELETE`
@@ -287,13 +287,36 @@ is PATCH-only, and move is POST. This is the first thing to cut if the release
 runs long, since single-message disposition is the feature and bulk is only an
 accelerant.
 
-**Still unverified.** Archive is the open risk. It addresses the well-known
-`archive` folder without a lookup, and Graph accepts that name, but a mailbox that
-has never had Outlook's Archive button pressed may not have provisioned the
-folder. The failure surfaces as "Couldn't archive that message." The fallback is a
-lookup by name through `fetchMailFolders`, which the Move picker already builds,
-so the fix is small if it is needed. Undo is the other thing to exercise against
-live mail, since the whole delete-as-a-move design exists to make it possible.
+**Verified on live mail, 2026-09-04.** Archive, delete, undo, and Move to… all
+landed in the right Outlook folders. The archive risk did not materialise: this
+mailbox has the well-known `archive` folder, and Graph accepts the name. The
+name-lookup fallback through `fetchMailFolders` stays unbuilt until a tenant
+proves it necessary. The testing found four defects, fixed in one commit:
+
+Archiving an unread message killed the app with a Swift exclusivity violation.
+The unread counter was adjusted as `summary?.x = f(summary?.x)`, and with
+optional chaining on the left Swift opens the write access to `summary` before it
+evaluates the right side, which reads `summary` again. Two of the four sites were
+slice B's; the other two predated it (mark-read from the browse list, reply-all)
+and had never been hit with an unread row still on the glance. All four now go
+through `adjustUnreadEmails(by:)`, which reads and writes in two statements.
+
+Undo re-inserted the row under its original id, but the move back re-creates the
+message a second time, so any later action on that row targeted an id that no
+longer resolved and failed with "Couldn't move that message." The restored row
+now carries the id the move back returns, via a new `Email.with(id:)`.
+
+The undo banner rendered only on the summary, so an archive from the full Email
+list played out behind that sheet and expired unseen. The banners moved into
+`InboxBanners`, an overlay the summary and the Email list both show; the list's
+Undo refetches its rows so the restored message comes back there too.
+
+Two debug prints were added along the way and kept as hooks, listed in the
+run-blick skill: the folder fetch's elapsed time and counts, and the Graph error
+behind a failed disposition. The first open of Move to… spun for a long while
+once and never again; the fetch itself measured under 0.3s every time after, so
+the one-off was most likely a silent token refresh, and the print is there to
+tell the two apart if it recurs.
 
 ### Slice C: starred senders, two commits
 

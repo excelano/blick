@@ -69,6 +69,9 @@ struct EmailListView: View {
             MoveToFolderSheet(inbox: inbox, email: email,
                               onClose: { dropLocal(email.id); moveTarget = nil })
         }
+        // The restored message comes back under a new id, so the browse
+        // rows are refetched rather than patched.
+        .inboxBanners(inbox, onUndone: { await loadInbox() })
     }
 
     private func loadInbox() async {

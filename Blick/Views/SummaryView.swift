@@ -160,75 +160,7 @@ struct SummaryView: View {
             .padding(.horizontal, 16)
             .ignoresSafeArea(.container, edges: .bottom)
 
-            VStack(spacing: 8) {
-                Spacer()
-                transientErrorBanner
-                    .padding(.horizontal, 16)
-                    .animation(.easeInOut(duration: 0.25), value: inbox.transientMessage)
-                undoBanner
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 20)
-                    .animation(.easeInOut(duration: 0.25), value: inbox.pendingUndo?.summary)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var transientErrorBanner: some View {
-        if let message = inbox.transientMessage {
-            let isError = message.kind == .error
-            HStack(spacing: 12) {
-                Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(isError ? .orange : Brand.accent)
-                Text(message.text)
-                    .font(.subheadline)
-                    .foregroundStyle(.white)
-                Spacer()
-                Button {
-                    inbox.dismissTransientMessage()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.subheadline)
-                        .foregroundStyle(Brand.textMuted)
-                }
-                .accessibilityLabel(isError ? "Dismiss error" : "Dismiss message")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Brand.bgDarker)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-    }
-
-    @ViewBuilder
-    private var undoBanner: some View {
-        if let action = inbox.pendingUndo {
-            HStack(spacing: 12) {
-                Text(action.summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.white)
-                Spacer()
-                Button("Undo") {
-                    Task { await inbox.performUndo() }
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Brand.accent)
-                Button {
-                    inbox.dismissUndo()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.subheadline)
-                        .foregroundStyle(Brand.textMuted)
-                }
-                .accessibilityLabel("Dismiss undo")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Brand.bgDarker)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            InboxBanners(inbox: inbox)
         }
     }
 

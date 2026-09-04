@@ -457,6 +457,16 @@ final class Inbox {
 
     var unreadEmailCount: Int { summary?.totalUnreadEmails ?? 0 }
 
+    /// Adjust the unread total by `delta`, clamped at zero. Read and write are
+    /// two statements on purpose: `summary?.x = f(summary?.x)` opens the write
+    /// access to `summary` before the right side reads it, and Swift's
+    /// exclusivity checker kills the app for that at run time. It only fires
+    /// on the branch where the row was unread, which is how it hid.
+    private func adjustUnreadEmails(by delta: Int) {
+        let current = summary?.totalUnreadEmails ?? 0
+        summary?.totalUnreadEmails = max(0, current + delta)
+    }
+
     var unreadChatCount: Int { summary?.chats.count ?? 0 }
 
     var remainingMeetingCount: Int { todayMeetingIds.count }
@@ -1160,7 +1170,7 @@ final class Inbox {
             // The message leaves the Inbox entirely, so an unread one stops
             // counting toward the unread total even though it stays unread.
             if !email.isRead {
-                summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 0) - 1)
+                adjustUnreadEmails(by: -1)
             }
         }
         do {
@@ -1172,6 +1182,9 @@ final class Inbox {
             })
         } catch {
             logger.error("disposeEmail(\(destination, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
+            #if DEBUG
+            print("CHECKIN-DEBUG disposeEmail(\(destination)) failed: \(error.localizedDescription)")
+            #endif
             restoreEmailToGlance(email)
             await updateAppBadge()
             showTransient("Couldn't \(verb.lowercased()) that message.", kind: .error)
@@ -1194,10 +1207,13 @@ final class Inbox {
     /// glance. Best effort: if the move back fails the row stays gone and the
     /// next refresh reconciles, since the message is still safely in whatever
     /// folder it was filed into.
+    ///
+    /// The move back re-creates the message once more, so the restored row
+    /// carries the id Graph hands back, not the one it started with.
     private func undoDispose(_ email: Email, movedId: String) async {
         do {
-            try await graphClient.moveMessage(id: movedId, toFolder: WellKnownFolder.inbox)
-            restoreEmailToGlance(email)
+            let restoredId = try await graphClient.moveMessage(id: movedId, toFolder: WellKnownFolder.inbox)
+            restoreEmailToGlance(email.with(id: restoredId))
             await updateAppBadge()
         } catch {
             logger.error("undoDispose failed: \(error.localizedDescription, privacy: .public)")
@@ -1213,7 +1229,7 @@ final class Inbox {
             ?? summary?.emails.count ?? 0
         summary?.emails.insert(email, at: insertAt)
         if !email.isRead {
-            summary?.totalUnreadEmails = (summary?.totalUnreadEmails ?? 0) + 1
+            adjustUnreadEmails(by: 1)
         }
     }
 
@@ -1757,7 +1773,7 @@ final class Inbox {
             // Decrement when the row was genuinely unread — even off the visible
             // page — so the badge (a server $count) doesn't drift high.
             if wasUnread {
-                summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 0) - 1)
+                adjustUnreadEmails(by: -1)
             }
             await updateAppBadge()
         } else {
@@ -1848,7 +1864,7 @@ final class Inbox {
             logger.info("replyAllToEmail removing row at idx=\(idx, privacy: .public)")
             #endif
             summary?.emails.remove(at: idx)
-            summary?.totalUnreadEmails = max(0, (summary?.totalUnreadEmails ?? 1) - 1)
+            adjustUnreadEmails(by: -1)
             await updateAppBadge()
         } else {
             #if DEBUG

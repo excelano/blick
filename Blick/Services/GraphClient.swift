@@ -402,11 +402,18 @@ final class GraphClient {
     ///
     /// Rides the existing `Mail.ReadWrite` scope — no new consent.
     func fetchMailFolders() async throws -> [MailFolder] {
+        #if DEBUG
+        let started = Date()
+        defer { print("CHECKIN-DEBUG fetchMailFolders took \(Date().timeIntervalSince(started))s") }
+        #endif
         let data: GraphList<MailFolderResponse> = try await core.get("/me/mailFolders", query: [
             "$top": "100",
             "$select": "id,displayName",
             "$expand": "childFolders($select=id,displayName;$top=100)"
         ])
+        #if DEBUG
+        print("CHECKIN-DEBUG fetchMailFolders: \(data.value.count) top-level, \(data.value.reduce(0) { $0 + ($1.childFolders?.count ?? 0) }) children")
+        #endif
         var folders: [MailFolder] = []
         for parent in data.value.sorted(by: { $0.displayName < $1.displayName }) {
             folders.append(MailFolder(id: parent.id, displayName: parent.displayName, depth: 0))

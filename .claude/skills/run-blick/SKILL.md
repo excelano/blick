@@ -129,6 +129,8 @@ use without modifying code:
 |---|---|
 | `Blick/Views/MessagePreviewSheet.swift` → `loadBodyIfNeeded()` | Email body HTML length, `cid:` image-reference count, and per-part inline/Content-ID/byte-count — for the "renders as text not HTML" and "inline image didn't paint" classes of bug |
 | `Blick/Services/GraphClient.swift` → `fetchEmailContent(id:)` | Logs a non-fatal `fetchAttachmentParts failed` with the Graph error body when the best-effort attachment call throws |
+| `Blick/Services/GraphClient.swift` → `fetchMailFolders()` | Elapsed seconds for the folder fetch behind Move to…, plus top-level and child folder counts — separates a slow Graph call from a slow token refresh when the picker spins |
+| `Blick/Services/Inbox.swift` → `disposeEmail(_:to:verb:)` | The Graph status and body behind a "Couldn't archive/move/delete that message" banner, which otherwise only reaches `os.Logger` |
 
 Add more here as they get added. Removing them is cheap; re-adding
 under deadline pressure is not.

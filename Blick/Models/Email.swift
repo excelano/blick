@@ -105,6 +105,23 @@ struct Email: Identifiable {
               ccRecipients: ccRecipients)
     }
 
+    /// Graph re-creates a message every time it moves folders, so a message
+    /// that has been filed and brought back carries a new id. The row must
+    /// follow it, or every later action on that row targets an id that no
+    /// longer resolves.
+    func with(id: String) -> Email {
+        Email(id: id, subject: subject, from: from,
+              fromAddress: fromAddress, preview: preview,
+              received: received, isRead: isRead, isFlagged: isFlagged,
+              inferenceClassification: inferenceClassification,
+              meetingMessageType: meetingMessageType,
+              meetingStart: meetingStart,
+              meetingEnd: meetingEnd,
+              isMailingList: isMailingList,
+              toRecipients: toRecipients,
+              ccRecipients: ccRecipients)
+    }
+
     func with(isRead: Bool) -> Email {
         Email(id: id, subject: subject, from: from,
               fromAddress: fromAddress, preview: preview,
