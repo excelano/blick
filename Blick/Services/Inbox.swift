@@ -229,6 +229,7 @@ final class Inbox {
         currentPresence = .unknown
         meetingsById = [:]
         todayMeetingIds = []
+        agendaMeetingIds = []
         inviteEmailMeetingIds = [:]
         referenceMeetingIds = []
         graphClient.clearUser()
