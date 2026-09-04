@@ -31,27 +31,13 @@ final class MeetingNotifications {
     }
     private let logger = Logger(subsystem: "com.excelano.checkin", category: "notifications")
 
-    /// Prompt for alert + sound permission. Badge is already requested
-    /// elsewhere via `updateAppBadge`. Returns the granted state.
-    func requestAuthorization() async -> Bool {
-        let center = UNUserNotificationCenter.current()
-        do {
-            return try await center.requestAuthorization(options: [.alert, .sound, .badge])
-        } catch {
-            logger.error("requestAuthorization failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
-    }
-
     /// Clear any of our pending alerts and re-add one 60 seconds before
     /// each meeting's start. Silently no-ops if the user hasn't granted
     /// alert authorization — the caller (Inbox) gates this on the
     /// `meetingNotifications` AppStorage flag, not on auth state.
     func scheduleAll(_ meetings: [Meeting]) async {
         let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized
-            || settings.authorizationStatus == .provisional else {
+        guard await NotificationAuthorization.isGranted() else {
             await clearAll()
             return
         }

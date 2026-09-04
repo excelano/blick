@@ -929,7 +929,7 @@ final class Inbox {
     /// already have. Returns the granted state so the caller can flip
     /// the toggle back off if the user declined.
     func enableMeetingNotifications() async -> Bool {
-        let granted = await meetingNotifications.requestAuthorization()
+        let granted = await NotificationAuthorization.request()
         if granted {
             await rescheduleMeetingNotificationsIfEnabled()
         }
