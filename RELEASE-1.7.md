@@ -13,7 +13,7 @@ contents migrate into `FEATURES.md` and this file goes away.
 | A — seven-day agenda | Done, on `main`, verified on device. Two commits, not three. |
 | B — disposition | B1 and B2/B3 done and verified against the live mailbox, on branch `mail-disposition`. Four fixes from that testing are in a fourth commit. B4 (bulk) outstanding. |
 | C — starred senders | Done, on `main`, verified on device. Two commits plus a one-line sign-out fix. |
-| D — new-message nudge | Not started. |
+| D — new-message nudge | D1, D2/D3 built on branch `new-message-nudge`, installed on the phone. **Not yet verified against a live message.** Test path: star a sender or set New email to Everyone, let a message arrive with Blick closed, say "What's my Blick" to Siri. |
 | E — release | Not started. |
 
 Two pieces of work landed alongside the plan rather than in it. The meeting context
@@ -339,17 +339,35 @@ rows and Settings re-render on change.
 Starred senders survive sign-out. They are a device preference, not account
 state, and David chose to keep it that way.
 
-### Slice D: new-message nudge, three commits
+### Slice D: new-message nudge, three commits (built, unverified)
 
-The diff against a persisted seen-set, the notification content builder, and
-first-run suppression come first, then the hooks into the background and
-foreground refresh paths, then the per-channel settings with the honest footer
-copy.
+**As built.** `NewMessageTracker` (BlickKit) keeps a per-channel ledger of ids
+in the App Group and reports what a refresh saw for the first time. The first
+refresh after install or sign-in seeds silently; a message once seen never
+reports again even after leaving and re-entering the unread list; the ledger is
+capped at 1000 per channel, oldest out first; a channel whose fetch failed leaves
+its ledger alone. Seven tests. Chats are keyed by thread id plus last-message
+timestamp because `ChatMessage.id` is a per-instance UUID.
 
-Testing the background path is otherwise miserable, so: pause in LLDB once the app
-has backgrounded and call `_simulateLaunchForTaskWithIdentifier:` on the shared
-`BGTaskScheduler` with `com.excelano.checkin.refresh`. That turns a multi-hour wait
-on the OS scheduler into a one-second round trip.
+`MessageNotifications` posts one notification per new message under the
+`blick.message.` prefix, with separate thread ids for mail and chat. The
+alert-permission prompt moved into `NotificationAuthorization`, shared with the
+meeting reminders. The nudge posts only when `Inbox.isAppActive()` is false; the
+app wires that closure to `UIApplication.applicationState`, so a background-task
+or Siri-intent launch reads as background without waiting on a scene-phase
+change. Sign-out resets the ledger.
+
+Settings: New email and New chats pickers (Off, Starred senders, Everyone),
+default Starred senders. Leaving Off requests alert permission and reverts on
+refusal. Starring the first sender also requests it, because the default is on
+without the user ever visiting Settings. The footer says delivery rides on iOS
+background refresh and that real-time would need a server Blick does not have.
+
+**Not yet done.** Live verification. A notification tap only brings Blick to
+the foreground; `userInfo` already carries `emailId` or `chatId`, so routing to
+the preview is a follow-up if wanted. The LLDB `_simulateLaunchForTaskWithIdentifier:`
+path was not needed: Siri's "What's my Blick" runs the intent refresh with the
+app in the background, which exercises the same code.
 
 ### Slice E: release
 
