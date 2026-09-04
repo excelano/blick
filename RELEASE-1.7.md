@@ -12,7 +12,7 @@ contents migrate into `FEATURES.md` and this file goes away.
 | 0 — Inbox section pass | Done, on `main`. Landed as one commit, not three; the cross-file split proved impossible (see below). |
 | A — seven-day agenda | Done, on `main`, verified on device. Two commits, not three. |
 | B — disposition | B1 and B2/B3 done and verified against the live mailbox, on branch `mail-disposition`. Four fixes from that testing are in a fourth commit. B4 (bulk) outstanding. |
-| C — starred senders | Not started. |
+| C — starred senders | Done, on `main`, verified on device. Two commits plus a one-line sign-out fix. |
 | D — new-message nudge | Not started. |
 | E — release | Not started. |
 
@@ -318,13 +318,26 @@ once and never again; the fetch itself measured under 0.3s every time after, so
 the one-off was most likely a silent token refresh, and the print is there to
 tell the two apart if it recurs.
 
-### Slice C: starred senders, two commits
+### Slice C: starred senders, two commits (done)
 
-The store lands first, holding display name plus address in the app group, and it
-is the one genuinely unit-testable piece in this release because it carries no
-`@Dependency` and makes no Graph call. The second commit adds star and unstar to
-the email row's long-press menu, the contact-picker entry, and a management list
-in Settings.
+**As built.** The store lives in BlickKit as `StarredSenderStore`, one JSON array
+in the App Group, with `StarredSender` holding a display name and a trimmed,
+lowercased address. It matches by address for mail and by display name for Teams
+chat, because `ChatMessage` carries only the sender's name. Nine tests cover it.
+Running them revealed the run-blick skill was pointing at a `BlickTests` scheme
+that does not exist; the tests are in the package and run from its directory
+against a simulator.
+
+Star/Unstar sender sits in the email row's long-press menu on the summary and the
+full Email list, only when the message carries an address. Starred rows show a
+small star after the sender's name. Settings has a Starred senders row that opens
+a management list: swipe to unstar, and an Add button on the composer's
+out-of-process `ContactPicker`, which now returns a `PickedContact` carrying the
+name as well as the address. `Inbox` mirrors the store into observable state so
+rows and Settings re-render on change.
+
+Starred senders survive sign-out. They are a device preference, not account
+state, and David chose to keep it that way.
 
 ### Slice D: new-message nudge, three commits
 
