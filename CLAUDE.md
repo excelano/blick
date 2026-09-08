@@ -24,6 +24,12 @@ The trap worth remembering: `CheckInWidget` was both a Swift type name and the w
 
 One identifier did slip through that rename and had to be repaired: the local-notification prefix `checkin.meeting.`. Pending notifications live in iOS's store rather than in the app, and `MeetingNotifications.clearAll` cancels by prefix, so the renamed build could no longer see what the previous build had scheduled and every meeting reminder fired twice. It is now `blick.meeting.`, with the old prefix swept via `legacyIdentifierPrefixes`. The lesson generalises past the `com.excelano.*` shape: **anything the app writes into an OS-owned store keyed by a string** — notification identifiers, widget kinds, control kinds, App Group and UserDefaults keys, keychain items — is a persisted identifier even when it looks like an ordinary internal constant. Audit changed *string literals*, not just identifiers matching the bundle ID.
 
+## Swift traps paid for once
+
+`summary?.x = f(summary?.x)` crashes at run time. With optional chaining on the left, Swift opens the write access to `summary` before evaluating the right side, which reads `summary` again, and the exclusivity checker kills the app ("Simultaneous accesses ... modification requires exclusive access"). It only fires on the branch that actually runs the line, which is how four of them hid until an archive of an unread message hit one. Read into a local first, then assign; `Inbox.adjustUnreadEmails(by:)` is the pattern.
+
+Graph's `/move` re-creates the message under a new id, including the move back on undo. Any row restored after an undo must carry the id the move returned, or every later action on it targets an id that no longer resolves.
+
 ## Status
 
 Repo's canonical docs are `FEATURES.md` (shipped functionality), `POTENTIAL-FEATURES.md` (the feature backlog — ideas under consideration, not yet committed), `RELEASING.md` (the App Store cut runbook), `PRIVACY.md`, `SELF-HOSTING.md`, and `IT-APPROVAL.md`. Current task comes from conversation, not from this file.

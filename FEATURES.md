@@ -19,6 +19,8 @@ What a user can do, mapped to the entry point in the UI.
 |---|---|
 | See next meeting in the next 24 hours | Top of the list when one exists; cancelled events and events you've declined are skipped. The card is a three-row layout: calendar icon + time range ("9-9:30 PM"), then subject, then countdown ("in 12 min" / "soon" / "now") with the organizer alongside. The list re-renders every 30 seconds so back-to-back meetings transition without a manual refresh. |
 | See the rest of today's meetings | "Later today" section between the next-meeting card and the Chats section, showing each remaining meeting as a compact row (calendar + time range + subject). Same cancelled/declined skip. Tap a row to join in Teams. Window ends at start of tomorrow local time. |
+| See the week ahead | "Later today" header → chevron, or the "Nothing else today — see the week" button when the section is empty. Opens a rolling seven-day agenda (today through six days out) grouped under Today / Tomorrow / weekday headers. Past meetings today are dimmed; only meetings with a join link are tappable. Reads the same shared meeting store as the summary, so an RSVP or delete from the agenda is reflected everywhere at once, and conflict triangles stay consistent. A sheet on both iPhone and iPad. |
+| See which meetings still need an answer | "Needs reply" pill on "Later today" rows and agenda rows for meetings you haven't responded to. Long-press the row for Accept / Tentative / Decline; the agenda carries the same long-press menu as the meeting card (RSVP, resolve conflict, copy join link, delete). |
 | Join a meeting in Teams | Tap the meeting card (for the next meeting) or a "Later today" row (uses Graph's `onlineMeeting.joinUrl`; rewritten to `msteams:/` so iOS routes directly to the Teams app) |
 | Highlight when the next meeting is imminent or in progress | When the meeting starts within the next 3 minutes, the calendar icon and countdown both flip from cyan to orange and the countdown reads "soon". Once the meeting starts, the countdown reads "now" in orange. The same treatment applies to "Later today" rows the moment one of them enters the imminent or in-progress window. |
 | See a conflict warning when a meeting overlaps another | Orange triangle on the meeting card, on "Later today" rows, AND on the matching invite email's subject line. Computed across the same 10-event window we fetch; back-to-back meetings (one ending exactly when the next starts) don't count. |
@@ -36,6 +38,7 @@ What a user can do, mapped to the entry point in the UI.
 | Function | Triggered by |
 |---|---|
 | Get a notification 1 minute before each meeting | Settings sheet → "Meeting reminders" toggle. Local `UNUserNotification` scheduled per meeting on every refresh. Tap the notification to open the meeting in Teams. |
+| Get a notification when a new email or chat arrives | Settings → "New email" and "New chats" pickers: Off, Starred senders (the default), or Everyone. Each refresh, foreground or background, compares what it fetched against a persisted ledger of ids and posts one local notification per message that is genuinely new and in scope, but only while Blick is not in front of you. The first refresh after install or sign-in seeds the ledger silently so an existing inbox never announces itself, and a message once seen never notifies again. Delivery rides on iOS background refresh, typically every 15 to 60 minutes; the Settings footer says so. Real-time would need a server, which the privacy posture rules out. Tap the notification to open Blick. |
 
 ## Emails
 
@@ -46,6 +49,8 @@ What a user can do, mapped to the entry point in the UI.
 | Lift the 20-email cap to see everything unread | Email section header → ⋯ menu → "Show all N" (only when there are emails beyond the cap). Persists across launches. Toggle back via "Show top 20". |
 | See each email's sender, subject, and preview | Each row shows sender + relative time, subject, and Graph's `bodyPreview` (up to 4 lines) |
 | See a flag indicator on flagged emails | Orange flag icon next to the sender name |
+| See which senders you've starred | Small cyan star after the sender name on any row from a starred sender (summary and full list). |
+| Star or unstar a sender | Long-press an email row → "Star sender" / "Unstar sender" (offered when the message carries an address). Starring your first sender asks for alert permission, since the new-message nudge defaults to starred senders. Manage the set in Settings → Starred senders. |
 | Preview an email | Tap an email row. Opens a sheet with the full message body, fetched as HTML (`Prefer: outlook.body-content-type="html"`) and rendered by default as cleaned native text (the same Klartext stripper used for summary previews: salutations, signatures, quoted replies, etc.). Email auto-marks-as-read on open. |
 | See an email as formatted HTML or as plain text | Preview sheet → "Web View" / "Text" toggle. "Web View" shows a faithful HTML render of the message; "Text" shows the cleaned native fold. Defaults to text. |
 | Load remote images for a message | Preview sheet (in Web View mode) → "Load images". Remote images are blocked by default and treated as tracking pixels — nothing is fetched from an external host until you opt in, per message. Inline `cid:` images always render. |
@@ -67,7 +72,10 @@ What a user can do, mapped to the entry point in the UI.
 | Restore today's emails to unread | Same menu → "Mark unread: today's emails", OR (when the email list is empty) the inline "Mark unread: today's emails" button under the section header. Fetches Inbox messages received between local midnight and now that are currently read, batch-marks them unread, refreshes. Registers an undo. |
 | Restore flagged emails to unread | Same menu → "Mark unread: flagged emails". Flips read-and-flagged Inbox mail back to unread, with an undo. |
 | Copy the sender's email address | Long-press an email row → "Copy sender address". Writes the SMTP address to the system pasteboard. |
-| Undo a bulk action | Floating "Undo" banner at the bottom of the screen for 8 seconds after any bulk mark-read / flag / mark-today-unread. |
+| Archive an email | Long-press an email row (summary or full list) → "Archive", or the ⋯ menu in the preview sheet. Moves the message to the mailbox's Archive folder via Graph's well-known `archive` name (no lookup). The row leaves the list immediately and comes back if Graph refuses. Registers an undo. |
+| Move an email to a folder | Same menus → "Move to…". Opens a picker of your mail folders (top level plus one generation of children, indented), fetched fresh each time so a folder made in Outlook moments ago is there. Registers an undo. |
+| Delete an email | Same menus → "Delete" (destructive, no confirmation dialog). Implemented as a move to Deleted Items rather than Graph's `DELETE`, because a move returns the relocated message and its new id while `DELETE` returns nothing, and without that id there is no undo. Never offered as a swipe, so a mis-swipe can't file mail. Registers an undo. |
+| Undo a bulk action or a filed message | Floating "Undo" banner at the bottom of the screen for 8 seconds after any bulk mark-read / flag / mark-today-unread, and after an archive, move, or delete. Shown on the summary and on the full Email list, wherever the action happened. Undoing a filed message moves it back to the Inbox under the id Graph assigns on the way back, so later actions on the restored row keep working. |
 | Open the full email list | Email section header → chevron. Opens a full-screen list in its own `NavigationStack`. |
 | Search your whole mailbox | Search field on the full email list. A query runs Graph's `$search` across all folders (read + unread), relevance-ranked, top 25; an empty query shows the recent inbox. Debounced with a generation counter so a slower earlier lookup can't overwrite a newer keystroke's results. |
 | Browse the recent inbox (read + unread) | The full email list shows the recent inbox newest-first, including already-read mail, not just the unread front. Read rows render lighter (open envelope, regular weight). Tap a row to preview; swipe to toggle read/unread or to flag. |
@@ -119,6 +127,8 @@ Blick's composer is one channel-agnostic surface: the channel (email vs Teams ch
 |---|---|
 | Open the Settings sheet | Top-right gear button, visible on both the summary screen and the sign-in screen (so a stuck custom registration can be undone before sign-in) |
 | Enable / disable meeting reminders | Settings → "Meeting reminders" toggle (see Notifications above) |
+| Choose who new-message notifications fire for | Settings → "New email" and "New chats" pickers (Off / Starred senders / Everyone; see Notifications above). Leaving Off asks for alert permission and drops back to Off if refused. |
+| Manage starred senders | Settings → "Starred senders" (with a count). A list of name plus address: swipe to unstar, or tap + to add someone from the system contact picker (out of process, so no Contacts permission and no Graph scope). Starred senders are a device preference; they survive sign-out. |
 | Override the Azure App Registration with your own | Settings → "Custom Azure registration" → enter Application (client) ID and/or Directory (tenant) ID → "Save and sign in" (signs out, rebuilds MSAL, sends you to Sign In) |
 | Revert to Excelano's default registration | Settings → "Reset to defaults" |
 
@@ -175,8 +185,9 @@ Because the app name "Blick" is a real noun, the `\(.applicationName)` token App
 
 ## Not yet supported
 
-- Move emails between folders / archive
-- View past meetings (the calendar view is "today only")
+- Bulk archive, move, or delete (disposition is one message at a time)
+- View past days (the agenda runs from today through six days out; earlier meetings today are shown dimmed, but nothing before today)
+- Open a message directly from a new-message notification (the tap opens Blick; the notification carries the message id, so routing to the preview is a small follow-up)
 - Open the specific calendar event for non-Teams meetings (only the calendar at large, via Teams)
 - Edit the auto-reply message body (only the on/off state — edit the message itself in Outlook on the web)
 - Watch app working standalone on cellular (opt-in independent watch sign-in; deferred to a later release)
