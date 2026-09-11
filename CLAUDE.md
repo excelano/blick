@@ -4,6 +4,8 @@ Project-specific guidance for Blick. Global working style, writing standards, an
 language preferences live in `~/.claude/CLAUDE.md` (loads in every session); the
 Apple-apps notes (Xcode, signing, Swift attribution header) live in the
 email-family `~/email/CLAUDE.md`. Both load alongside this file.
+This repo's prose documents follow the fleet documentation standard in
+`~/notes/doc_standards.md`.
 
 ---
 
@@ -30,7 +32,7 @@ One identifier did slip through that rename and had to be repaired: the local-no
 
 Graph's `/move` re-creates the message under a new id, including the move back on undo. Any row restored after an undo must carry the id the move returned, or every later action on it targets an id that no longer resolves.
 
-## Status
+## Where the docs are
 
 Repo's canonical docs are `FEATURES.md` (shipped functionality), `POTENTIAL-FEATURES.md` (the feature backlog — ideas under consideration, not yet committed), `RELEASING.md` (the App Store cut runbook), `PRIVACY.md`, `SELF-HOSTING.md`, and `IT-APPROVAL.md`. Current task comes from conversation, not from this file.
 
