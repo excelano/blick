@@ -4,7 +4,11 @@ Blick is an iOS app that reads from and writes to your Microsoft 365 account on 
 
 ## What stays on your device
 
-When you ask for your summary, Blick fetches calendar events, unread emails, and Teams chats from the Microsoft Graph API using your account's own credentials. The fetched data is held in memory long enough to render the summary on screen. When you swipe to mark read or flag, Blick also holds the target message ID in memory long enough to issue the write. Nothing is persisted to disk, including caches. Closing or backgrounding the app discards the data.
+When you ask for your summary, Blick fetches calendar events, unread emails, and Teams chats from the Microsoft Graph API using your account's own credentials. The fetched data is held in memory long enough to render the summary on screen. When you swipe to mark read or flag, Blick also holds the target message ID in memory long enough to issue the write.
+
+The Home Screen widget, the Control Center controls, the App Intents and the Watch companion run outside the app and cannot read its memory, so the summary they show is written to a container on your device that Blick and its own extensions share. That snapshot holds your presence and Out-of-Office state, your unread and chat counts, your next meetings with their subject, time, organizer and join link, and for each message and chat in the summary its sender, subject, preview line, time, and read and flag state. Beside it Blick keeps the senders you have starred, a Teams status you have pinned with the time that pin expires, and the message identifiers it uses to tell a new message from one you have already seen. The snapshot is replaced on each refresh, the rest changes only when you change it, none of it is readable outside Blick, and all of it goes when you delete the app. Your Microsoft sign-in token is held separately, in the iOS Keychain.
+
+None of this is sent anywhere; what leaves the device is the next section.
 
 ## What leaves your device
 
@@ -24,7 +28,7 @@ Your Microsoft sign-in token is never moved, copied, or synced off the device th
 
 ## What Blick does not collect
 
-Blick does not collect Microsoft 365 content, query history, usage events, screen views, button taps, feature counts, crash reports, performance metrics, diagnostic logs, device identifiers, advertising identifiers, installation identifiers, or anything else. When Blick ships to the App Store, its App Privacy declaration will be "Data Not Collected." This document and the open-source repository are the substance behind that label.
+Blick does not collect Microsoft 365 content, query history, usage events, screen views, button taps, feature counts, crash reports, performance metrics, diagnostic logs, device identifiers, advertising identifiers, installation identifiers, or anything else. Its App Privacy declaration on the App Store is "Data Not Collected." This document and the open-source repository are the substance behind that label.
 
 ## One thing outside the app's control
 
