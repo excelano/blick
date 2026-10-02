@@ -40,3 +40,7 @@ Package.resolved
 
 # Session restart notes (personal)
 next.txt
+
+# The release apps' per-repo configuration and the screenshots they take
+ship.toml
+packaging/ios/screenshots/

@@ -1,93 +1,43 @@
-# Releasing Blick to the App Store
+# Releasing Blick
 
-The verified end-to-end flow for cutting a Blick release: bump the version,
-archive, upload, fill in App Store Connect, and submit. This is the store
-counterpart to the `run-blick` skill, which covers dev installs on a device.
-The gotchas below were each paid for once during the 1.0 and 1.1 cycles; the
-point of this doc is to not pay for them again.
+A release runs from a clone that holds a `ship.toml` (gitignored), through the
+release apps in `excelano/shipping`: `shots-appstore` takes the screenshots on
+the iPhone, iPad and Watch simulators, `build-release` bumps the version,
+archives and exports the signed build on the Mac, tags, and attaches the
+`.ipa` to the GitHub release, and `ship-appstore` uploads that build, fills in
+App Store Connect, and submits it for review. Nothing is done in Xcode or in
+the App Store Connect website.
 
-## Versioning is one edit
+What the repository holds for that:
 
-Marketing version and build number live in a single source of truth,
-`Config/Version.xcconfig`. Every target inherits `MARKETING_VERSION` and
-`CURRENT_PROJECT_VERSION` from the project-level base configuration, so a release
-bump is a two-line edit in that file and nothing else. Do not re-declare either
-key in any target's build settings: a target-level value shadows the xcconfig and
-the surfaces silently drift apart.
+- `Config/Version.xcconfig` is the single source of the marketing version and
+  the build number. Every target inherits both from the project-level base
+  configuration; do not re-declare either key in a target's build settings, or
+  the target's value silently wins. The build number is global and monotonic
+  across the app record, and App Store Connect rejects one it has already
+  accepted, so a re-upload after a rejection moves to the next number.
+- `packaging/store-listing.toml` is the listing copy and the reviewer's notes,
+  pushed on every release. The demo account's credentials live only in the
+  App Store Connect sign-in fields.
+- `packaging/release-notes.toml` is what changed in the release being cut, and
+  its `version` must match, or the release stops.
+- `packaging/ios/shots.sh` is the screenshot recipe: which screens, in which
+  state, from the demo data the Debug build carries (`--demo` and
+  `--demo-email-list` in `DemoMode.swift`). On a watch simulator it runs the
+  embedded watch app.
 
-Build numbers are global and monotonic across the whole app record, independent of
-the marketing version. 1.0.x ran through build 3, 1.1 was build 4, 1.1.1 was
-build 5, so the next upload is build 6 regardless of whether it's a patch or a
-feature release. App Store Connect rejects a build number it has already seen.
+The export signs with the App Store profiles for the app, the widget, the
+watch app and the watch widgets, all of which must be in the Mac's profile
+directory. The MSAL framework ships without symbols, so its dSYM warning at
+upload is expected and harmless.
 
-A historical trap, now fixed and worth remembering: `Blick/Info.plist` once
-hardcoded the version as literals, which override the build settings, so the first
-1.1 archive stamped the already-shipped 1.0.2 number. The plist now references
-`$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)` like the widget and watch
-plists always did. If an archive ever ships with the wrong version, suspect a
-literal somewhere beating the build setting.
+Because the app is unusable without a Microsoft sign-in, App Review needs
+Sign-In Required on and the standing demo tenant account on the record. App
+Privacy stays "Data Not Collected": the only network destinations are
+Microsoft Graph and Microsoft identity, and the only cross-device traffic is
+non-credential status over WatchConnectivity. iPad orientations must list all
+four, because a universal app's upload validation requires it for
+multitasking even though the iPhone stays portrait-only.
 
-## Archive and upload (Xcode, on the Mac)
-
-1. Set the run destination to **Any iOS Device (arm64)**. Archive is greyed out
-   while a simulator or a specific device is selected.
-2. **Product → Archive.** This builds the release configuration and opens the
-   Organizer when it finishes. The watch app and both widget extensions are
-   embedded in the archive automatically; you do not archive them separately.
-3. In the Organizer, select the new archive, then **Distribute App → App Store
-   Connect → Upload**, taking the defaults on signing (it uses the team
-   distribution cert).
-4. Ignore the `MSAL.framework` dSYM "Upload Symbols Failed" warning. MSAL is a
-   third-party binary with no symbols to symbolicate; it is harmless and not a
-   blocker.
-5. After "Upload Successful," give App Store Connect roughly ten to fifteen
-   minutes to finish processing before the build becomes attachable.
-
-## App Store Connect (web)
-
-Create the version page first if it doesn't exist ("+ Version or Platform" on the
-app's page), so the processed build has somewhere to attach. Then attach the new
-build in the Build section, paste the "What's New" copy, confirm the release
-option (Automatic releases the moment it's approved; Manual waits for you to click
-Release), and Submit for Review.
-
-Metadata that must be right on a feature release, learned from 1.1:
-
-- **App Privacy** stays "Data Not Collected." Blick adds no data egress between
-  releases; the only cross-device traffic is non-credential status over
-  WatchConnectivity. Revisit this only if a release genuinely changes what leaves
-  the device.
-- **App Review** needs Sign-In Required on, with the standing demo M365 account
-  and reviewer notes, because the app is unusable without a Microsoft sign-in.
-- **Screenshots** have strict sizes. iPhone 6.9" is 1320×2868 and iPad 13" is
-  2064×2752. The Apple Watch set must use an accepted size (422×514, 410×502,
-  416×496, 396×484, 368×448, or 312×390) and one set scales to all; App Store
-  Connect rejects the 41mm 352×430 size outright.
-- **iPad orientations:** because the app is universal (`TARGETED_DEVICE_FAMILY =
-  "1,2"`), upload validation requires `UISupportedInterfaceOrientations~ipad` to
-  list all four orientations for multitasking, even though the iPhone stays
-  portrait-only. Missing this fails the upload.
-
-The store listing text and reviewer notes are kept out of git in
-`app-store-connect-metadata.md` (gitignored). Per-release paste sheets are staged
-in the repo root as `Blick-<version>-ASC-paste.md` (gitignored via the
-`Blick-*-ASC-paste.md` rule) and discarded after use — keep credentials out of
-them and point to the metadata file instead.
-
-## Tag the release
-
-After the build is uploaded and submitted, tag the exact commit it was built from,
-annotated, matching the existing scheme `vMAJOR.MINOR.PATCH`:
-
-```bash
-git tag -a v1.1.1 -m "Blick 1.1.1 — <one-line scope> (build 5, submitted to App Store <date>)" <commit>
-git push origin v1.1.1
-```
-
-## If a submission is rejected
-
-A build can't be hot-swapped into an in-flight review. Fix the issue, bump to the
-next build number (edit `Config/Version.xcconfig`), re-archive, re-upload, and
-resubmit. The likeliest rejection causes for this app are the demo-account sign-in
-path (MFA or Conditional Access blocking the reviewer) and, on universal builds,
-an iPad-layout note.
+Development installs on a device go through `~/bin/build-to-phone.sh blick`
+on the Mac.

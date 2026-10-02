@@ -1,0 +1,47 @@
+# The copy the App Store listing is filled in from. Every line is a claim about
+# the code, so it lives here, is reviewed and committed like anything else, and
+# ship-appstore pushes it on every release. Edit here; do not edit the listing
+# in a browser.
+#
+# Limits, counted in characters: apple.name and apple.subtitle 30,
+# apple.promotional-text 170, apple.keywords 100 including the commas,
+# description 4,000, apple-review-notes 4,000.
+#
+# The demo tenant account and its password are on the App Store Connect
+# record's sign-in fields, never here.
+
+apple-review-notes = """
+Blick requires sign-in with a Microsoft 365 work or school account (Microsoft Entra ID). The demo account credentials are provided in the fields above. There is no separate in-app account to create.
+
+Getting started: launch the app, tap Sign In, and authenticate with the demo credentials in the Microsoft web sign-in sheet. After sign-in the home screen shows the account's next meeting, the rest of today's calendar, unread Outlook email, Teams chats with new activity, and current Teams presence. Pull down to refresh.
+
+To exercise core functionality: tap the presence pill to set Teams presence; toggle Out of Office; RSVP to a calendar invitation from the meeting card or an email row; open an email or Teams chat to read or reply; tap an attachment to open it. All of this uses the Microsoft Graph API with the signed-in user's own permissions.
+
+A Home Screen widget and Control Center controls set presence and Out of Office without opening the app; on iPad the layout is a native split view; an Apple Watch app mirrors the same status on the wrist. The Apple Watch app receives only non-credential status data from the iPhone over WatchConnectivity and holds no account of its own, so it needs no separate sign-in. If no paired Apple Watch is available, the watch features cannot be exercised but are not required to review the iPhone and iPad app. Siri and Shortcuts can report the next meeting, unread counts, and current presence, and set presence by voice.
+
+Privacy: Blick has no backend server. It communicates only with Microsoft Graph and Microsoft identity endpoints using the signed-in user's credentials. There is no analytics SDK, no telemetry, and no third-party data collection. The source code is public on GitHub, linked from the support URL.
+
+If sign-in is blocked: the demo account is configured for direct sign-in. If an unexpected Conditional Access or MFA prompt appears, please contact us at the email above and we will provide an alternative immediately.
+"""
+
+[locales."en-us"]
+website = "https://excelano.com/blick/"
+support = "https://excelano.com/blick/"
+privacy = "https://excelano.com/legal/#blick"
+description = """
+Blick shows what's next in your Microsoft 365 day on a single screen: your next meeting, the rest of today's calendar, your unread Outlook email, your Teams chats with new activity, and your current Teams presence. Refresh when you open the app or pull to refresh. RSVP to invitations from either the calendar card or the email row itself. Set your Teams presence and out-of-office without opening Teams. Triage unread email with bulk actions tuned for Focused inbox, Other inbox, meeting notices, mailing lists, and external senders. Reply to email or Teams chats without leaving the app.
+
+Blick is built for people who use Microsoft 365 for work and want a quick status panel without launching Outlook, Teams, and Calendar separately. It uses the Microsoft Graph API for everything. The only network destinations it touches are Microsoft Graph and Microsoft identity endpoints. There is no analytics SDK, no third-party logger, no telemetry. Your data stays between you, your Apple devices, and Microsoft.
+
+Sign in with your work or school Microsoft 365 account and Blick is useful immediately. There is no separate account to create, no email list to join, and nothing Blick knows about you that Microsoft doesn't already know.
+
+Blick meets you across your Apple devices. A Home Screen widget shows your next meeting and unread counts at a glance, with one-tap presence buttons. From Control Center you can set your Teams presence or toggle out-of-office without opening the app. On iPad, a split-view layout puts your day beside the message or meeting you're reading. On Apple Watch, a glance and four complication styles bring your next meeting, today's counts, and your presence to your wrist, and you can set your presence or out-of-office from the watch. Siri and Shortcuts answer your next meeting, your unread counts, your current presence, and a quick overview of your work day, and set your status by voice.
+
+Blick is an independent app, not affiliated with or endorsed by Microsoft Corporation. Microsoft, Outlook, Teams, and Microsoft 365 are trademarks of Microsoft Corporation.
+"""
+
+[locales."en-us".apple]
+name = "Blick for Microsoft 365"
+subtitle = "Your workday at a glance"
+promotional-text = "Your Microsoft 365 day on iPhone, iPad, and Apple Watch: next meeting, unread email, Teams chats, presence. No analytics, no telemetry, no third-party SDKs."
+keywords = "outlook,agenda,meeting,rsvp,inbox,presence,status,reminder,calendar,email,teams,siri,shortcuts"

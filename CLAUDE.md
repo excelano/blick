@@ -54,3 +54,7 @@ Azure app registration is named `blick`.
 ## Brand
 
 Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/email/blick/Blick/Assets.xcassets/AppIcon.appiconset/`.
+
+## Releases
+
+The apps in `excelano/shipping`, run from this directory; `RELEASING.md` says what the repository holds for them.

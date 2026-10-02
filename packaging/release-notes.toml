@@ -1,0 +1,12 @@
+# What this release tells the App Store it changed. The version is checked
+# against the release being cut, so notes left from last time stop the release
+# rather than reaching the listing.
+
+version = "1.7.1"
+
+[locales."en-us"]
+whats-new = """
+WRITE THIS BEFORE RELEASING: what changed since 1.7, in the voice of the \
+earlier notes. The version above must match the bump build-release makes \
+(patch gives 1.7.1, minor 1.8.0).
+"""
