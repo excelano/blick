@@ -6,7 +6,10 @@ version = "1.7.1"
 
 [locales."en-us"]
 whats-new = """
-WRITE THIS BEFORE RELEASING: what changed since 1.7, in the voice of the \
-earlier notes. The version above must match the bump build-release makes \
-(patch gives 1.7.1, minor 1.8.0).
+The Apple Watch app now keeps itself current. It asks your iPhone for fresh \
+mail, meetings, and presence each time you raise your wrist to it, and every \
+five minutes while it stays open, so you no longer have to tap refresh.
+
+As always, Blick talks only to Microsoft. No backend, no analytics, no \
+third-party SDKs.
 """
