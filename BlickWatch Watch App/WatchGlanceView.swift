@@ -19,6 +19,10 @@ struct WatchGlanceView: View {
     @State private var pendingAction: Bool = false
     @State private var showUnreachableToast: Bool = false
     @State private var refreshing: Bool = false
+    @Environment(\.scenePhase) private var scenePhase
+
+    private static let staleness: TimeInterval = 60
+    private static let refreshInterval: Duration = .seconds(5 * 60)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,8 +46,12 @@ struct WatchGlanceView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showUnreachableToast)
-        .task {
-            await autoRefreshIfStale()
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                await autoRefreshIfStale()
+                try? await Task.sleep(for: Self.refreshInterval)
+            }
         }
         .sheet(isPresented: $showingPicker) {
             PresencePickerSheet(
@@ -266,17 +274,17 @@ struct WatchGlanceView: View {
         }
     }
 
-    /// Auto-pull when the glance becomes visible. Only fires if the
-    /// cached snapshot is older than the staleness window (or absent),
-    /// so quick re-opens within ~a minute don't re-hit Graph. Guards
-    /// against firing while a manual refresh is already in flight.
+    /// Auto-pull each time the scene becomes active and every few minutes
+    /// while it stays active. Only fires if the cached snapshot is older
+    /// than the staleness window (or absent), so quick wrist raises within
+    /// ~a minute don't re-hit Graph. Guards against firing while a manual
+    /// refresh is already in flight.
     @MainActor
     private func autoRefreshIfStale() async {
         guard !refreshing else { return }
-        let staleness: TimeInterval = 60
         let shouldRefresh: Bool
         if let updatedAt = receiver.snapshot?.updatedAt {
-            shouldRefresh = Date().timeIntervalSince(updatedAt) > staleness
+            shouldRefresh = Date().timeIntervalSince(updatedAt) > Self.staleness
         } else {
             shouldRefresh = true
         }
