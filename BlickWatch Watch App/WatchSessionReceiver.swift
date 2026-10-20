@@ -379,4 +379,15 @@ extension WatchSessionReceiver: WCSessionDelegate {
             self.applyIncoming(applicationContext)
         }
     }
+
+    #if DEBUG
+    func session(_ session: WCSession,
+                 didReceiveMessage message: [String: Any],
+                 replyHandler: @escaping ([String: Any]) -> Void) {
+        nonisolated(unsafe) let reply = replyHandler
+        Task { @MainActor in
+            reply(await spikeHandleRelay(message))
+        }
+    }
+    #endif
 }

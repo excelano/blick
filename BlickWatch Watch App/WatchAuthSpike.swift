@@ -4,26 +4,69 @@
 // Built with AI assistance (Claude, Anthropic)
 
 #if DEBUG
-import AuthenticationServices
 import BlickKit
 import CryptoKit
 import SwiftUI
 
+@MainActor @Observable
+final class SpikeRelayState {
+    static let shared = SpikeRelayState()
+    var lines: [String] = []
+    fileprivate var pending: (verifier: String, state: String)?
+
+    func log(_ line: String) {
+        lines.append(line)
+    }
+
+    fileprivate func report(_ tokens: SpikeTokens) {
+        log("ok: access token \(tokens.expiresIn)s, refresh token stored")
+        log("scopes: \(tokens.scope)")
+    }
+}
+
+@MainActor
+func spikeHandleRelay(_ message: [String: Any]) async -> [String: Any] {
+    let relay = SpikeRelayState.shared
+    switch message["spike"] as? String {
+    case "begin":
+        let verifier = SpikeOAuth.randomVerifier()
+        let state = SpikeOAuth.randomVerifier()
+        relay.pending = (verifier, state)
+        relay.log("phone started a sign-in")
+        return ["url": SpikeOAuth.authorizeURL(verifier: verifier, state: state).absoluteString]
+    case "code":
+        guard let pending = relay.pending, message["state"] as? String == pending.state,
+              let code = message["code"] as? String else {
+            relay.log("code from phone did not match")
+            return ["result": "state mismatch"]
+        }
+        relay.pending = nil
+        relay.log("got code from phone")
+        do {
+            let tokens = try await SpikeOAuth.redeem(code: code, verifier: pending.verifier)
+            relay.report(tokens)
+            return ["result": "ok: access token \(tokens.expiresIn)s, refresh token stored"]
+        } catch {
+            relay.log("FAILED: \(error.localizedDescription)")
+            return ["result": "FAILED: \(error.localizedDescription)"]
+        }
+    default:
+        return [:]
+    }
+}
+
 struct WatchAuthSpikeView: View {
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
-    @State private var lines: [String] = []
+    private let relay = SpikeRelayState.shared
     @State private var working = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
-                Button("Sign in") { run { try await signIn() } }
-                Button("Render test") { run { try await renderTest() } }
-                Button("Device code") { run { try await deviceCode() } }
+                Text("Start the sign-in from Settings on the iPhone.").font(.caption2)
                 Button("Refresh token") { run { try await refresh() } }
                 Button("Call Graph") { run { try await callGraph() } }
                 Button("Forget", role: .destructive) { run { forget() } }
-                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                ForEach(Array(relay.lines.enumerated()), id: \.offset) { _, line in
                     Text(line).font(.caption2)
                 }
             }
@@ -35,80 +78,29 @@ struct WatchAuthSpikeView: View {
     private func run(_ step: @escaping () async throws -> Void) {
         working = true
         Task {
-            do { try await step() } catch { log("FAILED: \(error.localizedDescription)") }
+            do { try await step() } catch { relay.log("FAILED: \(error.localizedDescription)") }
             working = false
         }
     }
 
-    private func log(_ line: String) {
-        lines.append(line)
-    }
-
-    private func signIn() async throws {
-        let verifier = SpikeOAuth.randomVerifier()
-        let state = SpikeOAuth.randomVerifier()
-        let url = SpikeOAuth.authorizeURL(verifier: verifier, state: state)
-        log("opening sign-in")
-        let callback = try await webAuthenticationSession.authenticate(
-            using: url,
-            callbackURLScheme: SpikeOAuth.callbackScheme
-        )
-        let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
-        if let error = value("error") {
-            throw SpikeError.server("\(error): \(value("error_description") ?? "")")
-        }
-        guard value("state") == state, let code = value("code") else {
-            throw SpikeError.server("callback had no matching code")
-        }
-        log("got code")
-        let tokens = try await SpikeOAuth.redeem(code: code, verifier: verifier)
-        report(tokens)
-    }
-
-    private func renderTest() async throws {
-        log("opening a plain page; close it with X")
-        do {
-            _ = try await webAuthenticationSession.authenticate(
-                using: URL(string: "https://example.com")!,
-                callbackURLScheme: "blick-render-test"
-            )
-        } catch {
-            log("sheet closed: \(error.localizedDescription)")
-        }
-    }
-
-    private func deviceCode() async throws {
-        let challenge = try await SpikeOAuth.startDeviceCode()
-        log("go to \(challenge.verificationURI) and enter \(challenge.userCode)")
-        let tokens = try await SpikeOAuth.pollDeviceCode(challenge)
-        report(tokens)
-    }
-
     private func refresh() async throws {
         guard let stored = SpikeKeychain.read() else { throw SpikeError.server("no refresh token stored") }
-        let tokens = try await SpikeOAuth.refresh(stored)
-        report(tokens)
+        relay.report(try await SpikeOAuth.refresh(stored))
     }
 
     private func callGraph() async throws {
         guard let stored = SpikeKeychain.read() else { throw SpikeError.server("no refresh token stored") }
         let tokens = try await SpikeOAuth.refresh(stored)
-        report(tokens)
+        relay.report(tokens)
         let me = try await SpikeOAuth.get("/me?$select=displayName,userPrincipalName", token: tokens.accessToken)
-        log("me: \(me)")
+        relay.log("me: \(me)")
         let inbox = try await SpikeOAuth.get("/me/mailFolders/inbox?$select=unreadItemCount", token: tokens.accessToken)
-        log("inbox: \(inbox)")
+        relay.log("inbox: \(inbox)")
     }
 
     private func forget() {
         SpikeKeychain.delete()
-        log("refresh token deleted")
-    }
-
-    private func report(_ tokens: SpikeTokens) {
-        log("ok: access token \(tokens.expiresIn)s, refresh token stored")
-        log("scopes: \(tokens.scope)")
+        relay.log("refresh token deleted")
     }
 }
 
@@ -121,14 +113,6 @@ private enum SpikeError: LocalizedError {
         case .oauth(let code, let description): String("\(code): \(description)".prefix(300))
         }
     }
-}
-
-private struct SpikeDeviceCode {
-    let deviceCode: String
-    let userCode: String
-    let verificationURI: String
-    let interval: Int
-    let expiresIn: Int
 }
 
 private struct SpikeTokens {
@@ -184,41 +168,6 @@ private enum SpikeOAuth {
             "grant_type": "refresh_token",
             "refresh_token": refreshToken,
         ])
-    }
-
-    static func startDeviceCode() async throws -> SpikeDeviceCode {
-        let json = try await form("devicecode", ["scope": scopes])
-        guard let deviceCode = json["device_code"] as? String,
-              let userCode = json["user_code"] as? String,
-              let uri = json["verification_uri"] as? String else {
-            throw SpikeError.oauth(code: json["error"] as? String ?? "devicecode", description: json["error_description"] as? String ?? "")
-        }
-        return SpikeDeviceCode(
-            deviceCode: deviceCode,
-            userCode: userCode,
-            verificationURI: uri,
-            interval: json["interval"] as? Int ?? 5,
-            expiresIn: json["expires_in"] as? Int ?? 900
-        )
-    }
-
-    static func pollDeviceCode(_ challenge: SpikeDeviceCode) async throws -> SpikeTokens {
-        var interval = challenge.interval
-        let deadline = Date().addingTimeInterval(TimeInterval(challenge.expiresIn))
-        while Date() < deadline {
-            try await Task.sleep(for: .seconds(interval))
-            do {
-                return try await token([
-                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                    "device_code": challenge.deviceCode,
-                ])
-            } catch SpikeError.oauth(let code, _) where code == "authorization_pending" {
-                continue
-            } catch SpikeError.oauth(let code, _) where code == "slow_down" {
-                interval += 5
-            }
-        }
-        throw SpikeError.server("device code expired")
     }
 
     private static func form(_ endpoint: String, _ fields: [String: String]) async throws -> [String: Any] {

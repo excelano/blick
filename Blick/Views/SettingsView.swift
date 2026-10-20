@@ -38,6 +38,7 @@ struct SettingsView: View {
                 }
                 #if DEBUG
                 demoSection
+                WatchSignInSpikeSection()
                 #endif
                 versionSection
             }
