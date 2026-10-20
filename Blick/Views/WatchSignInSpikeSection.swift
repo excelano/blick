@@ -37,7 +37,11 @@ struct WatchSignInSpikeSection: View {
 
     private func signInWatch() async throws {
         lines = ["asking the watch to begin"]
-        let began = try await send(["spike": "begin"])
+        let began = try await send([
+            "spike": "begin",
+            "clientID": Constants.effectiveClientID,
+            "authority": Constants.effectiveAuthority,
+        ])
         guard let urlString = began["url"] as? String, let url = URL(string: urlString) else {
             throw SpikeRelayError.message("watch sent no sign-in URL")
         }
@@ -64,7 +68,9 @@ struct WatchSignInSpikeSection: View {
             try await Task.sleep(for: .milliseconds(200))
         }
         guard session.activationState == .activated, session.isReachable else {
-            throw SpikeRelayError.message("watch not reachable; open the Blick watch app")
+            throw SpikeRelayError.message(
+                "watch not reachable: activation \(session.activationState.rawValue), paired \(session.isPaired), app installed \(session.isWatchAppInstalled), reachable \(session.isReachable)"
+            )
         }
         return try await withCheckedThrowingContinuation { continuation in
             session.sendMessage(

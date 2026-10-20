@@ -12,7 +12,7 @@ import SwiftUI
 final class SpikeRelayState {
     static let shared = SpikeRelayState()
     var lines: [String] = []
-    fileprivate var pending: (verifier: String, state: String)?
+    fileprivate var pending: (verifier: String, state: String, registration: SpikeRegistration)?
 
     func log(_ line: String) {
         lines.append(line)
@@ -31,9 +31,13 @@ func spikeHandleRelay(_ message: [String: Any]) async -> [String: Any] {
     case "begin":
         let verifier = SpikeOAuth.randomVerifier()
         let state = SpikeOAuth.randomVerifier()
-        relay.pending = (verifier, state)
-        relay.log("phone started a sign-in")
-        return ["url": SpikeOAuth.authorizeURL(verifier: verifier, state: state).absoluteString]
+        let registration = SpikeRegistration(
+            clientID: message["clientID"] as? String ?? PublishedConfig.clientID,
+            authority: message["authority"] as? String ?? PublishedConfig.authority
+        )
+        relay.pending = (verifier, state, registration)
+        relay.log("phone started a sign-in against \(registration.authority)")
+        return ["url": SpikeOAuth.authorizeURL(registration: registration, verifier: verifier, state: state).absoluteString]
     case "code":
         guard let pending = relay.pending, message["state"] as? String == pending.state,
               let code = message["code"] as? String else {
@@ -43,7 +47,7 @@ func spikeHandleRelay(_ message: [String: Any]) async -> [String: Any] {
         relay.pending = nil
         relay.log("got code from phone")
         do {
-            let tokens = try await SpikeOAuth.redeem(code: code, verifier: pending.verifier)
+            let tokens = try await SpikeOAuth.redeem(registration: pending.registration, code: code, verifier: pending.verifier)
             relay.report(tokens)
             return ["result": "ok: access token \(tokens.expiresIn)s, refresh token stored"]
         } catch {
@@ -115,6 +119,16 @@ private enum SpikeError: LocalizedError {
     }
 }
 
+struct SpikeRegistration: Codable {
+    let clientID: String
+    let authority: String
+}
+
+private struct SpikeCredential: Codable {
+    let refreshToken: String
+    let registration: SpikeRegistration
+}
+
 private struct SpikeTokens {
     let accessToken: String
     let expiresIn: Int
@@ -138,10 +152,10 @@ private enum SpikeOAuth {
             .replacingOccurrences(of: "=", with: "")
     }
 
-    static func authorizeURL(verifier: String, state: String) -> URL {
-        var components = URLComponents(string: "\(PublishedConfig.authority)/oauth2/v2.0/authorize")!
+    static func authorizeURL(registration: SpikeRegistration, verifier: String, state: String) -> URL {
+        var components = URLComponents(string: "\(registration.authority)/oauth2/v2.0/authorize")!
         components.queryItems = [
-            URLQueryItem(name: "client_id", value: PublishedConfig.clientID),
+            URLQueryItem(name: "client_id", value: registration.clientID),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "response_mode", value: "query"),
@@ -154,8 +168,8 @@ private enum SpikeOAuth {
         return components.url!
     }
 
-    static func redeem(code: String, verifier: String) async throws -> SpikeTokens {
-        try await token([
+    static func redeem(registration: SpikeRegistration, code: String, verifier: String) async throws -> SpikeTokens {
+        try await token(registration, [
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": redirectURI,
@@ -163,19 +177,19 @@ private enum SpikeOAuth {
         ])
     }
 
-    static func refresh(_ refreshToken: String) async throws -> SpikeTokens {
-        try await token([
+    fileprivate static func refresh(_ credential: SpikeCredential) async throws -> SpikeTokens {
+        try await token(credential.registration, [
             "grant_type": "refresh_token",
-            "refresh_token": refreshToken,
+            "refresh_token": credential.refreshToken,
         ])
     }
 
-    private static func form(_ endpoint: String, _ fields: [String: String]) async throws -> [String: Any] {
-        var request = URLRequest(url: URL(string: "\(PublishedConfig.authority)/oauth2/v2.0/\(endpoint)")!)
+    private static func form(_ endpoint: String, _ registration: SpikeRegistration, _ fields: [String: String]) async throws -> [String: Any] {
+        var request = URLRequest(url: URL(string: "\(registration.authority)/oauth2/v2.0/\(endpoint)")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var body = fields
-        body["client_id"] = PublishedConfig.clientID
+        body["client_id"] = registration.clientID
         request.httpBody = body
             .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")" }
             .joined(separator: "&")
@@ -184,14 +198,16 @@ private enum SpikeOAuth {
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
     }
 
-    private static func token(_ fields: [String: String]) async throws -> SpikeTokens {
+    private static func token(_ registration: SpikeRegistration, _ fields: [String: String]) async throws -> SpikeTokens {
         var body = fields
         body["scope"] = scopes
-        let json = try await form("token", body)
+        let json = try await form("token", registration, body)
         guard let access = json["access_token"] as? String else {
             throw SpikeError.oauth(code: json["error"] as? String ?? "token", description: json["error_description"] as? String ?? "")
         }
-        if let refresh = json["refresh_token"] as? String { SpikeKeychain.write(refresh) }
+        if let refresh = json["refresh_token"] as? String {
+            SpikeKeychain.write(SpikeCredential(refreshToken: refresh, registration: registration))
+        }
         return SpikeTokens(
             accessToken: access,
             expiresIn: json["expires_in"] as? Int ?? 0,
@@ -217,23 +233,23 @@ private enum SpikeKeychain {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service]
     }
 
-    static func write(_ value: String) {
+    static func write(_ credential: SpikeCredential) {
         delete()
         var item = query
-        item[kSecValueData as String] = Data(value.utf8)
+        item[kSecValueData as String] = try? JSONEncoder().encode(credential)
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         item[kSecAttrSynchronizable as String] = false
         SecItemAdd(item as CFDictionary, nil)
     }
 
-    static func read() -> String? {
+    static func read() -> SpikeCredential? {
         var item = query
         item[kSecReturnData as String] = true
         var result: AnyObject?
         guard SecItemCopyMatching(item as CFDictionary, &result) == errSecSuccess, let data = result as? Data else {
             return nil
         }
-        return String(data: data, encoding: .utf8)
+        return try? JSONDecoder().decode(SpikeCredential.self, from: data)
     }
 
     static func delete() {
