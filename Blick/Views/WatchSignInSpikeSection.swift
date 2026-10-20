@@ -58,12 +58,15 @@ struct WatchSignInSpikeSection: View {
     }
 
     private func send(_ message: [String: Any]) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { continuation in
-            let session = WCSession.default
-            guard session.activationState == .activated, session.isReachable else {
-                continuation.resume(throwing: SpikeRelayError.message("watch not reachable"))
-                return
-            }
+        let session = WCSession.default
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !(session.activationState == .activated && session.isReachable) {
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        guard session.activationState == .activated, session.isReachable else {
+            throw SpikeRelayError.message("watch not reachable; open the Blick watch app")
+        }
+        return try await withCheckedThrowingContinuation { continuation in
             session.sendMessage(
                 message,
                 replyHandler: { continuation.resume(returning: $0) },
