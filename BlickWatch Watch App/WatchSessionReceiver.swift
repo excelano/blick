@@ -389,5 +389,11 @@ extension WatchSessionReceiver: WCSessionDelegate {
             reply(await spikeHandleRelay(message))
         }
     }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        Task { @MainActor in
+            _ = await spikeHandleRelay(userInfo)
+        }
+    }
     #endif
 }

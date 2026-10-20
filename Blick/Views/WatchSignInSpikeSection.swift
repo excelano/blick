@@ -53,9 +53,8 @@ struct WatchSignInSpikeSection: View {
         guard let code = value("code"), let state = value("state") else {
             throw SpikeRelayError.message("callback had no code")
         }
-        lines.append("got code, relaying to the watch")
-        let redeemed = try await send(["spike": "code", "code": code, "state": state])
-        lines.append("watch says: \(redeemed["result"] as? String ?? "no result")")
+        lines.append("got code, queued for the watch; its screen shows the result")
+        WCSession.default.transferUserInfo(["spike": "code", "code": code, "state": state])
     }
 
     private func send(_ message: [String: Any]) async throws -> [String: Any] {
