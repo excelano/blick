@@ -39,5 +39,8 @@ non-credential status over WatchConnectivity. iPad orientations must list all
 four, because a universal app's upload validation requires it for
 multitasking even though the iPhone stays portrait-only.
 
-Development installs on a device go through `~/bin/build-to-phone.sh blick`
-on the Mac.
+Development builds happen on the Mac from the Debian working copy: `xcremote
+build` and `xcremote test BlickKit` run against the simulator, and `xcremote
+phone` builds, installs and launches on the paired iPhone, carrying the watch
+app with it. `xcremote` syncs the tree to a scratch directory on the Mac, so
+the Mac's own clone is not involved.
