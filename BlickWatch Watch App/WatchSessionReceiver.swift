@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import BlickGraph
 import BlickKit
 import Foundation
 import SwiftUI
@@ -15,9 +16,11 @@ import os
 /// widgets. Also sends user-originated presence / Out-of-Office actions
 /// back to the phone, where Inbox runs the actual Graph call.
 ///
-/// Holds no Microsoft credentials. The snapshot it stores in the watch
-/// App Group is the same non-credential status payload the iOS widget
-/// already reads from the phone's App Group.
+/// This class holds no Microsoft credentials. The snapshot it stores in the
+/// watch App Group is the same non-credential status payload the iOS widget
+/// already reads from the phone's App Group. When the user has signed the
+/// watch in, `WatchTokenProvider` holds the watch's own token and the refresh
+/// falls back to Graph when the phone is out of reach.
 @Observable
 final class WatchSessionReceiver: NSObject {
     /// Most recently received snapshot. The glance reads this directly;
@@ -143,7 +146,7 @@ final class WatchSessionReceiver: NSObject {
             try? await Task.sleep(for: .milliseconds(200))
         }
         guard session.activationState == .activated, session.isReachable else {
-            return .phoneUnreachable
+            return await refreshStandalone() ? .refreshed : .phoneUnreachable
         }
         let before = snapshot?.updatedAt
         session.sendMessage(
@@ -166,18 +169,35 @@ final class WatchSessionReceiver: NSObject {
         return .timedOut
     }
 
+    /// Fetch the snapshot from Graph with the watch's own token, for when the
+    /// phone is out of reach. A no-op until the user has signed the watch in
+    /// from Settings on the iPhone.
+    @MainActor
+    private func refreshStandalone() async -> Bool {
+        guard await WatchStandalone.isAvailable else { return false }
+        do {
+            apply(try await WatchStandalone.snapshot())
+            return true
+        } catch {
+            logger.error("standalone refresh failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     /// Ask the phone for a full email body. Returns the text, or nil when the
     /// phone isn't reachable or the fetch fails — the reader then falls back to
     /// the snapshot preview it already has.
     @MainActor
     func requestEmailBody(id: String) async -> String? {
-        await requestBody(kind: .fetchEmailBody, id: id)
+        if let body = await requestBody(kind: .fetchEmailBody, id: id) { return body }
+        return await standalone { try await WatchStandalone.emailText(id: id) }
     }
 
     /// Ask the phone for a chat's recent transcript. Same fallback semantics.
     @MainActor
     func requestChatBody(id: String) async -> String? {
-        await requestBody(kind: .fetchChatBody, id: id)
+        if let body = await requestBody(kind: .fetchChatBody, id: id) { return body }
+        return await standalone { try await WatchStandalone.chatText(id: id) }
     }
 
     /// Ask the phone for the recent inbox (read + unread) to browse deeper than
@@ -185,14 +205,18 @@ final class WatchSessionReceiver: NSObject {
     /// the fetch fails, so the list keeps showing what it already has.
     @MainActor
     func requestMoreEmails() async -> [SnapshotEmail]? {
-        guard let data = await requestItems(kind: .fetchMoreEmails) else { return nil }
+        guard let data = await requestItems(kind: .fetchMoreEmails) else {
+            return await standalone { try await WatchStandalone.recentEmails() }
+        }
         return try? JSONDecoder().decode([SnapshotEmail].self, from: data)
     }
 
     /// Ask the phone for recent chats (read + unread). Same semantics.
     @MainActor
     func requestMoreChats() async -> [SnapshotChat]? {
-        guard let data = await requestItems(kind: .fetchMoreChats) else { return nil }
+        guard let data = await requestItems(kind: .fetchMoreChats) else {
+            return await standalone { try await WatchStandalone.recentChats() }
+        }
         return try? JSONDecoder().decode([SnapshotChat].self, from: data)
     }
 
@@ -225,18 +249,20 @@ final class WatchSessionReceiver: NSObject {
     /// silently; the caller tells the user to open the iPhone instead.
     @MainActor
     func sendReplyEmail(id: String, text: String) async -> Bool {
-        await sendReply(kind: .replyEmail, id: id, text: text)
+        if let acknowledged = await sendReply(kind: .replyEmail, id: id, text: text) { return acknowledged }
+        return await standalone { try await WatchStandalone.replyToEmail(id: id, text: text) } != nil
     }
 
     /// Send a Teams chat reply from the wrist. Same ack semantics.
     @MainActor
     func sendReplyChat(id: String, text: String) async -> Bool {
-        await sendReply(kind: .replyChat, id: id, text: text)
+        if let acknowledged = await sendReply(kind: .replyChat, id: id, text: text) { return acknowledged }
+        return await standalone { try await WatchStandalone.replyToChat(id: id, text: text) } != nil
     }
 
     @MainActor
-    private func sendReply(kind: ActionKind, id: String, text: String) async -> Bool {
-        guard WCSession.isSupported() else { return false }
+    private func sendReply(kind: ActionKind, id: String, text: String) async -> Bool? {
+        guard WCSession.isSupported() else { return nil }
         let session = WCSession.default
         // Same activation/reachability grace window the body fetch uses.
         let deadline = Date().addingTimeInterval(3)
@@ -244,7 +270,7 @@ final class WatchSessionReceiver: NSObject {
             if session.activationState == .activated, session.isReachable { break }
             try? await Task.sleep(for: .milliseconds(200))
         }
-        guard session.activationState == .activated, session.isReachable else { return false }
+        guard session.activationState == .activated, session.isReachable else { return nil }
         return await withCheckedContinuation { continuation in
             session.sendMessage(
                 [WireKey.actionKind: kind.rawValue, WireKey.id: id, WireKey.text: text],
@@ -299,7 +325,34 @@ final class WatchSessionReceiver: NSObject {
                 }
             }
         } else {
-            session.transferUserInfo(payload)
+            sendWhilePhoneAway(payload)
+        }
+    }
+
+    /// With the phone out of reach, run the action against Graph directly when
+    /// the watch is signed in, then refresh; otherwise, or if that fails, queue
+    /// it for the phone as before.
+    private func sendWhilePhoneAway(_ payload: [String: Any]) {
+        nonisolated(unsafe) let payload = payload
+        Task { @MainActor in
+            let wasOutOfOffice = snapshot?.isOutOfOffice ?? false
+            let done = await standalone { try await WatchStandalone.perform(payload, wasOutOfOffice: wasOutOfOffice) } != nil
+            if done {
+                _ = await refreshStandalone()
+            } else {
+                WCSession.default.transferUserInfo(payload)
+            }
+        }
+    }
+
+    @MainActor
+    private func standalone<T>(_ work: () async throws -> T) async -> T? {
+        guard await WatchStandalone.isAvailable else { return nil }
+        do {
+            return try await work()
+        } catch {
+            logger.error("standalone call failed: \(error.localizedDescription, privacy: .public)")
+            return nil
         }
     }
 
@@ -313,8 +366,13 @@ final class WatchSessionReceiver: NSObject {
             logger.error("applyIncoming: failed to decode snapshot")
             return
         }
-        snapshot = decoded
-        decoded.saveToAppGroup(suite: BlickSnapshot.watchAppGroupIdentifier)
+        apply(decoded)
+    }
+
+    @MainActor
+    private func apply(_ newSnapshot: BlickSnapshot) {
+        snapshot = newSnapshot
+        newSnapshot.saveToAppGroup(suite: BlickSnapshot.watchAppGroupIdentifier)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -380,20 +438,20 @@ extension WatchSessionReceiver: WCSessionDelegate {
         }
     }
 
-    #if DEBUG
     func session(_ session: WCSession,
                  didReceiveMessage message: [String: Any],
                  replyHandler: @escaping ([String: Any]) -> Void) {
+        nonisolated(unsafe) let message = message
         nonisolated(unsafe) let reply = replyHandler
         Task { @MainActor in
-            reply(await spikeHandleRelay(message))
+            reply(await WatchSignInRelay.shared.handle(message))
         }
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        nonisolated(unsafe) let userInfo = userInfo
         Task { @MainActor in
-            _ = await spikeHandleRelay(userInfo)
+            _ = await WatchSignInRelay.shared.handle(userInfo)
         }
     }
-    #endif
 }

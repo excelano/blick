@@ -295,8 +295,13 @@ extension PhoneConnectivity: WCSessionDelegate {
 
     nonisolated func session(_ session: WCSession,
                              didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        nonisolated(unsafe) let userInfo = userInfo
         Task { @MainActor in
-            self.handleAction(userInfo)
+            if let report = userInfo[WatchSignInWire.reportKey] as? String {
+                WatchSignIn.shared.handleReport(report)
+            } else {
+                self.handleAction(userInfo)
+            }
         }
     }
 }

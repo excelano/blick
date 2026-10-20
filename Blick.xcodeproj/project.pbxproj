@@ -24,6 +24,7 @@
 		7A0000000000000000000023 /* BlickGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000013 /* BlickGraph */; };
 		7A0000000000000000000024 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000014 /* BlickKit */; };
 		7A0000000000000000000025 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000015 /* BlickKit */; };
+		7A0000000000000000000028 /* BlickGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000018 /* BlickGraph */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -199,6 +200,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7A0000000000000000000024 /* BlickKit in Frameworks */,
+				7A0000000000000000000028 /* BlickGraph in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -334,6 +336,7 @@
 			name = "BlickWatch Watch App";
 			packageProductDependencies = (
 				7A0000000000000000000014 /* BlickKit */,
+				7A0000000000000000000018 /* BlickGraph */,
 			);
 			productName = "BlickWatch Watch App";
 			productReference = 6B88F3F62FCA6BDF00D002A5 /* BlickWatch Watch App.app */;
@@ -993,6 +996,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7A0000000000000000000001 /* XCLocalSwiftPackageReference "BlickKit" */;
 			productName = BlickKit;
+		};
+		7A0000000000000000000018 /* BlickGraph */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000002 /* XCLocalSwiftPackageReference "BlickGraph" */;
+			productName = BlickGraph;
 		};
 		7A0000000000000000000015 /* BlickKit */ = {
 			isa = XCSwiftPackageProductDependency;

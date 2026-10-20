@@ -32,13 +32,15 @@ struct SettingsView: View {
             Form {
                 notificationsSection
                 starredSendersSection
+                if authService.isAuthenticated {
+                    WatchSignInSection()
+                }
                 advancedSection
                 if authService.isAuthenticated {
                     signOutSection
                 }
                 #if DEBUG
                 demoSection
-                WatchSignInSpikeSection()
                 #endif
                 versionSection
             }
@@ -223,6 +225,7 @@ struct SettingsView: View {
         // otherwise the cross-fade looks chopped.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))
+            WatchSignIn.shared.signOut()
             authService.signOut()
         }
     }

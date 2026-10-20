@@ -7,8 +7,8 @@ import BlickKit
 import SwiftUI
 
 /// The single-screen Blick glance for Apple Watch. Reads from the
-/// session receiver's pushed snapshot — no Graph calls here, no
-/// credentials, no fetch logic. Tapping the presence pill opens a
+/// session receiver's snapshot — no Graph calls here, no credentials,
+/// no fetch logic. Tapping the presence pill opens a
 /// picker sheet matching the iPhone's PresenceMenu (Available, Busy,
 /// Do not disturb, Be right back, Away, Offline, Out of office, Reset
 /// to auto). The selected action is sent to the phone, which runs the
@@ -34,7 +34,7 @@ struct WatchGlanceView: View {
                     meetingLine
                     laterTodaySection
                     #if DEBUG
-                    NavigationLink("Tier 2 spike") { WatchAuthSpikeView() }
+                    NavigationLink("Standalone") { WatchAuthSpikeView() }
                     #endif
                 }
                 .padding(.horizontal, 4)
