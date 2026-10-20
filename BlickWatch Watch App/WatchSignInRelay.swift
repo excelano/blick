@@ -54,6 +54,10 @@ final class WatchSignInRelay {
 
     private func report(_ result: String) {
         status = result
+        Self.sendReport(result)
+    }
+
+    nonisolated static func sendReport(_ result: String) {
         guard WCSession.isSupported() else { return }
         WCSession.default.transferUserInfo([WatchSignInWire.reportKey: result])
     }

@@ -137,6 +137,7 @@ actor WatchTokenProvider: GraphTokenProvider {
             return tokens.accessToken
         } catch WatchAuthError.rejected(let code, _) where code == "invalid_grant" {
             signOut()
+            WatchSignInRelay.sendReport(WatchSignInWire.Report.signedOut)
             throw WatchAuthError.notSignedIn
         }
     }
