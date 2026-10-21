@@ -35,7 +35,8 @@ Because the app is unusable without a Microsoft sign-in, App Review needs
 Sign-In Required on and the standing demo tenant account on the record. App
 Privacy stays "Data Not Collected": the only network destinations are
 Microsoft Graph and Microsoft identity, and the only cross-device traffic is
-non-credential status over WatchConnectivity. iPad orientations must list all
+non-credential status over WatchConnectivity, plus the one-time sign-in code the
+phone relays when the watch signs itself in. iPad orientations must list all
 four, because a universal app's upload validation requires it for
 multitasking even though the iPhone stays portrait-only.
 
