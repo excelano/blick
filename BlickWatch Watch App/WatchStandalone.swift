@@ -6,6 +6,7 @@
 import BlickGraph
 import BlickKit
 import Foundation
+import WatchConnectivity
 
 /// What the watch does for itself, against Graph with its own token, when the
 /// phone is out of reach. `isAvailable` is true only after the user has signed
@@ -80,6 +81,7 @@ enum WatchStandalone {
             store: PreferredPresenceStore(suite: BlickSnapshot.watchAppGroupIdentifier)
         )
         guard result.honored else { throw WatchAuthError.rejected(code: "presence_not_honored", description: "") }
+        WCSession.default.transferUserInfo([WatchPresencePinWire.reportKey: WatchPresencePinWire.report(for: presence)])
     }
 
     static func setOutOfOffice(_ on: Bool) async throws {

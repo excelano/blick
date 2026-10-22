@@ -299,6 +299,8 @@ extension PhoneConnectivity: WCSessionDelegate {
         Task { @MainActor in
             if let report = userInfo[WatchSignInWire.reportKey] as? String {
                 WatchSignIn.shared.handleReport(report)
+            } else if let pin = userInfo[WatchPresencePinWire.reportKey] as? String {
+                PreferredPresenceStore().record(watchReport: pin)
             } else {
                 self.handleAction(userInfo)
             }
