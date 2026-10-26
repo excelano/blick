@@ -33,9 +33,6 @@ struct WatchGlanceView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     meetingLine
                     laterTodaySection
-                    #if DEBUG
-                    NavigationLink("Standalone") { WatchAuthSpikeView() }
-                    #endif
                 }
                 .padding(.horizontal, 4)
             }

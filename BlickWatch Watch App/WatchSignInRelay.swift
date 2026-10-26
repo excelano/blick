@@ -10,11 +10,10 @@ import WatchConnectivity
 /// Watch side of signing in: answers the phone's `begin` with an authorize
 /// URL, then redeems the one-time code the phone relays back. The verifier
 /// stays here, so the phone never holds anything that could be redeemed.
-@MainActor @Observable
+@MainActor
 final class WatchSignInRelay {
     static let shared = WatchSignInRelay()
 
-    private(set) var status = ""
     private var pending: WatchSignInAttempt?
 
     func handle(_ message: [String: Any]) async -> [String: Any] {
@@ -27,34 +26,28 @@ final class WatchSignInRelay {
             )
             let attempt = WatchSignInAttempt(registration: registration)
             pending = attempt
-            status = "Sign-in started on iPhone"
             return [Field.url: attempt.authorizeURL.absoluteString]
         case WatchSignInWire.Step.code:
             guard let attempt = pending, message[Field.state] as? String == attempt.state,
                   let code = message[Field.code] as? String else {
-                report("\(WatchSignInWire.Report.failedPrefix)the sign-in did not match")
+                Self.sendReport("\(WatchSignInWire.Report.failedPrefix)the sign-in did not match")
                 return [:]
             }
             pending = nil
             do {
                 try await WatchTokenProvider.shared.completeSignIn(attempt, code: code)
-                report(WatchSignInWire.Report.signedIn)
+                Self.sendReport(WatchSignInWire.Report.signedIn)
             } catch {
-                report("\(WatchSignInWire.Report.failedPrefix)\(error.localizedDescription)")
+                Self.sendReport("\(WatchSignInWire.Report.failedPrefix)\(error.localizedDescription)")
             }
             return [:]
         case WatchSignInWire.Step.signOut:
             await WatchTokenProvider.shared.signOut()
-            report(WatchSignInWire.Report.signedOut)
+            Self.sendReport(WatchSignInWire.Report.signedOut)
             return [:]
         default:
             return [:]
         }
-    }
-
-    private func report(_ result: String) {
-        status = result
-        Self.sendReport(result)
     }
 
     nonisolated static func sendReport(_ result: String) {
