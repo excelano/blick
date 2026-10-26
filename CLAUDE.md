@@ -2,14 +2,14 @@
 
 Project-specific guidance for Blick. Global working style, writing standards, and
 language preferences live in `~/.claude/CLAUDE.md` (loads in every session); the
-Apple-apps notes (Xcode, signing, Swift attribution header) live in the
-email-family `~/email/CLAUDE.md`. Both load alongside this file.
+Apple-apps notes (the two machines, signing, the Swift header) are
+`~/notes/apple_apps.md`, read when needed.
 This repo's prose documents follow the fleet documentation standard in
 `~/notes/doc_standards.md`.
 
 ---
 
-Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/email/blick/`, GitHub repo `excelano/blick`. Every path, target, package, scheme, and Swift symbol carries the Blick name; the identifiers that deliberately still say `checkin` are listed below.
+Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/blick` on the Debian box and `~/email/blick` on the Mac, GitHub repo `excelano/blick`. Every path, target, package, scheme, and Swift symbol carries the Blick name; the identifiers that deliberately still say `checkin` are listed below.
 
 ## Identifiers that stay `checkin` (do not rename)
 
@@ -53,7 +53,7 @@ Azure app registration is named `blick`.
 
 ## Brand
 
-Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `~/email/blick/Blick/Assets.xcassets/AppIcon.appiconset/`.
+Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `Blick/Assets.xcassets/AppIcon.appiconset/`.
 
 ## Releases
 
