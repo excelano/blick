@@ -18,13 +18,13 @@ xcremote phone
 
 It builds Debug for the paired iPhone, installs, and launches `com.excelano.checkin`.
 The watch app is embedded, so the phone install carries it; the watch updates
-after a minute or two. Run it as `! xcremote phone` from a session: it asks for
-the Mac login password to unlock the login keychain, prints nothing while it
-waits, and echoes nothing as you type.
+after a minute or two. It asks for nothing: it signs with build-release's
+keychain and `ship.toml`'s App Store Connect key, so it needs the gitignored
+`ship.toml` in the repo root, and stamps the build number `YYYYMMDD.HHMM`.
+`xcremote install` does the phone and then installs the watch app directly.
 
-The simulator paths need no password: `xcremote build` builds the app scheme for
-the iPhone 17 Pro Max simulator, and `xcremote shot [file]` pulls a screenshot of
-the booted simulator.
+`xcremote build` builds the app scheme for the iPhone 17 Pro Max simulator, and
+`xcremote shot [file]` pulls a screenshot of the booted simulator.
 
 ## Devices
 
@@ -35,9 +35,11 @@ Two identifiers exist for the same phone and are not interchangeable.
 | `xcodebuild -destination` | `00008120-001019EA18834032` (hardware UDID) |
 | `xcrun devicectl device ...` | `8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC` (CoreDevice id) |
 
-`xcremote phone` finds both itself. If either is missing it stops with "no
-connected iPhone": wake and unlock the phone. The Series 9 watch shows as
-unavailable to `devicectl` from the Mac; watch behaviour is checked on the wrist.
+`xcremote phone` builds for a generic iOS destination and finds the CoreDevice
+id itself. Without a connected phone it stops with "no connected phone": wake
+and unlock it, keep it near the Mac, and run again. The Series 9 watch often
+shows as unavailable to `devicectl`; `xcremote watch` then opens Xcode's Devices
+and Simulators window and waits up to a minute for it to connect.
 
 ## Capturing debug output
 
