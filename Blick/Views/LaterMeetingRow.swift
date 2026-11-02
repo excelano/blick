@@ -89,9 +89,7 @@ struct LaterMeetingRow: View {
             Image(systemName: "calendar")
                 .foregroundStyle(accent)
                 .frame(width: 20)
-            Text(meetingTimeRange(start: meeting.start, end: meeting.end))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(accent)
+            MeetingTimeLabel(start: meeting.start, end: meeting.end, color: accent)
             Text(meeting.subject)
                 .font(.body)
                 .foregroundStyle(.white)
@@ -102,7 +100,7 @@ struct LaterMeetingRow: View {
     }
 
     private var accessibilityLabel: String {
-        let base = "\(meetingTimeRange(start: meeting.start, end: meeting.end)): \(meeting.subject)"
+        let base = "\(meetingTimeSpeech(start: meeting.start, end: meeting.end)): \(meeting.subject)"
         return needsReply ? "\(base). Needs reply" : base
     }
 }

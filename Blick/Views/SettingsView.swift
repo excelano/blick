@@ -3,6 +3,7 @@
 // Author: David M. Anderson
 // Built with AI assistance (Claude, Anthropic)
 
+import Bogenzeit
 import BlickKit
 import SwiftUI
 
@@ -18,6 +19,10 @@ struct SettingsView: View {
     @AppStorage(AppStorageKey.meetingNotifications) private var meetingNotificationsEnabled: Bool = false
     @AppStorage(AppStorageKey.emailNudgeScope) private var emailNudge: NudgeScope = .default
     @AppStorage(AppStorageKey.chatNudgeScope) private var chatNudge: NudgeScope = .default
+    @AppStorage(AppStorageKey.bogenzeit) private var bogenzeit = false
+    @AppStorage(AppStorageKey.bogenzeitScale) private var bogenzeitScale = Scale.standard.rawValue
+    @AppStorage(AppStorageKey.bogenzeitPrecision) private var bogenzeitPrecision = Precision.standard.rawValue
+    @AppStorage(AppStorageKey.bogenzeitHidesCivilTime) private var bogenzeitHidesCivilTime = false
     #if DEBUG
     @AppStorage(DemoMode.userDefaultsKey) private var demoMode: Bool = false
     #endif
@@ -32,6 +37,7 @@ struct SettingsView: View {
             Form {
                 notificationsSection
                 starredSendersSection
+                bogenzeitSection
                 if authService.isAuthenticated {
                     WatchSignInSection()
                 }
@@ -138,6 +144,42 @@ struct SettingsView: View {
             .listRowBackground(Brand.bgDarker)
         } footer: {
             Text("The people whose mail you never want to miss. Long-press a message to star its sender, or add someone from Contacts. New-message notifications can be limited to starred senders.")
+        }
+    }
+
+    private var bogenzeitSection: some View {
+        Section {
+            Toggle("Use Bogenzeit", isOn: $bogenzeit)
+                .tint(Brand.accent)
+                .listRowBackground(Brand.bgDarker)
+                .onChange(of: bogenzeit) { _, newValue in
+                    if newValue {
+                        Task {
+                            if await !SolarPlace.shared.enable() { SolarPlace.shared.disable() }
+                        }
+                    } else {
+                        SolarPlace.shared.disable()
+                    }
+                }
+            if bogenzeit {
+                Picker("Scale", selection: $bogenzeitScale) {
+                    ForEach(Scale.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .tint(Brand.accent)
+                .listRowBackground(Brand.bgDarker)
+                Picker("Precision", selection: $bogenzeitPrecision) {
+                    ForEach(Precision.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .tint(Brand.accent)
+                .listRowBackground(Brand.bgDarker)
+                Toggle("Hide civil time", isOn: $bogenzeitHidesCivilTime)
+                    .tint(Brand.accent)
+                    .listRowBackground(Brand.bgDarker)
+            }
+        } header: {
+            Text("Bogenzeit")
+        } footer: {
+            Text("Shows meeting times as Bogenzeit, solar time read from the Sun's arc: spans or kiloseconds before or after solar noon or solar midnight where you are. Blick uses your approximate location, reads it only while open, and keeps it on this iPhone.")
         }
     }
 

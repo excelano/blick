@@ -27,9 +27,7 @@ struct MeetingCard: View {
                         HStack(spacing: 8) {
                             Image(systemName: "calendar")
                                 .foregroundStyle(highlight ? .orange : Brand.accent)
-                            Text(meetingTimeRange(start: meeting.start, end: meeting.end))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Brand.textMuted)
+                            MeetingTimeLabel(start: meeting.start, end: meeting.end, color: Brand.textMuted)
                             Spacer()
                         }
                         Text(meeting.subject)
@@ -37,7 +35,7 @@ struct MeetingCard: View {
                             .foregroundStyle(.white)
                             .lineLimit(2)
                         HStack(spacing: 12) {
-                            Text(untilTime(meeting.start, referenceDate: context.date))
+                            Text(meetingCountdown(meeting.start, referenceDate: context.date))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(highlight ? .orange : Brand.accent)
                             if !meeting.organizer.isEmpty {
@@ -117,7 +115,7 @@ struct MeetingCard: View {
         let lead = meetingInProgress(start: meeting.start, referenceDate: .now)
             ? "Current meeting"
             : "Next meeting"
-        var parts = [lead, meeting.subject, untilTime(meeting.start, referenceDate: .now)]
+        var parts = [lead, meeting.subject, spokenCountdown(meeting.start, referenceDate: .now)]
         if !meeting.organizer.isEmpty { parts.append("with \(meeting.organizer)") }
         return parts.joined(separator: ", ")
     }

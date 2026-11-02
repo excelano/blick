@@ -100,6 +100,8 @@ struct BlickApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 scheduleNextBackgroundRefresh()
+            } else if newPhase == .active {
+                SolarPlace.shared.refresh()
             }
         }
     }

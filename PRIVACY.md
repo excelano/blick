@@ -8,6 +8,8 @@ When you ask for your summary, Blick fetches calendar events, unread emails, and
 
 The Home Screen widget, the Control Center controls, the App Intents and the Watch companion run outside the app and cannot read its memory, so the summary they show is written to a container on your device that Blick and its own extensions share. That snapshot holds your presence and Out-of-Office state, your unread and chat counts, your next meetings with their subject, time, organizer and join link, and for each message and chat in the summary its sender, subject, preview line, time, and read and flag state. Beside it Blick keeps the senders you have starred, a Teams status you have pinned with the time that pin expires, and the message identifiers it uses to tell a new message from one you have already seen. The snapshot is replaced on each refresh, the rest changes only when you change it, none of it is readable outside Blick, and all of it goes when you delete the app. Your Microsoft sign-in token is held separately, in the iOS Keychain.
 
+If you turn on Bogenzeit in Settings, Blick asks iOS for your approximate location, never your precise one, and reads it only while the app is open. It keeps the latest latitude and longitude in its own preferences to compute solar times for your meetings on the device, and forgets them when you turn Bogenzeit off. Blick does not ask for location unless you turn the setting on, and if you withdraw the permission in iOS Settings, Blick turns Bogenzeit off.
+
 None of this is sent anywhere; what leaves the device is the next section.
 
 ## What leaves your device

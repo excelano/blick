@@ -19,6 +19,8 @@
 		7A0000000000000000000020 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000010 /* BlickKit */; };
 		7A0000000000000000000026 /* Klartext in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000016 /* Klartext */; };
 		7A0000000000000000000027 /* KlartextUI in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000017 /* KlartextUI */; };
+		7A0000000000000000000029 /* Bogenzeit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000019 /* Bogenzeit */; };
+		7A000000000000000000002A /* BogenzeitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 7A000000000000000000001A /* BogenzeitUI */; };
 		7A0000000000000000000021 /* BlickGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000011 /* BlickGraph */; };
 		7A0000000000000000000022 /* BlickKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000012 /* BlickKit */; };
 		7A0000000000000000000023 /* BlickGraph in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0000000000000000000013 /* BlickGraph */; };
@@ -180,6 +182,8 @@
 				7A0000000000000000000021 /* BlickGraph in Frameworks */,
 				7A0000000000000000000026 /* Klartext in Frameworks */,
 				7A0000000000000000000027 /* KlartextUI in Frameworks */,
+				7A0000000000000000000029 /* Bogenzeit in Frameworks */,
+				7A000000000000000000002A /* BogenzeitUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,6 +289,8 @@
 				194F4CCC2FAD3EA70019A39C /* MSAL */,
 				7A0000000000000000000016 /* Klartext */,
 				7A0000000000000000000017 /* KlartextUI */,
+				7A0000000000000000000019 /* Bogenzeit */,
+				7A000000000000000000001A /* BogenzeitUI */,
 			);
 			productName = Blick;
 			productReference = 19C6DDC12FAD391B008DDDF0 /* Blick.app */;
@@ -403,6 +409,7 @@
 				7A0000000000000000000002 /* XCLocalSwiftPackageReference "BlickGraph" */,
 				194F4CCB2FAD3EA70019A39C /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 				7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */,
+				7A0000000000000000000004 /* XCRemoteSwiftPackageReference "bogenzeit-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 19C6DDC22FAD391B008DDDF0 /* Products */;
@@ -959,6 +966,14 @@
 				minimumVersion = 1.5.0;
 			};
 		};
+		7A0000000000000000000004 /* XCRemoteSwiftPackageReference "bogenzeit-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/excelano/bogenzeit-swift";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1016,6 +1031,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7A0000000000000000000003 /* XCRemoteSwiftPackageReference "klartext" */;
 			productName = KlartextUI;
+		};
+		7A0000000000000000000019 /* Bogenzeit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000004 /* XCRemoteSwiftPackageReference "bogenzeit-swift" */;
+			productName = Bogenzeit;
+		};
+		7A000000000000000000001A /* BogenzeitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0000000000000000000004 /* XCRemoteSwiftPackageReference "bogenzeit-swift" */;
+			productName = BogenzeitUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

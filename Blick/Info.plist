@@ -58,6 +58,10 @@
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Blick uses your approximate location to show meeting times in Bogenzeit, solar time where you are. Your location stays on this iPhone.</string>
+	<key>NSLocationDefaultAccuracyReduced</key>
+	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>
