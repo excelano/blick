@@ -53,7 +53,7 @@ Azure app registration is named `blick`.
 
 ## Brand
 
-Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. App icons (light, dark, tinted) live at `Blick/Assets.xcassets/AppIcon.appiconset/`.
+Tatsiana palette — navy `#0D2D5B` + cyan `#00ADEE`. The app icons (light, dark, tinted) are drawn in `Icon/AppIcon.svg`, `Icon/AppIcon-dark.svg` and `Icon/AppIcon-tinted.svg`; change one there and render it into `Blick/Assets.xcassets/AppIcon.appiconset/` (the watch app's `icon.png` is the light one) with `rsvg-convert -w 1024 -h 1024 <svg> | magick - -alpha off -strip PNG24:<png>`.
 
 ## Releases
 
