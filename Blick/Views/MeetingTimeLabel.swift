@@ -25,22 +25,23 @@ struct MeetingTimeLabel: View {
 
     var body: some View {
         if let clock {
+            let solar = SolarRange(clock: clock, start: start, end: end, style: .subheadline, weight: .semibold, color: color)
             if clock.hidesCivilTime {
-                SolarRange(clock: clock, start: start, end: end, style: .subheadline, weight: .semibold, color: color)
+                solar
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    civil
-                    SolarRange(clock: clock, start: start, end: end, style: .caption, weight: .regular, color: Brand.textMuted)
+                    solar
+                    civil(font: .caption, color: Brand.textMuted)
                 }
             }
         } else {
-            civil
+            civil(font: .subheadline.weight(.semibold), color: color)
         }
     }
 
-    private var civil: some View {
+    private func civil(font: Font, color: Color) -> some View {
         Text(meetingTimeRange(start: start, end: end))
-            .font(.subheadline.weight(.semibold))
+            .font(font)
             .foregroundStyle(color)
     }
 }

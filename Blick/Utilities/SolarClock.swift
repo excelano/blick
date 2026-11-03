@@ -79,5 +79,5 @@ func meetingTimeSpeech(start: Date, end: Date) -> String {
     let civil = meetingTimeRange(start: start, end: end)
     guard let clock = SolarClock.current else { return civil }
     let solar = clock.spokenRange(start: start, end: end)
-    return clock.hidesCivilTime ? solar : "\(civil), \(solar)"
+    return clock.hidesCivilTime ? solar : "\(solar), \(civil)"
 }

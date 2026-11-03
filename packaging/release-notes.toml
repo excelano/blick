@@ -2,7 +2,7 @@
 # against the release being cut, so notes left from last time stop the release
 # rather than reaching the listing.
 
-version = "1.9.0"
+version = "1.9.1"
 
 [locales."en-us"]
 whats-new = """
@@ -12,7 +12,7 @@ next meeting, and the age of your mail and chats read in spans or \
 kiloseconds before or after solar noon or solar midnight where you are. It \
 is off until you turn it on, uses only your approximate location, and keeps \
 that location on your iPhone. Choose spans or kiloseconds, how precise the \
-readings are, and whether clock time stays alongside them.
+readings are, and whether clock time stays beneath them.
 
 As always, Blick talks only to Microsoft. No backend, no analytics, no \
 third-party SDKs.
