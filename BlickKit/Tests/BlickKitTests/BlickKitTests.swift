@@ -187,3 +187,22 @@ struct BlickSnapshotTests {
         #expect(patched.chatCount == Self.sample.chatCount)
     }
 }
+
+struct SolarClockTests {
+    @Test func clockRoundTripsThroughJSON() throws {
+        let clock = try #require(SolarClock(enabled: true, latitude: 29.76, longitude: -95.37,
+                                            scale: "kiloseconds", precision: 2, hidesCivilTime: true))
+        let decoded = try JSONDecoder().decode(SolarClock.self, from: JSONEncoder().encode(clock))
+        #expect(decoded == clock)
+    }
+
+    @Test func disabledOrUnlocatedClockIsNil() {
+        #expect(SolarClock(enabled: false, latitude: 1, longitude: 1, scale: "spans", precision: 1, hidesCivilTime: false) == nil)
+        #expect(SolarClock(enabled: true, latitude: nil, longitude: 1, scale: "spans", precision: 1, hidesCivilTime: false) == nil)
+    }
+
+    @Test func countdownFallsBackToCivilWithoutClock() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(meetingCountdown(now.addingTimeInterval(600), referenceDate: now, clock: nil) == "in 10 min")
+    }
+}

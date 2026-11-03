@@ -27,6 +27,7 @@ final class WatchSessionReceiver: NSObject {
     /// the watch widgets read from the App Group (which this class
     /// keeps in sync with `snapshot`).
     private(set) var snapshot: BlickSnapshot?
+    private(set) var solarClock: SolarClock?
     /// True once the WCSession has activated. Until then we can't
     /// reliably check `isReachable` or queue user-info.
     private(set) var isActivated: Bool = false
@@ -47,7 +48,11 @@ final class WatchSessionReceiver: NSObject {
         // Load any previously-pushed snapshot so the glance has something
         // to show on cold launch before a fresh push arrives.
         let initial = BlickSnapshot.loadFromAppGroup(suite: BlickSnapshot.watchAppGroupIdentifier)
-        Task { @MainActor in self.snapshot = initial }
+        let initialClock = SolarClock.load(suite: BlickSnapshot.watchAppGroupIdentifier)
+        Task { @MainActor in
+            self.snapshot = initial
+            self.solarClock = initialClock
+        }
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         session.delegate = self
@@ -366,6 +371,9 @@ final class WatchSessionReceiver: NSObject {
             logger.error("applyIncoming: failed to decode snapshot")
             return
         }
+        let clock = (context[WireKey.solarClock] as? Data).flatMap { try? JSONDecoder().decode(SolarClock.self, from: $0) }
+        solarClock = clock
+        SolarClock.save(clock, suite: BlickSnapshot.watchAppGroupIdentifier)
         apply(decoded)
     }
 
@@ -378,6 +386,7 @@ final class WatchSessionReceiver: NSObject {
 
     enum WireKey {
         static let snapshot = "snapshot"
+        static let solarClock = "solarClock"
         static let actionKind = "kind"
         static let presence = "presence"
         static let outOfOfficeOn = "on"

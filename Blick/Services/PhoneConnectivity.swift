@@ -86,8 +86,12 @@ final class PhoneConnectivity: NSObject {
             logger.error("push: failed to encode snapshot")
             return
         }
+        var context: [String: Any] = [WireKey.snapshot: data]
+        if let clock = SolarClock.load(), let clockData = try? JSONEncoder().encode(clock) {
+            context[WireKey.solarClock] = clockData
+        }
         do {
-            try session.updateApplicationContext([WireKey.snapshot: data])
+            try session.updateApplicationContext(context)
         } catch {
             logger.error("updateApplicationContext failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -231,6 +235,7 @@ final class PhoneConnectivity: NSObject {
 
     enum WireKey {
         static let snapshot = "snapshot"
+        static let solarClock = "solarClock"
         static let actionKind = "kind"
         static let presence = "presence"
         static let outOfOfficeOn = "on"

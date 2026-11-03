@@ -21,6 +21,7 @@ struct WatchGlanceView: View {
     @State private var refreshing: Bool = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    @Environment(\.solarClock) private var solarClock
 
     private var isAwake: Bool { scenePhase == .active && !isLuminanceReduced }
 
@@ -139,8 +140,7 @@ struct WatchGlanceView: View {
             HStack(spacing: 4) {
                 Image(systemName: "calendar")
                     .foregroundStyle(inProgress ? .orange : Brand.accent)
-                Text(meetingTimeRange(start: meeting.start, end: meeting.end))
-                    .foregroundStyle(Brand.textMuted)
+                MeetingTimeLabel(start: meeting.start, end: meeting.end, style: .caption2, color: Brand.textMuted, civilStyle: .caption2)
                 Spacer()
                 presenceIcon
             }
@@ -148,7 +148,7 @@ struct WatchGlanceView: View {
             Text(meeting.subject)
                 .font(.caption.weight(.semibold))
                 .lineLimit(2)
-            Text(untilTime(meeting.start, referenceDate: referenceDate))
+            Text(meetingCountdown(meeting.start, referenceDate: referenceDate, clock: solarClock))
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(live ? .orange : Brand.accent)
                 .lineLimit(1)
@@ -254,10 +254,8 @@ struct WatchGlanceView: View {
 
     private func laterRow(meeting: SnapshotMeeting, referenceDate: Date) -> some View {
         let live = meetingIsLive(start: meeting.start, referenceDate: referenceDate)
-        return HStack(spacing: 6) {
-            Text(meetingTimeRange(start: meeting.start, end: meeting.end, includePeriod: false))
-                .foregroundStyle(live ? .orange : Brand.accent)
-                .monospacedDigit()
+        return HStack(alignment: .top, spacing: 6) {
+            MeetingTimeLabel(start: meeting.start, end: meeting.end, style: .caption2, color: live ? .orange : Brand.accent, civilStyle: .caption2, includePeriod: false)
                 .layoutPriority(1)
             Text(meeting.subject)
                 .lineLimit(1)

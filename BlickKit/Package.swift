@@ -14,8 +14,14 @@ let package = Package(
     products: [
         .library(name: "BlickKit", targets: ["BlickKit"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/excelano/bogenzeit-swift", .upToNextMinor(from: "0.2.0"))
+    ],
     targets: [
-        .target(name: "BlickKit"),
+        .target(name: "BlickKit", dependencies: [
+            .product(name: "Bogenzeit", package: "bogenzeit-swift"),
+            .product(name: "BogenzeitUI", package: "bogenzeit-swift")
+        ]),
         .testTarget(name: "BlickKitTests", dependencies: ["BlickKit"])
     ]
 )

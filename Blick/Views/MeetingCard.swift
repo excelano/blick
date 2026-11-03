@@ -12,6 +12,8 @@ struct MeetingCard: View {
     let onRsvp: (MeetingResponse) -> Void
     let onConflictTap: () -> Void
 
+    @Environment(\.solarClock) private var solarClock
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onTap) {
@@ -35,7 +37,7 @@ struct MeetingCard: View {
                             .foregroundStyle(.white)
                             .lineLimit(2)
                         HStack(spacing: 12) {
-                            Text(meetingCountdown(meeting.start, referenceDate: context.date))
+                            Text(meetingCountdown(meeting.start, referenceDate: context.date, clock: solarClock))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(highlight ? .orange : Brand.accent)
                             if !meeting.organizer.isEmpty {
@@ -115,7 +117,7 @@ struct MeetingCard: View {
         let lead = meetingInProgress(start: meeting.start, referenceDate: .now)
             ? "Current meeting"
             : "Next meeting"
-        var parts = [lead, meeting.subject, spokenCountdown(meeting.start, referenceDate: .now)]
+        var parts = [lead, meeting.subject, spokenCountdown(meeting.start, referenceDate: .now, clock: solarClock)]
         if !meeting.organizer.isEmpty { parts.append("with \(meeting.organizer)") }
         return parts.joined(separator: ", ")
     }

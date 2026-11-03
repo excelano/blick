@@ -3,45 +3,63 @@
 
 import Bogenzeit
 import BogenzeitUI
-import BlickKit
 import SwiftUI
 
-struct MeetingTimeLabel: View {
+public extension EnvironmentValues {
+    @Entry var solarClock: SolarClock?
+}
+
+public struct MeetingTimeLabel: View {
     let start: Date
     let end: Date
+    let style: Font.TextStyle
+    let weight: Font.Weight
     let color: Color
+    let civilStyle: Font.TextStyle
+    let includePeriod: Bool
+    let stacksCivil: Bool
 
-    @AppStorage(AppStorageKey.bogenzeit) private var enabled = false
-    @AppStorage(AppStorageKey.bogenzeitLatitude) private var latitude: Double?
-    @AppStorage(AppStorageKey.bogenzeitLongitude) private var longitude: Double?
-    @AppStorage(AppStorageKey.bogenzeitScale) private var scale = Scale.standard.rawValue
-    @AppStorage(AppStorageKey.bogenzeitPrecision) private var precision = Precision.standard.rawValue
-    @AppStorage(AppStorageKey.bogenzeitHidesCivilTime) private var hidesCivilTime = false
+    @Environment(\.solarClock) private var clock
 
-    private var clock: SolarClock? {
-        SolarClock(enabled: enabled, latitude: latitude, longitude: longitude,
-                   scale: scale, precision: precision, hidesCivilTime: hidesCivilTime)
+    public init(
+        start: Date,
+        end: Date,
+        style: Font.TextStyle = .subheadline,
+        weight: Font.Weight = .semibold,
+        color: Color,
+        civilStyle: Font.TextStyle = .caption,
+        includePeriod: Bool = true,
+        stacksCivil: Bool = true
+    ) {
+        self.start = start
+        self.end = end
+        self.style = style
+        self.weight = weight
+        self.color = color
+        self.civilStyle = civilStyle
+        self.includePeriod = includePeriod
+        self.stacksCivil = stacksCivil
     }
 
-    var body: some View {
+    public var body: some View {
         if let clock {
-            let solar = SolarRange(clock: clock, start: start, end: end, style: .subheadline, weight: .semibold, color: color)
-            if clock.hidesCivilTime {
+            let solar = SolarRange(clock: clock, start: start, end: end, style: style, weight: weight, color: color)
+            if clock.hidesCivilTime || !stacksCivil {
                 solar
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     solar
-                    civil(font: .caption, color: Brand.textMuted)
+                    civil(style: civilStyle, weight: .regular, color: Brand.textMuted)
                 }
             }
         } else {
-            civil(font: .subheadline.weight(.semibold), color: color)
+            civil(style: style, weight: weight, color: color)
         }
     }
 
-    private func civil(font: Font, color: Color) -> some View {
-        Text(meetingTimeRange(start: start, end: end))
-            .font(font)
+    private func civil(style: Font.TextStyle, weight: Font.Weight, color: Color) -> some View {
+        Text(meetingTimeRange(start: start, end: end, includePeriod: includePeriod))
+            .font(.system(style, weight: weight).monospacedDigit())
             .foregroundStyle(color)
     }
 }

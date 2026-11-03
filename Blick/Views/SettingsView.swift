@@ -179,7 +179,7 @@ struct SettingsView: View {
         } header: {
             Text("Bogenzeit")
         } footer: {
-            Text("Shows meeting times as Bogenzeit, solar time read from the Sun's arc: spans or kiloseconds before or after solar noon or solar midnight where you are. Blick uses your approximate location, reads it only while open, and keeps it on this iPhone.")
+            Text("Shows meeting times as Bogenzeit, solar time read from the Sun's arc: spans or kiloseconds before or after solar noon or solar midnight where you are. Blick uses your approximate location, reads it only while open, and keeps it on this iPhone and your Apple Watch.")
         }
     }
 

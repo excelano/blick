@@ -19,6 +19,7 @@ private let timelineHorizonMinutes = 60
 struct BlickEntry: TimelineEntry {
     let date: Date
     let snapshot: BlickSnapshot?
+    var solarClock: SolarClock? = nil
 }
 
 struct BlickProvider: TimelineProvider {
@@ -27,7 +28,7 @@ struct BlickProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (BlickEntry) -> Void) {
-        completion(BlickEntry(date: Date(), snapshot: BlickSnapshot.loadFromAppGroup() ?? previewSnapshot))
+        completion(BlickEntry(date: Date(), snapshot: BlickSnapshot.loadFromAppGroup() ?? previewSnapshot, solarClock: SolarClock.load()))
     }
 
     /// Generate one entry per minute up to `timelineHorizonMinutes` out so the
@@ -50,7 +51,8 @@ struct BlickProvider: TimelineProvider {
                 horizonMinutes: timelineHorizonMinutes,
                 meetingStarts: snapshot?.upcomingMeetingStartDates(after: now) ?? []
             )
-            let entries = dates.map { BlickEntry(date: $0, snapshot: snapshot) }
+            let clock = SolarClock.load()
+            let entries = dates.map { BlickEntry(date: $0, snapshot: snapshot, solarClock: clock) }
             completion(Timeline(entries: entries, policy: .atEnd))
         }
     }
@@ -140,7 +142,7 @@ struct BlickWidgetEntryView: View {
         } else {
             let live = meetingIsLive(start: meeting.start, referenceDate: entry.date)
             HStack(spacing: 8) {
-                Text(untilTime(meeting.start, referenceDate: entry.date))
+                Text(meetingCountdown(meeting.start, referenceDate: entry.date, clock: entry.solarClock))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(live ? .orange : Brand.accent)
                     .lineLimit(1)
@@ -197,9 +199,7 @@ struct BlickWidgetEntryView: View {
             Image(systemName: "calendar")
                 .font(.subheadline)
                 .foregroundStyle(live ? .orange : Brand.accent)
-            Text(meetingTimeRange(start: meeting.start, end: meeting.end))
-                .font(.subheadline)
-                .foregroundStyle(Brand.textMuted)
+            MeetingTimeLabel(start: meeting.start, end: meeting.end, weight: .regular, color: Brand.textMuted)
         }
     }
 
@@ -326,6 +326,7 @@ struct BlickWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: BlickProvider()) { entry in
             BlickWidgetEntryView(entry: entry)
+                .environment(\.solarClock, entry.solarClock)
                 .containerBackground(Brand.bg, for: .widget)
         }
         .configurationDisplayName("Blick")

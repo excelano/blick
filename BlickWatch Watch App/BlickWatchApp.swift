@@ -24,6 +24,7 @@ struct BlickWatchApp: App {
         WindowGroup {
             NavigationStack {
                 WatchGlanceView(receiver: receiver)
+                    .environment(\.solarClock, receiver.solarClock)
             }
         }
     }

@@ -388,6 +388,13 @@ final class Inbox {
         if result.failed { lastRefreshFailed = true }
     }
 
+    func publishSolarClock(_ clock: SolarClock?) {
+        guard clock != SolarClock.load() else { return }
+        SolarClock.save(clock)
+        BlickSnapshot.reloadStatusSurfaces()
+        phoneConnectivity?.pushFromAppGroup()
+    }
+
     /// Serialize the current summary into the App Group container the
     /// widget and Control Center controls read from, then nudge them to
     /// reload. The write + reload together are what make a refresh

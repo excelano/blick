@@ -16,6 +16,7 @@ private let timelineHorizonMinutes = 60
 struct WatchStatusEntry: TimelineEntry {
     let date: Date
     let snapshot: BlickSnapshot?
+    var solarClock: SolarClock? = nil
 }
 
 /// Reads the snapshot the `WatchSessionReceiver` last wrote to the watch
@@ -27,7 +28,7 @@ struct WatchStatusProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WatchStatusEntry) -> Void) {
-        completion(WatchStatusEntry(date: .now, snapshot: load()))
+        completion(WatchStatusEntry(date: .now, snapshot: load(), solarClock: loadClock()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchStatusEntry>) -> Void) {
@@ -43,13 +44,18 @@ struct WatchStatusProvider: TimelineProvider {
             horizonMinutes: timelineHorizonMinutes,
             meetingStarts: snapshot?.upcomingMeetingStartDates(after: now) ?? []
         )
-        let entries = dates.map { WatchStatusEntry(date: $0, snapshot: snapshot) }
+        let clock = loadClock()
+        let entries = dates.map { WatchStatusEntry(date: $0, snapshot: snapshot, solarClock: clock) }
         let next = now.addingTimeInterval(15 * 60)
         completion(Timeline(entries: entries, policy: .after(next)))
     }
 
     private func load() -> BlickSnapshot? {
         BlickSnapshot.loadFromAppGroup(suite: BlickSnapshot.watchAppGroupIdentifier)
+    }
+
+    private func loadClock() -> SolarClock? {
+        SolarClock.load(suite: BlickSnapshot.watchAppGroupIdentifier)
     }
 }
 
@@ -83,7 +89,7 @@ struct WatchCornerView: View {
     /// countdown picks the right meeting after a back-to-back transition.
     private var cornerLabel: String {
         if let meeting = entry.snapshot?.currentOrNextMeeting(referenceDate: entry.date) {
-            return untilTime(meeting.start, referenceDate: entry.date)
+            return meetingCountdown(meeting.start, referenceDate: entry.date, clock: entry.solarClock)
         }
         if let snapshot = entry.snapshot, snapshot.isOutOfOffice {
             return "Out of office"
@@ -156,8 +162,7 @@ struct WatchRectangularView: View {
             HStack(spacing: 4) {
                 Image(systemName: "calendar")
                     .foregroundStyle(inProgress ? .orange : Brand.accent)
-                Text(meetingTimeRange(start: meeting.start, end: meeting.end))
-                    .foregroundStyle(Brand.textMuted)
+                MeetingTimeLabel(start: meeting.start, end: meeting.end, style: .caption2, color: Brand.textMuted, stacksCivil: false)
                 Spacer(minLength: 0)
                 presenceGlyph(for: snapshot)
             }
@@ -170,7 +175,7 @@ struct WatchRectangularView: View {
                 .truncationMode(.tail)
             Spacer(minLength: 0)
             HStack(spacing: 6) {
-                Text(untilTime(start, referenceDate: entry.date))
+                Text(meetingCountdown(start, referenceDate: entry.date, clock: entry.solarClock))
                     .foregroundStyle(live ? .orange : Brand.accent)
                     .lineLimit(1)
                     .layoutPriority(1)
@@ -242,6 +247,7 @@ struct BlickWatchRectangularWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WatchStatusProvider()) { entry in
             WatchRectangularView(entry: entry)
+                .environment(\.solarClock, entry.solarClock)
                 .containerBackground(.fill.tertiary, for: .widget)
                 .widgetURL(URL(string: "blick://open"))
         }
@@ -310,7 +316,7 @@ struct WatchInlineView: View {
     private var text: String {
         guard let snapshot = entry.snapshot else { return "Blick — waiting" }
         if let start = snapshot.nextMeetingStart {
-            return "Next meeting \(untilTime(start, referenceDate: entry.date))"
+            return "Next meeting \(meetingCountdown(start, referenceDate: entry.date, clock: entry.solarClock))"
         }
         if snapshot.unreadEmailCount > 0 {
             return "Inbox: \(snapshot.unreadEmailCount) unread"

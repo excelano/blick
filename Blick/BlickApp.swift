@@ -73,6 +73,7 @@ struct BlickApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(authService: authService, inbox: inbox)
+                .modifier(SolarClockSource(publish: inbox.publishSolarClock))
                 .onOpenURL { url in
                     // MSAL sign-in / sign-out completion callbacks come
                     // through with our redirect scheme prefix.

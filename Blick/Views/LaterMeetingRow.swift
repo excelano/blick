@@ -19,6 +19,8 @@ struct LaterMeetingRow: View {
     /// why this defaults off.
     var isPast: Bool = false
 
+    @Environment(\.solarClock) private var solarClock
+
     /// A meeting with no `joinUrl` isn't an online meeting, so there is
     /// nothing for a tap to open. Rendering it as plain content instead of
     /// a Button keeps the row from advertising an action it can't perform.
@@ -100,7 +102,7 @@ struct LaterMeetingRow: View {
     }
 
     private var accessibilityLabel: String {
-        let base = "\(meetingTimeSpeech(start: meeting.start, end: meeting.end)): \(meeting.subject)"
+        let base = "\(meetingTimeSpeech(start: meeting.start, end: meeting.end, clock: solarClock)): \(meeting.subject)"
         return needsReply ? "\(base). Needs reply" : base
     }
 }
