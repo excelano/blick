@@ -2,7 +2,7 @@
 # against the release being cut, so notes left from last time stop the release
 # rather than reaching the listing.
 
-version = "1.9.2"
+version = "1.9.3"
 
 [locales."en-us"]
 whats-new = """
@@ -11,7 +11,8 @@ Turn on Use Bogenzeit in Settings, and meeting times, the countdown to your \
 next meeting, and the age of your mail and chats read in spans or \
 kiloseconds before or after solar noon or solar midnight where you are. \
 Meeting times and countdowns read the same way on the Home Screen widget \
-and on Apple Watch. It is off until you turn it on, uses only your \
+and on Apple Watch, and the watch shows when each message arrived in \
+Bogenzeit too. It is off until you turn it on, uses only your \
 approximate location, and keeps that location on your iPhone and Apple \
 Watch. Choose spans or kiloseconds, how precise the readings are, and \
 whether clock time stays beneath them.

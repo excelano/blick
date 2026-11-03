@@ -64,6 +64,40 @@ public struct MeetingTimeLabel: View {
     }
 }
 
+public struct MessageTimeLabel: View {
+    let date: Date
+
+    @Environment(\.solarClock) private var clock
+
+    public init(date: Date) {
+        self.date = date
+    }
+
+    public var body: some View {
+        if let clock {
+            let solar = SolarPosition(position: clock.position(at: date), style: .caption2, weight: .regular, color: .secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(clock.spoken(clock.position(at: date)))
+            if clock.hidesCivilTime {
+                solar
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    solar
+                    civil
+                }
+            }
+        } else {
+            civil
+        }
+    }
+
+    private var civil: some View {
+        Text(date.formatted(date: .omitted, time: .shortened))
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+    }
+}
+
 private struct SolarRange: View {
     let clock: SolarClock
     let start: Date
