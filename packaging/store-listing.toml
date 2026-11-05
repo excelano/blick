@@ -19,14 +19,14 @@ To exercise core functionality: tap the presence pill to set Teams presence; tog
 
 A Home Screen widget and Control Center controls set presence and Out of Office without opening the app; on iPad the layout is a native split view; an Apple Watch app mirrors the same status on the wrist. The Apple Watch app receives only non-credential status data from the iPhone over WatchConnectivity and needs no separate sign-in. An optional Sign in on Apple Watch setting lets the watch authenticate itself so it works when the iPhone is away; it is off by default and not needed to review the app. If no paired Apple Watch is available, the watch features cannot be exercised but are not required to review the iPhone and iPad app. Siri and Shortcuts can report the next meeting, unread counts, and current presence, and set presence by voice.
 
-Privacy: Blick has no backend server. It communicates only with Microsoft Graph and Microsoft identity endpoints using the signed-in user's credentials. There is no analytics SDK, no telemetry, and no third-party data collection. The source code is public on GitHub, linked from the support URL.
+Privacy: Blick has no backend server. It communicates only with Microsoft Graph and Microsoft identity endpoints using the signed-in user's credentials. There is no analytics SDK, no telemetry, and no third-party data collection. The source code is public at https://github.com/excelano/blick.
 
 If sign-in is blocked: the demo account is configured for direct sign-in. If an unexpected Conditional Access or MFA prompt appears, please contact us at the email above and we will provide an alternative immediately.
 """
 
 [locales."en-us"]
 website = "https://excelano.com/blick/"
-support = "https://excelano.com/blick/"
+support = "https://excelano.com/support/?app=Blick&channel=App%20Store"
 privacy = "https://excelano.com/legal/#blick"
 description = """
 Blick shows what's next in your Microsoft 365 day on a single screen: your next meeting, the rest of today's calendar, your unread Outlook email, your Teams chats with new activity, and your current Teams presence. Refresh when you open the app or pull to refresh. RSVP to invitations from either the calendar card or the email row itself. Set your Teams presence and out-of-office without opening Teams. Triage unread email with bulk actions tuned for Focused inbox, Other inbox, meeting notices, mailing lists, and external senders. Reply to email or Teams chats without leaving the app.
