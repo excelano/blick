@@ -6,7 +6,7 @@ description: Build, install, launch, and stream debug output for the Blick iOS a
 # Running Blick on the device
 
 Xcode lives on the Mac Mini, so everything here runs there. `xcremote` (in
-`~/bin`, run from the repo root) rsyncs `~/blick` to `~/.cache/xcremote/blick`
+`~/bin`, run from the repo root) rsyncs `~/repos/m365/blick` to `~/.cache/xcremote/blick`
 on the Mac and runs `xcodebuild` against that copy. Edits are made on the
 Debian box; the Mac's `~/email/blick` is not used.
 

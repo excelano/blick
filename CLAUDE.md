@@ -9,7 +9,7 @@ This repo's prose documents follow the fleet documentation standard in
 
 ---
 
-Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/blick` on the Debian box and `~/email/blick` on the Mac, GitHub repo `excelano/blick`. Every path, target, package, scheme, and Swift symbol carries the Blick name; the identifiers that deliberately still say `checkin` are listed below.
+Microsoft 365 app for iOS — meetings, mail, Teams chats, and presence on iPhone, iPad, and Apple Watch. Repo at `~/repos/m365/blick` on the Debian box and `~/email/blick` on the Mac, GitHub repo `excelano/blick`. Every path, target, package, scheme, and Swift symbol carries the Blick name; the identifiers that deliberately still say `checkin` are listed below.
 
 ## Identifiers that stay `checkin` (do not rename)
 
