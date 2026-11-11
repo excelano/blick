@@ -5,8 +5,9 @@ release apps in `excelano/shipping`: `shots-appstore` takes the screenshots on
 the iPhone, iPad and Watch simulators, `build-release` bumps the version,
 archives and exports the signed build on the Mac, tags, and attaches the
 `.ipa` to the GitHub release, and `ship-appstore` uploads that build, fills in
-App Store Connect, and submits it for review. Nothing is done in Xcode or in
-the App Store Connect website.
+the App Store Connect version and attaches the build. Submitting that version
+for review is the one step done by hand, in App Store Connect; nothing is done
+in Xcode.
 
 What the repository holds for that:
 
@@ -14,8 +15,8 @@ What the repository holds for that:
   the build number. Every target inherits both from the project-level base
   configuration; do not re-declare either key in a target's build settings, or
   the target's value silently wins. The build number is global and monotonic
-  across the app record, and App Store Connect rejects one it has already
-  accepted, so a re-upload after a rejection moves to the next number.
+  across the app record, and App Store Connect refuses one it has already
+  accepted, so every upload takes a new number.
 - `packaging/store-listing.toml` is the listing copy and the reviewer's notes,
   pushed on every release. The demo account's credentials live only in the
   App Store Connect sign-in fields.

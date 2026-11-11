@@ -34,7 +34,7 @@ Graph's `/move` re-creates the message under a new id, including the move back o
 
 ## Where the docs are
 
-Repo's canonical docs are `FEATURES.md` (shipped functionality), `RELEASING.md` (the App Store cut runbook), `PRIVACY.md`, `SELF-HOSTING.md`, and `IT-APPROVAL.md`. The feature backlog lives in GitHub issues. Current task comes from conversation, not from this file.
+Repo's canonical docs are `README.md`, `FEATURES.md` (shipped functionality), `RELEASING.md` (the App Store cut runbook), `PRIVACY.md`, `SECURITY.md`, `SELF-HOSTING.md`, and `IT-APPROVAL.md`. The feature backlog lives in GitHub issues. Current task comes from conversation, not from this file.
 
 ## Tech Stack
 

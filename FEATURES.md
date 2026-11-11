@@ -96,7 +96,7 @@ What a user can do, mapped to the entry point in the UI.
 | Copy chat link | Long-press → "Copy chat link". Writes the Teams chat URL to the system pasteboard. |
 | Restore today's chats to unread | Inline "Mark unread: today's chats" button under the Chats section header when the section is empty. Fetches today's read chats and batch-flips them via `markChatUnreadForUser`. Registers an undo. |
 | See when a message carries content beyond text | Each message in the preview transcript shows a muted caption ("Image not shown", "Attachment not shown", or both) when it has content the text-only view drops. Inline/pasted images are detected from `<img>` in the body HTML; file attachments are classified as image vs. other by `image/*` contentType or filename extension (Teams tags shared files `reference`, so the extension is the workable signal). An image- or file-only message shows the indicator in place of a misleading "(no message text)". Detection only; rendering the content stays in Teams. |
-| Open the full chat list and browse recent chats | Chats section header → chevron. Opens a full-screen list showing recent chats newest-first, including already-read ones, not just those with unread activity. Tap a row to preview; swipe to toggle read/unread. (No chat search yet.) |
+| Open the full chat list and browse recent chats | Chats section header → chevron. Opens a full-screen list showing recent chats newest-first, including already-read ones, not just those with unread activity. Tap a row to preview; swipe to toggle read/unread. There is no chat search. |
 
 ## Compose
 
@@ -111,7 +111,7 @@ Blick's composer is one channel-agnostic surface: the channel (email vs Teams ch
 | Type-ahead recipient suggestions | Typing a fragment into To/Cc/Bcc surfaces tappable name-and-address matches beneath the field and completes the token on tap. Sourced from senders and recipients already in the fetched mail (recents), so no Contacts permission. |
 | See a warning for off-organization chat recipients | When a chat recipient's email domain differs from the signed-in user's, an orange inline warning flags it — a warning, not a block, since guests are legitimate. |
 | Forward an email | Forward button in an email's preview sheet, or its long-press menu. Opens the composer in forward mode (To-only plus an optional note); Graph's `/forward` builds the "Fwd:" subject and quotes the original server-side. Leaves the original unread. |
-| Reply across channels | The composer is the single reply surface for both email (reply-all thread semantics) and chat (posts into the thread). An email reply can switch to a Teams chat before sending (email→chat), carrying a one-line `Re: <subject>` reference rather than the full quoted body. Chat replies stay chat-only for now. |
+| Reply across channels | The composer is the single reply surface for both email (reply-all thread semantics) and chat (posts into the thread). An email reply can switch to a Teams chat before sending (email→chat), carrying a one-line `Re: <subject>` reference rather than the full quoted body. Chat replies stay chat-only. |
 
 ## Teams presence & status
 
@@ -186,10 +186,10 @@ Because the app name "Blick" is a real noun, the `\(.applicationName)` token App
 | Browse deeper than the unread front on the watch | A "Load more" row at the foot of the email or chat list pulls the recent inbox (read + unread, up to 40) from the phone into the same list. |
 | Use Siri or Shortcuts from the wrist | The watch app carries the same App Intents as the phone (set presence, toggle Out of Office, current presence, next meeting, the unread counts, remaining meetings, and the work-day overview), with the same phrases. Read intents answer locally from the last pushed snapshot, so they work without a live phone connection; write intents (set presence, toggle Out of Office) queue to the phone over WatchConnectivity and the phone runs the Graph call. |
 
-## Not yet supported
+## Limits
 
-- Bulk archive, move, or delete (disposition is one message at a time)
-- View past days (the agenda runs from today through six days out; earlier meetings today are shown dimmed, but nothing before today)
-- Open a message directly from a new-message notification (the tap opens Blick; the notification carries the message id, so routing to the preview is a small follow-up)
-- Open the specific calendar event for non-Teams meetings (only the calendar at large, via Teams)
-- Edit the auto-reply message body (only the on/off state — edit the message itself in Outlook on the web)
+- Archive, move, and delete act on one message at a time.
+- The agenda runs from today through six days out; earlier meetings today are shown dimmed, and nothing before today is shown.
+- Tapping a new-message notification opens Blick, not the message itself.
+- A non-Teams meeting opens the calendar at large, via Teams, rather than the specific event.
+- Out of Office toggles on and off; the auto-reply message itself is edited in Outlook on the web.

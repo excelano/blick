@@ -1,6 +1,6 @@
 ---
 name: run-blick
-description: Build, install, launch, and stream debug output for the Blick iOS app on David's paired iPhone 15, from the Debian box through the Mac Mini.
+description: Build, install, launch, and stream debug output for the Blick iOS app on the paired iPhone, from the Debian box through the Mac Mini.
 ---
 
 # Running Blick on the device
@@ -28,12 +28,11 @@ keychain and `ship.toml`'s App Store Connect key, so it needs the gitignored
 
 ## Devices
 
-Two identifiers exist for the same phone and are not interchangeable.
-
-| Use with | Identifier |
-|---|---|
-| `xcodebuild -destination` | `00008120-001019EA18834032` (hardware UDID) |
-| `xcrun devicectl device ...` | `8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC` (CoreDevice id) |
+Two identifiers exist for the same phone and are not interchangeable:
+`xcodebuild -destination` takes the hardware UDID, and `xcrun devicectl
+device ...` takes the CoreDevice id. `ssh macmini xcrun devicectl list devices`
+prints the CoreDevice id, and `ssh macmini xcrun xctrace list devices` the
+hardware UDID.
 
 `xcremote phone` builds for a generic iOS destination and finds the CoreDevice
 id itself. Without a connected phone it stops with "no connected phone": wake
@@ -48,7 +47,7 @@ from Debian:
 
 ```bash
 ssh macmini 'xcrun devicectl device process launch --console \
-  --device 8BE2DDC5-4B5A-5ECF-BD04-3549096ADABC com.excelano.checkin' > /tmp/blick.out 2>&1 &
+  --device <coredevice-id> com.excelano.checkin' > /tmp/blick.out 2>&1 &
 tail -f /tmp/blick.out | grep --line-buffered "CHECKIN-DEBUG"
 ```
 
