@@ -960,7 +960,7 @@
 			repositoryURL = "https://github.com/excelano/klartext";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.5.0;
+				minimumVersion = 1.6.0;
 			};
 		};
 		7A0000000000000000000004 /* XCRemoteSwiftPackageReference "bogenzeit-swift" */ = {
