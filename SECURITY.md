@@ -20,4 +20,4 @@ With permission, and only while Bogenzeit is turned on, Blick reads approximate 
 
 ## What Blick stores
 
-The Microsoft sign-in token is in the iOS Keychain, with iCloud sync off. A snapshot of the last summary, the starred senders, a pinned presence, and the identifiers used to tell new messages from seen ones sit in an App Group container shared only with Blick's own extensions. The app's preferences hold the display settings, a custom app registration if one is entered, and the latest coordinates while Bogenzeit is on. Removing the app removes all of it. [PRIVACY.md](PRIVACY.md) describes each in full.
+The Microsoft sign-in token is in the iOS Keychain, with iCloud sync off. A snapshot of the last summary, the starred senders, a pinned presence, and the identifiers used to tell new messages from seen ones sit in an App Group container shared only with Blick's own extensions. The app's preferences hold the display settings, a custom app registration if one is entered, and the latest coordinates while Bogenzeit is on. Removing the app removes the container and the preferences. [PRIVACY.md](PRIVACY.md) describes each in full.
